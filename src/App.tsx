@@ -13,9 +13,11 @@ import {
   onFileDrop,
   takeLaunchPaths,
   onOpenPaths,
+  openExternal,
+  openInExplorer,
 } from './utils/tauri';
 import { saveActiveDocument } from './utils/save';
-import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown } from './utils/files';
+import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
 import Toolbar from './components/Toolbar';
 import FilePanel from './components/FilePanel';
 import DocumentPanel from './components/DocumentPanel';
@@ -273,6 +275,56 @@ const App: React.FC = () => {
     });
   }, [openDocument]);
   
+  // Links in the document. The window itself never navigates (the backend
+  // blocks it): anchors scroll, web/mail links open in the default browser,
+  // links to local files open in a tab (or are revealed if not viewable).
+  useEffect(() => {
+    const handleClick = async (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0) return;
+      const link = (e.target as HTMLElement).closest?.('.document-panel .markdown-body a[href]');
+      if (!link) return;
+      const href = link.getAttribute('href') ?? '';
+      e.preventDefault();
+
+      if (href.startsWith('#')) {
+        let id = href.slice(1);
+        try {
+          id = decodeURIComponent(id);
+        } catch {
+          // Malformed escape: use the id as written
+        }
+        link.closest('.markdown-body')?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+
+      try {
+        if (/^(https?|mailto):/i.test(href)) {
+          await openExternal(href);
+          return;
+        }
+        if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^file:/i.test(href) && !/^[A-Za-z]:[\\/]/.test(href)) {
+          return; // other schemes (javascript:, data:, ...) are ignored
+        }
+
+        const { tabs, activeTabId } = useStore.getState();
+        const documentPath = tabs.find((tab) => tab.id === activeTabId)?.path;
+        if (!documentPath) return;
+        const path = resolveLinkPath(href, documentPath);
+        if (isViewableFile(path)) {
+          await openPath(path);
+        } else {
+          await openInExplorer(path);
+        }
+      } catch (error) {
+        console.error('Failed to open link:', href, error);
+        alert(`Could not open ${href}:\n${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [openPath]);
+
   /**
    * Add directories to the tree (merging overlaps, see `addDirectory`), then
    * rescan. A newly added directory is expanded down to its first markdown

@@ -17,6 +17,7 @@ use std::time::Duration;
 use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WindowEvent};
 use tauri::http::{Response as HttpResponse, StatusCode};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 // ============================================================
 // Types
@@ -996,6 +997,45 @@ async fn open_in_explorer(path: String, access: State<'_, AccessState>) -> Resul
     Ok(())
 }
 
+/// Open a web or mail link from a document in the default browser / mail app.
+#[tauri::command]
+async fn open_external(url: String, app: AppHandle) -> Result<(), AppError> {
+    let parsed = tauri::Url::parse(&url)
+        .map_err(|e| AppError::with_details("URL_ERROR", "Invalid link", &e.to_string()))?;
+    if !matches!(parsed.scheme(), "http" | "https" | "mailto") {
+        return Err(AppError::with_details("URL_ERROR", "Only web and mail links can be opened", &url));
+    }
+    app.opener()
+        .open_url(parsed.as_str(), None::<&str>)
+        .map_err(|e| AppError::with_details("SHELL_ERROR", "Failed to open link", &e.to_string()))
+}
+
+// ============================================================
+// Navigation Guard
+// ============================================================
+
+/// The app's own pages: `tauri://localhost` (macOS/Linux),
+/// `http(s)://tauri.localhost` (Windows), the Vite dev server in debug builds.
+fn is_app_url(url: &tauri::Url) -> bool {
+    let (scheme, host) = (url.scheme(), url.host_str());
+    matches!((scheme, host), ("tauri", Some("localhost")) | ("http" | "https", Some("tauri.localhost")))
+        || (cfg!(debug_assertions) && scheme == "http" && host == Some("localhost"))
+}
+
+/// Keeps the window on the app: a link or script can't navigate it to a
+/// remote page or a local file. Links are opened by the frontend instead.
+fn navigation_guard<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("navigation-guard")
+        .on_navigation(|_webview, url| {
+            let allowed = is_app_url(url);
+            if !allowed {
+                eprintln!("Blocked navigation to {}", url);
+            }
+            allowed
+        })
+        .build()
+}
+
 // ============================================================
 // Local File Protocol (for serving images in markdown)
 // ============================================================
@@ -1166,6 +1206,9 @@ fn main() {
         .manage(access)
         .manage(LaunchPaths(Mutex::new(launch_paths)))
         .plugin(tauri_plugin_dialog::init())
+        // Used from Rust only (`open_external`); no JS permissions are granted
+        .plugin(tauri_plugin_opener::init())
+        .plugin(navigation_guard())
         // Dropped files and folders were chosen by the user. Tauri runs this
         // listener in the same event-loop turn that queues the drop event for
         // the webview, so the paths are granted before the frontend sees them.
@@ -1188,6 +1231,7 @@ fn main() {
             start_watching,
             stop_watching,
             open_in_explorer,
+            open_external,
             get_history_path,
             read_history,
             append_to_history,
@@ -1294,6 +1338,18 @@ mod tests {
             r"- 10:00 [\[draft\] 100\%\.md](/Users/me/My%20Notes%20%28old%29/%5Bdraft%5D%20100%25.md)"
         );
         assert_eq!(history_link_destinations(&entry), vec![path.to_string()]);
+    }
+
+    #[test]
+    fn only_app_pages_are_navigable() {
+        let url = |s: &str| tauri::Url::parse(s).unwrap();
+        assert!(is_app_url(&url("tauri://localhost/index.html")));
+        assert!(is_app_url(&url("http://tauri.localhost/")));
+        assert!(is_app_url(&url("https://tauri.localhost/")));
+        assert!(!is_app_url(&url("https://example.com/")));
+        assert!(!is_app_url(&url("http://tauri.localhost.evil.com/")));
+        assert!(!is_app_url(&url("file:///etc/passwd")));
+        assert!(!is_app_url(&url("localfile://localhost/x.png")));
     }
 
     #[test]
