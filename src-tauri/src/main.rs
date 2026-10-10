@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WindowEvent};
 use tauri::http::{Response as HttpResponse, StatusCode};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
 // ============================================================
@@ -151,6 +151,44 @@ impl Access {
             && (self.in_tree(path)
                 || self.files.iter().any(|file| file.parent().is_some_and(|dir| path.starts_with(dir))))
     }
+
+    fn allows(&self, path: &Path, use_: Use) -> bool {
+        match use_ {
+            Use::List => self.can_list(path),
+            Use::Open => self.can_open(path),
+            Use::Stat => self.can_stat(path),
+            Use::Image => self.can_read_image(path),
+        }
+    }
+}
+
+/// What a command does with a path, for the access check.
+#[derive(Debug, Clone, Copy)]
+enum Use {
+    List,
+    Open,
+    Stat,
+    Image,
+}
+
+impl Use {
+    /// Whether a symlink's target is the kind of thing this use may reach.
+    fn fits_target(self, real: &Path) -> bool {
+        match self {
+            Use::List => real.is_dir(),
+            Use::Open => real.is_file() && is_viewable_file(real, true),
+            Use::Stat => true,
+            Use::Image => real.is_file() && is_image_file(real),
+        }
+    }
+}
+
+/// A path from the frontend: as named (the way the file tree lists it, with
+/// symlinks not followed) and where it really is.
+#[derive(Debug)]
+struct Target {
+    named: PathBuf,
+    real: PathBuf,
 }
 
 /// The access list plus where it is saved.
@@ -177,16 +215,24 @@ impl AccessState {
         }
     }
 
-    fn check(&self, path: &Path, allowed: impl Fn(&Access, &Path) -> bool) -> Result<(), AppError> {
+    /// Allowed when the real path is, or when the path as named is inside an
+    /// opened folder and is a symlink there whose target fits the use: a link
+    /// in an opened folder is followed like a text editor would, but only to
+    /// documents (or images) and never through `..`.
+    fn check(&self, target: &Target, use_: Use) -> Result<(), AppError> {
         let access = self.access.lock()
             .map_err(|_| AppError::new("STATE_ERROR", "Failed to access the access list"))?;
-        if allowed(&access, path) {
+        let allowed = access.allows(&target.real, use_)
+            || (target.named != target.real
+                && access.allows(&target.named, use_)
+                && use_.fits_target(&target.real));
+        if allowed {
             Ok(())
         } else {
             Err(AppError::with_details(
                 "ACCESS_DENIED",
                 "Not inside a folder or file you opened",
-                &path.to_string_lossy(),
+                &target.named.to_string_lossy(),
             ))
         }
     }
@@ -227,21 +273,43 @@ fn canonicalize(path: &Path) -> std::io::Result<PathBuf> {
     dunce::canonicalize(path)
 }
 
-/// Absolute, symlink-free path of an existing file or folder; `~/` is expanded.
-fn expand_path(path_str: &str) -> Result<PathBuf, AppError> {
-    let path = if let Some(rest) = path_str.strip_prefix("~/") {
+/// `~/` expanded, nothing resolved.
+fn expand_home(path_str: &str) -> Result<PathBuf, AppError> {
+    if let Some(rest) = path_str.strip_prefix("~/") {
         let home = dirs::home_dir()
             .ok_or_else(|| AppError::new("PATH_ERROR", "Cannot determine home directory"))?;
-        home.join(rest)
+        Ok(home.join(rest))
     } else if path_str.starts_with('~') {
-        return Err(AppError::new("PATH_ERROR", "~user syntax not supported"));
+        Err(AppError::new("PATH_ERROR", "~user syntax not supported"))
     } else {
-        PathBuf::from(path_str)
-    };
+        Ok(PathBuf::from(path_str))
+    }
+}
 
-    canonicalize(&path).map_err(|e| {
+/// Absolute, symlink-free path of an existing file or folder; `~/` is expanded.
+fn expand_path(path_str: &str) -> Result<PathBuf, AppError> {
+    canonicalize(&expand_home(path_str)?).map_err(|e| {
         AppError::with_details("PATH_ERROR", "Invalid path", &e.to_string())
     })
+}
+
+/// An existing path both as named and resolved. A relative path or one with
+/// `..` only counts as its real location.
+fn resolve_target(path: &Path) -> Result<Target, AppError> {
+    let real = canonicalize(path).map_err(|e| {
+        AppError::with_details("PATH_ERROR", "Invalid path", &e.to_string())
+    })?;
+    let named = if path.is_absolute() && !path.components().any(|c| c == std::path::Component::ParentDir) {
+        // Drops `.` components and doubled separators
+        path.components().collect()
+    } else {
+        real.clone()
+    };
+    Ok(Target { named, real })
+}
+
+fn expand_target(path_str: &str) -> Result<Target, AppError> {
+    resolve_target(&expand_home(path_str)?)
 }
 
 /// Write `bytes` to a temporary file next to `target`, then rename it over
@@ -449,17 +517,24 @@ fn is_hidden(name: &str) -> bool {
     name == "node_modules" || name == "target"
 }
 
+/// List a folder's documents. Symlinked folders are followed, but each real
+/// folder is listed once, so a link to a parent can't loop.
 fn scan_directory_recursive(
     dir_path: &Path,
     depth: usize,
     file_count: &mut usize,
     include_text: bool,
+    visited: &mut HashSet<PathBuf>,
 ) -> Option<FileNode> {
     if depth > MAX_SCAN_DEPTH || *file_count > MAX_FILES_PER_DIRECTORY {
         return None;
     }
     
     if !dir_path.is_dir() {
+        return None;
+    }
+
+    if !visited.insert(canonicalize(dir_path).ok()?) {
         return None;
     }
     
@@ -505,10 +580,13 @@ fn scan_directory_recursive(
         }
         
         if entry_path.is_dir() {
-            if let Some(child) = scan_directory_recursive(&entry_path, depth + 1, file_count, include_text) {
+            if let Some(child) = scan_directory_recursive(&entry_path, depth + 1, file_count, include_text, visited) {
                 children.push(child);
             }
-        } else if is_viewable_file(&entry_path, include_text) {
+        } else if is_viewable_file(&entry_path, include_text)
+            && (!entry.file_type().is_ok_and(|t| t.is_symlink())
+                || canonicalize(&entry_path).is_ok_and(|real| is_viewable_file(&real, include_text)))
+        {
             *file_count += 1;
             has_md_files = true;
             children.push(FileNode {
@@ -674,8 +752,8 @@ async fn append_to_history(
     access: State<'_, AccessState>,
 ) -> Result<(), AppError> {
     // Only files the app could open end up in the history
-    let canonical = expand_path(&file_path)?;
-    access.check(&canonical, Access::can_open)?;
+    let target = expand_target(&file_path)?;
+    access.check(&target, Use::Open)?;
 
     let _guard = HISTORY_LOCK.lock()
         .map_err(|_| AppError::new("STATE_ERROR", "Failed to lock history"))?;
@@ -687,7 +765,7 @@ async fn append_to_history(
         "- {} [{}]({})",
         now.format("%H:%M"),
         markdown_link_text(&file_name),
-        markdown_link_destination(&canonical.to_string_lossy()),
+        markdown_link_destination(&target.named.to_string_lossy()),
     );
 
     let content = fs::read_to_string(&history_path).unwrap_or_else(|_| String::from("# History\n"));
@@ -718,11 +796,11 @@ async fn scan_directories(
     let mut results = Vec::new();
     
     for path_str in paths {
-        let expanded_path = match expand_path(&path_str).and_then(|p| {
-            access.check(&p, Access::can_list)?;
-            Ok(p)
+        let target = match expand_target(&path_str).and_then(|t| {
+            access.check(&t, Use::List)?;
+            Ok(t)
         }) {
-            Ok(p) => p,
+            Ok(t) => t,
             Err(e) => {
                 eprintln!("Skipping '{}': {}", path_str, e.message);
                 continue;
@@ -730,7 +808,8 @@ async fn scan_directories(
         };
         
         let mut file_count = 0;
-        if let Some(node) = scan_directory_recursive(&expanded_path, 0, &mut file_count, include_text) {
+        let mut visited = HashSet::new();
+        if let Some(node) = scan_directory_recursive(&target.named, 0, &mut file_count, include_text, &mut visited) {
             results.push(node);
         }
     }
@@ -740,8 +819,9 @@ async fn scan_directories(
 
 #[tauri::command]
 async fn read_file(path: String, access: State<'_, AccessState>) -> Result<String, AppError> {
-    let expanded = expand_path(&path)?;
-    access.check(&expanded, Access::can_open)?;
+    let expanded = expand_target(&path)?;
+    access.check(&expanded, Use::Open)?;
+    let expanded = expanded.real;
     
     // Check file size (max 10MB)
     let metadata = fs::metadata(&expanded)
@@ -760,8 +840,9 @@ async fn read_file(path: String, access: State<'_, AccessState>) -> Result<Strin
 /// symlink is resolved and its target is replaced atomically.
 #[tauri::command]
 async fn write_file(path: String, content: String, access: State<'_, AccessState>) -> Result<(), AppError> {
-    let expanded = expand_path(&path)?;
-    access.check(&expanded, Access::can_open)?;
+    let expanded = expand_target(&path)?;
+    access.check(&expanded, Use::Open)?;
+    let expanded = expanded.real;
 
     let previous = fs::read(&expanded)
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to read file", &e.to_string()))?;
@@ -868,10 +949,10 @@ fn history_link_destinations(history: &str) -> Vec<String> {
 
 #[tauri::command]
 async fn get_file_info(path: String, access: State<'_, AccessState>) -> Result<serde_json::Value, AppError> {
-    let expanded = expand_path(&path)?;
-    access.check(&expanded, Access::can_stat)?;
+    let expanded = expand_target(&path)?;
+    access.check(&expanded, Use::Stat)?;
     
-    let metadata = fs::metadata(&expanded)
+    let metadata = fs::metadata(&expanded.real)
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to get metadata", &e.to_string()))?;
     
     Ok(serde_json::json!({
@@ -931,12 +1012,12 @@ async fn start_watching(
     // Watch each path
     if let Some(ref mut w) = *watcher_guard {
         for path_str in paths {
-            let Ok(expanded) = expand_path(&path_str) else { continue };
-            if access.check(&expanded, Access::can_list).is_err() {
+            let Ok(target) = expand_target(&path_str) else { continue };
+            if access.check(&target, Use::List).is_err() {
                 continue;
             }
-            if w.watch(&expanded, RecursiveMode::Recursive).is_ok() {
-                watched_paths.insert(expanded);
+            if w.watch(&target.real, RecursiveMode::Recursive).is_ok() {
+                watched_paths.insert(target.real);
             }
         }
     }
@@ -959,14 +1040,18 @@ async fn stop_watching(state: State<'_, AppState>) -> Result<(), AppError> {
 
 #[tauri::command]
 async fn open_in_explorer(path: String, access: State<'_, AccessState>) -> Result<(), AppError> {
-    let expanded = expand_path(&path)?;
-    access.check(&expanded, Access::can_stat)?;
+    let target = expand_target(&path)?;
+    access.check(&target, Use::Stat)?;
+    reveal_in_file_manager(&target.real)
+}
 
+/// Select `path` in Finder / Explorer; on Linux, open its folder.
+fn reveal_in_file_manager(expanded: &Path) -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
             .arg("/select,")
-            .arg(&expanded)
+            .arg(expanded)
             .spawn()
             .map_err(|e| AppError::with_details("SHELL_ERROR", "Failed to open explorer", &e.to_string()))?;
     }
@@ -975,7 +1060,7 @@ async fn open_in_explorer(path: String, access: State<'_, AccessState>) -> Resul
     {
         std::process::Command::new("open")
             .arg("-R")
-            .arg(&expanded)
+            .arg(expanded)
             .spawn()
             .map_err(|e| AppError::with_details("SHELL_ERROR", "Failed to open Finder", &e.to_string()))?;
     }
@@ -984,17 +1069,83 @@ async fn open_in_explorer(path: String, access: State<'_, AccessState>) -> Resul
     {
         // Open the parent directory (works on all Linux DEs)
         let target = if expanded.is_dir() {
-            expanded.clone()
+            expanded
         } else {
-            expanded.parent().unwrap_or(&expanded).to_path_buf()
+            expanded.parent().unwrap_or(expanded)
         };
         std::process::Command::new("xdg-open")
-            .arg(&target)
+            .arg(target)
             .spawn()
             .map_err(|e| AppError::with_details("SHELL_ERROR", "Failed to open file manager", &e.to_string()))?;
     }
 
     Ok(())
+}
+
+/// What the frontend does after `follow_local_link`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum LinkOutcome {
+    /// A document the app may now read: open it in a tab.
+    Open,
+    /// Shown in the file manager.
+    Revealed,
+    /// The user declined.
+    Cancelled,
+}
+
+/// A click on a link to a local file. Documents open in the app, anything
+/// else is shown in the file manager. A target outside what the user opened is
+/// only followed after they confirm it in a native dialog, which a script in
+/// the webview can't answer; a confirmed document is added to the access list.
+#[tauri::command]
+async fn follow_local_link(
+    path: String,
+    app: AppHandle,
+    access: State<'_, AccessState>,
+) -> Result<LinkOutcome, AppError> {
+    let target = expand_target(&path)?;
+    let document = target.real.is_file() && is_viewable_file(&target.real, true);
+    let use_ = if document { Use::Open } else { Use::Stat };
+
+    if access.check(&target, use_).is_err() {
+        let reveal_label = if cfg!(target_os = "macos") {
+            "Show in Finder"
+        } else if cfg!(target_os = "windows") {
+            "Show in Explorer"
+        } else {
+            "Show in Folder"
+        };
+        let (title, action) = if document {
+            ("Open linked file?", "Open")
+        } else {
+            ("Show linked file?", reveal_label)
+        };
+        let mut dialog = app.dialog()
+            .message(format!(
+                "The document links to a file outside the folders and files you opened:\n\n{}",
+                target.real.display()
+            ))
+            .title(title)
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom(action.to_string(), "Cancel".to_string()));
+        if let Some(window) = app.get_webview_window("main") {
+            dialog = dialog.parent(&window);
+        }
+        if !dialog.blocking_show() {
+            return Ok(LinkOutcome::Cancelled);
+        }
+        if document {
+            access.grant([&target.real]);
+        }
+    }
+
+    if document {
+        Ok(LinkOutcome::Open)
+    } else {
+        reveal_in_file_manager(&target.real)?;
+        Ok(LinkOutcome::Revealed)
+    }
 }
 
 /// Open a web or mail link from a document in the default browser / mail app.
@@ -1100,12 +1251,13 @@ fn serve_local_image(access: &AccessState, url_path: &str) -> HttpResponse<Vec<u
     };
 
     let decoded = percent_decode(url_path.trim_start_matches('/'));
-    let Ok(path) = canonicalize(Path::new(&decoded)) else {
+    let Ok(target) = resolve_target(Path::new(&decoded)) else {
         return respond(StatusCode::NOT_FOUND, "text/plain", Vec::new());
     };
-    if access.check(&path, Access::can_read_image).is_err() {
+    if access.check(&target, Use::Image).is_err() {
         return respond(StatusCode::FORBIDDEN, "text/plain", Vec::new());
     }
+    let path = target.real;
     let Some(mime) = image_mime(&path) else {
         return respond(StatusCode::FORBIDDEN, "text/plain", Vec::new());
     };
@@ -1231,6 +1383,7 @@ fn main() {
             start_watching,
             stop_watching,
             open_in_explorer,
+            follow_local_link,
             open_external,
             get_history_path,
             read_history,
@@ -1300,6 +1453,50 @@ mod tests {
         assert_eq!(access.directories, vec![root.clone()]);
         assert!(access.files.is_empty());
         assert!(!access.grant(&docs), "already covered");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_in_opened_folders_are_followed_to_documents_only() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_dir("symlinks");
+        let docs = root.join("docs");
+        let outside = root.join("outside");
+        fs::create_dir_all(&docs).unwrap();
+        fs::create_dir_all(outside.join("guide")).unwrap();
+        for file in ["outside/notes.md", "outside/id_rsa", "outside/pic.png", "outside/guide/a.md"] {
+            fs::write(root.join(file), "x").unwrap();
+        }
+        symlink(outside.join("notes.md"), docs.join("notes.md")).unwrap();
+        symlink(outside.join("id_rsa"), docs.join("key.md")).unwrap();
+        symlink(outside.join("pic.png"), docs.join("pic.png")).unwrap();
+        symlink(outside.join("guide"), docs.join("guide")).unwrap();
+        symlink(&docs, docs.join("loop")).unwrap();
+
+        let state = AccessState {
+            access: Mutex::new(Access::default()),
+            file: None,
+            migration_pending: Mutex::new(false),
+        };
+        state.grant([&docs]);
+        let check = |path: PathBuf, use_| state.check(&resolve_target(&path).unwrap(), use_).is_ok();
+
+        assert!(check(docs.join("notes.md"), Use::Open), "link to a document");
+        assert!(check(docs.join("guide/a.md"), Use::Open), "document in a linked folder");
+        assert!(check(docs.join("guide"), Use::List));
+        assert!(check(docs.join("pic.png"), Use::Image));
+        assert!(!check(docs.join("key.md"), Use::Open), "a .md name doesn't make a key a document");
+        assert!(!check(outside.join("notes.md"), Use::Open), "the target itself isn't opened");
+        assert!(!check(docs.join("guide/../notes.md"), Use::Open), "no `..` through a link");
+
+        // A link back to the folder is listed once
+        let mut visited = HashSet::new();
+        let tree = scan_directory_recursive(&docs, 0, &mut 0, false, &mut visited).unwrap();
+        let names: Vec<_> = tree.children.unwrap().iter().map(|c| c.name.clone()).collect();
+        assert_eq!(names, ["guide", "notes.md"], "no link to a non-document, no loop");
 
         let _ = fs::remove_dir_all(&root);
     }

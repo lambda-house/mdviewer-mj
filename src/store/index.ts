@@ -171,6 +171,8 @@ interface AppState {
   /** List other text files (code, txt, fb2...) in the file tree, not just markdown. */
   showTextFiles: boolean;
   smoothScroll: boolean;
+  /** Show web images in documents without asking first. */
+  loadRemoteImages: boolean;
 
   // Appearance
   /** Rendered markdown text color in the dark theme. */
@@ -279,6 +281,7 @@ interface AppState {
   setAutoRefresh: (enabled: boolean) => void;
   setShowTextFiles: (enabled: boolean) => void;
   setSmoothScroll: (enabled: boolean) => void;
+  setLoadRemoteImages: (enabled: boolean) => void;
 
   // Appearance
   setMarkdownTextColor: (color: string) => void;
@@ -506,6 +509,7 @@ export const useStore = create<AppState>()(
       autoRefresh: true,
       showTextFiles: true,
       smoothScroll: true,
+      loadRemoteImages: false,
 
       // Appearance
       markdownTextColor: DEFAULT_MARKDOWN_TEXT_COLOR,
@@ -957,6 +961,8 @@ export const useStore = create<AppState>()(
 
       setSmoothScroll: (enabled) => set({ smoothScroll: enabled }),
 
+      setLoadRemoteImages: (enabled) => set({ loadRemoteImages: enabled }),
+
       // Appearance
       setMarkdownTextColor: (color) => set({ markdownTextColor: color }),
 
@@ -1108,6 +1114,7 @@ export const useStore = create<AppState>()(
         autoRefresh: state.autoRefresh,
         showTextFiles: state.showTextFiles,
         smoothScroll: state.smoothScroll,
+        loadRemoteImages: state.loadRemoteImages,
         markdownTextColor: state.markdownTextColor,
         markdownTextColorLight: state.markdownTextColorLight,
         theme: state.theme,

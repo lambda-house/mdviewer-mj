@@ -147,6 +147,20 @@ export async function openInExplorer(path: string): Promise<void> {
 }
 
 /**
+ * Follow a document link to a local file. The backend shows anything that
+ * isn't a document in the file manager; a target outside the opened folders
+ * and files needs the user's OK in a native dialog first.
+ * 'open' means the file is a document the app may read now.
+ */
+export async function followLocalLink(path: string): Promise<'open' | 'revealed' | 'cancelled'> {
+  if (!isTauri()) {
+    return 'open';
+  }
+
+  return invoke('follow_local_link', { path });
+}
+
+/**
  * Open a web or mail link in the default browser / mail app. The backend
  * only accepts http, https and mailto.
  */

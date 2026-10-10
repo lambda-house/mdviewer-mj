@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useStore, MIN_ZOOM, MAX_ZOOM } from '../store';
 import { saveFile } from '../utils/tauri';
-import { escapeHtml } from '../utils/markdown';
+import { escapeHtml, loadRemoteImages } from '../utils/markdown';
 import clsx from 'clsx';
 import WorkspaceMenu from './WorkspaceMenu';
 
@@ -320,7 +320,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
     setIsExporting(true);
     try {
       const fileName = activeTab.title.replace(/\.md$/i, '') + '.html';
-      const htmlContent = generateExportHtml(activeTab.title, markdownBody.innerHTML, theme);
+      // The exported page shows the remote images that are still placeholders here
+      const exported = markdownBody.cloneNode(true) as HTMLElement;
+      loadRemoteImages(exported);
+      const htmlContent = generateExportHtml(activeTab.title, exported.innerHTML, theme);
 
       const savedPath = await saveFile(fileName, htmlContent, [
         { name: 'HTML', extensions: ['html', 'htm'] }

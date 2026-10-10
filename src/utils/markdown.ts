@@ -198,6 +198,17 @@ md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
       : `localfile://localhost/${encodeURIComponent(absolutePath)}`;
   }
 
+  // Remote images are not fetched until the user allows it: loading them tells
+  // the server when and where the document is read. The placeholder keeps the
+  // address, and the document view swaps in the image (loadRemoteImages).
+  if (/^https?:/i.test(src)) {
+    const titleIndex = token.attrIndex('title');
+    const title = titleIndex >= 0 && token.attrs ? token.attrs[titleIndex][1] : '';
+    return `<span class="remote-image" data-src="${escapeHtml(src)}" data-alt="${escapeHtml(alt)}"`
+      + `${title ? ` data-title="${escapeHtml(title)}"` : ''} title="${escapeHtml(src)}">`
+      + `${escapeHtml(alt || 'Remote image')}</span>`;
+  }
+
   // Build attributes
   let attrStr = '';
   if (token.attrs) {
@@ -210,6 +221,17 @@ md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
 
   return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${attrStr} />`;
 };
+
+/** Replace the remote image placeholders under `root` with the images. */
+export function loadRemoteImages(root: ParentNode): void {
+  root.querySelectorAll<HTMLElement>('span.remote-image[data-src]').forEach((placeholder) => {
+    const img = document.createElement('img');
+    img.src = placeholder.dataset.src ?? '';
+    img.alt = placeholder.dataset.alt ?? '';
+    if (placeholder.dataset.title) img.title = placeholder.dataset.title;
+    placeholder.replaceWith(img);
+  });
+}
 
 // ============================================================
 // Helper Functions

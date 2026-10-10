@@ -18,6 +18,8 @@ const SettingsModal: React.FC = () => {
   const showTextFiles = useStore((s) => s.showTextFiles);
   const setShowTextFiles = useStore((s) => s.setShowTextFiles);
   const setSmoothScroll = useStore((s) => s.setSmoothScroll);
+  const loadRemoteImages = useStore((s) => s.loadRemoteImages);
+  const setLoadRemoteImages = useStore((s) => s.setLoadRemoteImages);
   const languageAliases = useStore((s) => s.languageAliases);
   const setLanguageAlias = useStore((s) => s.setLanguageAlias);
   const removeLanguageAlias = useStore((s) => s.removeLanguageAlias);
@@ -198,6 +200,23 @@ const SettingsModal: React.FC = () => {
                       type="checkbox"
                       checked={smoothScroll}
                       onChange={(e) => setSmoothScroll(e.target.checked)}
+                    />
+                    <span className="settings-toggle-slider" />
+                  </label>
+                </div>
+
+                <div className="settings-option">
+                  <div className="settings-option-info">
+                    <span className="settings-option-label">Load remote images</span>
+                    <span className="settings-option-description">
+                      Show images from the web without asking. Loading them tells their server when you read a document
+                    </span>
+                  </div>
+                  <label className="settings-toggle">
+                    <input
+                      type="checkbox"
+                      checked={loadRemoteImages}
+                      onChange={(e) => setLoadRemoteImages(e.target.checked)}
                     />
                     <span className="settings-toggle-slider" />
                   </label>

@@ -49,16 +49,60 @@ jobs:
 
       - run: npm ci
 
+      # Code signing turns on once its secrets exist (README, "Code signing");
+      # without them the builds are unsigned. Only variables that are set are
+      # exported: an empty APPLE_CERTIFICATE would still make the bundler sign.
+      - name: macOS signing and notarization
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name}" ]; then
+              { echo "$name<<__END__"; echo "${!name}"; echo "__END__"; } >> "$GITHUB_ENV"
+            fi
+          done
+          [ -n "$APPLE_CERTIFICATE" ] && echo "Signing with $APPLE_SIGNING_IDENTITY" || echo "No certificate: unsigned build"
+
+      - name: Windows signing (Azure Trusted Signing)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          if [ -z "$AZURE_CLIENT_SECRET" ]; then
+            echo "No Azure credentials: unsigned build"
+            exit 0
+          fi
+          cargo install trusted-signing-cli --locked
+          for name in AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID; do
+            echo "$name=${!name}" >> "$GITHUB_ENV"
+          done
+          command="trusted-signing-cli -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d MDViewer %1"
+          jq -n --arg cmd "$command" '{bundle: {windows: {signCommand: $cmd}}}' > src-tauri/signing.conf.json
+          echo "SIGNING_ARGS=--config src-tauri/signing.conf.json" >> "$GITHUB_ENV"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: MDViewer ${{ github.ref_name }}
-          releaseBody: See CHANGELOG.md for what changed. The builds are unsigned; see the README for first-launch steps.
+          releaseBody: See CHANGELOG.md for what changed, and the README for installing.
           releaseDraft: false
           prerelease: false
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ env.SIGNING_ARGS }}
 
       - name: Upload installers (manual runs)
         if: github.ref_type != 'tag'

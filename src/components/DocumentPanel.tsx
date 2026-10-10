@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { FileQuestion, AlertCircle, Save } from 'lucide-react';
+import { FileQuestion, AlertCircle, Save, ImageOff } from 'lucide-react';
 import { useStore } from '../store';
-import { renderFile, renderMermaid, highlightCodeBlocks, type RenderResult } from '../utils/markdown';
+import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from '../utils/markdown';
 import clsx from 'clsx';
 import TabBar from './TabBar';
 import FindBar from './FindBar';
@@ -255,6 +255,9 @@ const EmptyState: React.FC = () => (
 // Markdown Viewer Component
 // ============================================================
 
+/** Documents whose remote images the user loaded this session. */
+const remoteImageDocuments = new Set<string>();
+
 interface MarkdownViewerProps {
   content: string;
   documentPath: string;
@@ -272,9 +275,13 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   const theme = useStore((s) => s.theme);
   const markdownTextColor = useStore((s) =>
     s.theme === 'light' ? s.markdownTextColorLight : s.markdownTextColor);
+  const alwaysLoadRemoteImages = useStore((s) => s.loadRemoteImages);
+  const setLoadRemoteImages = useStore((s) => s.setLoadRemoteImages);
   const containerRef = useRef<HTMLDivElement>(null);
   const headingOffsetsRef = useRef<{ id: string; top: number }[] | null>(null);
   const [html, setHtml] = useState('');
+  const [blockedImages, setBlockedImages] = useState(0);
+  const [remoteImagesLoaded, setRemoteImagesLoaded] = useState(0);
   // Committed together with `html`, so the DOM says which document it shows
   // (the find bar must not resolve a jump against the previous document)
   const [renderedPath, setRenderedPath] = useState('');
@@ -303,6 +310,26 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     }
   }, [content, basePath, documentPath, onHeadingsExtracted]);
   
+  // Remote images: loaded when allowed, otherwise counted for the notice
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !html) {
+      setBlockedImages(0);
+      return;
+    }
+    if (alwaysLoadRemoteImages || remoteImageDocuments.has(documentPath)) {
+      loadRemoteImages(container);
+      setBlockedImages(0);
+    } else {
+      setBlockedImages(container.querySelectorAll('span.remote-image').length);
+    }
+  }, [html, documentPath, alwaysLoadRemoteImages, remoteImagesLoaded]);
+
+  const loadImagesForDocument = useCallback(() => {
+    remoteImageDocuments.add(documentPath);
+    setRemoteImagesLoaded((n) => n + 1);
+  }, [documentPath]);
+
   // Render Mermaid diagrams after HTML is set - and again in the new colors
   // when the theme changes
   useEffect(() => {
@@ -441,6 +468,17 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   }, [html, documentPath, zoom]);
   
   return (
+    <>
+    {blockedImages > 0 && (
+      <div className="remote-images-notice" role="status">
+        <ImageOff size={14} aria-hidden="true" />
+        <span>
+          {blockedImages === 1 ? '1 image from the web was' : `${blockedImages} images from the web were`} not loaded
+        </span>
+        <button type="button" onClick={loadImagesForDocument}>Load images</button>
+        <button type="button" onClick={() => setLoadRemoteImages(true)}>Always load</button>
+      </div>
+    )}
     <div
       ref={containerRef}
       className="markdown-body"
@@ -452,6 +490,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       } as React.CSSProperties}
       dangerouslySetInnerHTML={{ __html: html }}
     />
+    </>
   );
 };
 
