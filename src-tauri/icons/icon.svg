@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    MDViewer app icon - source of truth for every file in this folder.
+    Regenerate the set with:
+      rsvg-convert -w 1024 -h 1024 src-tauri/icons/icon.svg -o /tmp/icon.png
+      npx tauri icon /tmp/icon.png -o src-tauri/icons
+    The artwork is drawn in a 128x128 grid and placed in a macOS-style
+    rounded square inset by ~10% (824px, corner radius ~22%).
+  -->
+  <defs>
+    <clipPath id="tile">
+      <rect width="128" height="128" rx="28.6"/>
+    </clipPath>
+    <clipPath id="blob">
+      <path d="M66 40C70 28 92 24 108 28C122 32 130 46 130 60C130 76 116 82 96 81C78 80 64 72 63 56C62 50 63 45 66 40Z"/>
+    </clipPath>
+    <radialGradient id="glow" cx="126" cy="70" r="13" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FBC23A"/>
+      <stop offset="1" stop-color="#FBC23A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A4AA6"/>
+      <stop offset="1" stop-color="#1D3483"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dy="10" result="blur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <g transform="translate(100 100) scale(6.4375)">
+      <rect width="128" height="128" rx="28.6" fill="url(#shade)"/>
+      <g clip-path="url(#tile)" fill="#F5EE36">
+        <!-- crescent sweeping down from the top-left corner -->
+        <path d="M-4 -4L24 -4C25 30 33 58 47 82C30 78 10 66 -4 54Z"/>
+        <!-- round head with an orange glow on its right -->
+        <path d="M66 40C70 28 92 24 108 28C122 32 130 46 130 60C130 76 116 82 96 81C78 80 64 72 63 56C62 50 63 45 66 40Z"/>
+        <ellipse cx="126" cy="70" rx="13" ry="13" fill="url(#glow)" clip-path="url(#blob)"/>
+        <!-- small tick above the head -->
+        <path d="M115 23C119 19 124 16 132 13L132 19C125 20 120 22 115 23Z"/>
+        <!-- slanted "0/0/" along the bottom -->
+        <g fill="none" stroke="#F5EE36" stroke-width="7.5" stroke-linecap="round">
+          <ellipse cx="17" cy="107" rx="7" ry="19" transform="rotate(38 17 107)"/>
+          <path d="M67 93L44 127"/>
+          <ellipse cx="81" cy="119" rx="7" ry="19" transform="rotate(38 81 119)"/>
+          <path d="M137 104L116 136"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

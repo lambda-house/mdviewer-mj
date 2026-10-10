@@ -76,9 +76,16 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
         // Check if it's a local file path (not http/https)
         if (href && !href.startsWith('http://') && !href.startsWith('https://')) {
           e.preventDefault();
+          // Paths are percent-encoded in history.md (spaces, parentheses...)
+          let path = href;
           try {
-            const content = await readFile(href);
-            openDocument(href, content);
+            path = decodeURIComponent(href);
+          } catch {
+            // Malformed escape: use the link as written
+          }
+          try {
+            const content = await readFile(path);
+            openDocument(path, content);
           } catch (error) {
             console.error('Failed to open file from history:', error);
           }

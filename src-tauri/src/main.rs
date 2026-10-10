@@ -8,13 +8,15 @@
 
 use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher, Event};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, State};
-use tauri::http::Response as HttpResponse;
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WindowEvent};
+use tauri::http::{Response as HttpResponse, StatusCode};
+use tauri_plugin_dialog::DialogExt;
 
 // ============================================================
 // Types
@@ -33,27 +35,6 @@ pub struct FileNode {
     pub children: Option<Vec<FileNode>>,
     #[serde(rename = "isExpanded", skip_serializing_if = "Option::is_none")]
     pub is_expanded: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppConfig {
-    pub directories: Vec<String>,
-    pub theme: String,
-    pub zoom: u32,
-    pub panel_width: u32,
-    pub toc_visible: bool,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            directories: vec![],
-            theme: "intellij-dark".to_string(),
-            zoom: 100,
-            panel_width: 280,
-            toc_visible: true,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,71 +72,207 @@ impl AppError {
 // App State
 // ============================================================
 
+#[derive(Default)]
 pub struct AppState {
-    pub config: Arc<Mutex<AppConfig>>,
-    pub file_cache: Arc<Mutex<HashMap<String, String>>>,
     pub watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
     pub watched_paths: Arc<Mutex<HashSet<PathBuf>>>,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            config: Arc::new(Mutex::new(AppConfig::default())),
-            file_cache: Arc::new(Mutex::new(HashMap::new())),
-            watcher: Arc::new(Mutex::new(None)),
-            watched_paths: Arc::new(Mutex::new(HashSet::new())),
-        }
-    }
-}
-
 // ============================================================
-// Security: Path Validation
+// Security: Access List
 // ============================================================
-
-const FORBIDDEN_PATHS: &[&str] = &[
-    "/etc", "/sys", "/proc", "/dev", "/boot", "/root",
-    "/var/log", "/var/run", "/tmp",
-    "C:\\Windows", "C:\\Program Files", "C:\\ProgramData",
-];
 
 const MAX_SCAN_DEPTH: usize = 10;
 const MAX_FILES_PER_DIRECTORY: usize = 10000;
 
-fn is_path_allowed(path: &Path) -> bool {
-    let path_str = path.to_string_lossy().to_lowercase();
-    
-    for forbidden in FORBIDDEN_PATHS {
-        if path_str.starts_with(&forbidden.to_lowercase()) {
-            return false;
-        }
-    }
-    
-    true
+/// Folders and files the user opened: picked in the folder dialog, dropped on
+/// the window, or passed on the command line ("Open with"). Every file command
+/// checks its path against this list, and the list is persisted so a restored
+/// session keeps working.
+///
+/// Paths are only ever added from Rust, as a result of a user action. The
+/// webview can't add a path by naming it, so a script injected into a document
+/// can't read anything the user didn't open.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Access {
+    /// Opened folders: documents and images anywhere below them are readable.
+    #[serde(default)]
+    directories: Vec<PathBuf>,
+    /// Opened single files: the file itself, plus images next to/below it.
+    #[serde(default)]
+    files: Vec<PathBuf>,
 }
 
+impl Access {
+    fn in_tree(&self, path: &Path) -> bool {
+        self.directories.iter().any(|dir| path.starts_with(dir))
+    }
+
+    /// Add a canonical path. Returns whether the list changed.
+    fn grant(&mut self, path: &Path) -> bool {
+        if self.in_tree(path) {
+            return false;
+        }
+        if path.is_dir() {
+            // A parent folder replaces the folders and files inside it
+            self.directories.retain(|dir| !dir.starts_with(path));
+            self.files.retain(|file| !file.starts_with(path));
+            self.directories.push(path.to_path_buf());
+            true
+        } else if path.is_file() && !self.files.iter().any(|file| file == path) {
+            self.files.push(path.to_path_buf());
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Folder listing and watching: only inside opened folders.
+    fn can_list(&self, path: &Path) -> bool {
+        self.in_tree(path)
+    }
+
+    /// Reading or saving a document: an opened file, or a markdown/text file
+    /// inside an opened folder (never keys, binaries or dotfiles like .bashrc).
+    fn can_open(&self, path: &Path) -> bool {
+        self.files.iter().any(|file| file == path)
+            || (self.in_tree(path) && is_viewable_file(path, true))
+    }
+
+    /// Metadata and "reveal in file manager".
+    fn can_stat(&self, path: &Path) -> bool {
+        self.in_tree(path) || self.files.iter().any(|file| file == path)
+    }
+
+    /// Images referenced by documents (the `localfile://` protocol).
+    fn can_read_image(&self, path: &Path) -> bool {
+        is_image_file(path)
+            && (self.in_tree(path)
+                || self.files.iter().any(|file| file.parent().is_some_and(|dir| path.starts_with(dir))))
+    }
+}
+
+/// The access list plus where it is saved.
+pub struct AccessState {
+    access: Mutex<Access>,
+    file: Option<PathBuf>,
+    /// No access file existed at startup: the first `adopt_session_access`
+    /// call may carry over a session saved by a version without the list.
+    migration_pending: Mutex<bool>,
+}
+
+impl AccessState {
+    fn load() -> Self {
+        let file = get_config_dir().ok().map(|dir| dir.join("access.json"));
+        let saved = file.as_ref().and_then(|f| fs::read(f).ok());
+        let migration_pending = saved.is_none();
+        let access = saved
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default();
+        Self {
+            access: Mutex::new(access),
+            file,
+            migration_pending: Mutex::new(migration_pending),
+        }
+    }
+
+    fn check(&self, path: &Path, allowed: impl Fn(&Access, &Path) -> bool) -> Result<(), AppError> {
+        let access = self.access.lock()
+            .map_err(|_| AppError::new("STATE_ERROR", "Failed to access the access list"))?;
+        if allowed(&access, path) {
+            Ok(())
+        } else {
+            Err(AppError::with_details(
+                "ACCESS_DENIED",
+                "Not inside a folder or file you opened",
+                &path.to_string_lossy(),
+            ))
+        }
+    }
+
+    /// Grant user-chosen paths (dialog, drop, command line) and save the list.
+    fn grant<P: AsRef<Path>>(&self, paths: impl IntoIterator<Item = P>) {
+        let Ok(mut access) = self.access.lock() else { return };
+        let mut changed = false;
+        for path in paths {
+            if let Ok(canonical) = canonicalize(path.as_ref()) {
+                changed |= access.grant(&canonical);
+            }
+        }
+        if changed {
+            self.save(&access);
+        }
+    }
+
+    fn save(&self, access: &Access) {
+        let Some(file) = &self.file else { return };
+        let saved = serde_json::to_vec_pretty(access)
+            .map_err(std::io::Error::other)
+            .and_then(|json| {
+                if let Some(dir) = file.parent() {
+                    fs::create_dir_all(dir)?;
+                }
+                atomic_write(file, &json)
+            });
+        if let Err(e) = saved {
+            eprintln!("Failed to save {}: {}", file.display(), e);
+        }
+    }
+}
+
+/// `canonicalize` without Windows' `\\?\` prefix (when the path doesn't need it),
+/// so paths compare and display the same as the ones the user picked.
+fn canonicalize(path: &Path) -> std::io::Result<PathBuf> {
+    dunce::canonicalize(path)
+}
+
+/// Absolute, symlink-free path of an existing file or folder; `~/` is expanded.
 fn expand_path(path_str: &str) -> Result<PathBuf, AppError> {
-    let path = if path_str.starts_with("~/") {
+    let path = if let Some(rest) = path_str.strip_prefix("~/") {
         let home = dirs::home_dir()
             .ok_or_else(|| AppError::new("PATH_ERROR", "Cannot determine home directory"))?;
-        home.join(&path_str[2..])
+        home.join(rest)
     } else if path_str.starts_with('~') {
         return Err(AppError::new("PATH_ERROR", "~user syntax not supported"));
     } else {
         PathBuf::from(path_str)
     };
-    
-    // Canonicalize to resolve .. and symlinks
-    let canonical = path.canonicalize().map_err(|e| {
+
+    canonicalize(&path).map_err(|e| {
         AppError::with_details("PATH_ERROR", "Invalid path", &e.to_string())
-    })?;
-    
-    // Security check
-    if !is_path_allowed(&canonical) {
-        return Err(AppError::new("ACCESS_DENIED", "Access to this path is not allowed"));
+    })
+}
+
+/// Write `bytes` to a temporary file next to `target`, then rename it over
+/// `target`: a crash or power loss leaves either the old or the new file,
+/// never a truncated one. An existing file keeps its permissions.
+fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let dir = target.parent().ok_or_else(|| std::io::Error::other("path has no parent folder"))?;
+    let name = target.file_name().ok_or_else(|| std::io::Error::other("path has no file name"))?;
+    let mut tmp_name = std::ffi::OsString::from(".");
+    tmp_name.push(name);
+    tmp_name.push(format!(".mdviewer-{}.tmp", std::process::id()));
+    let tmp = dir.join(tmp_name);
+
+    let result = (|| {
+        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+        file.write_all(bytes)?;
+        if let Ok(metadata) = fs::metadata(target) {
+            file.set_permissions(metadata.permissions())?;
+        }
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&tmp, target)?;
+        // Persist the rename itself
+        #[cfg(unix)]
+        fs::File::open(dir)?.sync_all()?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
     }
-    
-    Ok(canonical)
+    result
 }
 
 // ============================================================
@@ -424,6 +541,13 @@ fn scan_directory_recursive(
 // History Functions
 // ============================================================
 
+/// Oldest entries are dropped beyond this many.
+const MAX_HISTORY_ENTRIES: usize = 1000;
+
+/// Serializes read-modify-write of history.md: concurrent opens would
+/// otherwise lose entries.
+static HISTORY_LOCK: Mutex<()> = Mutex::new(());
+
 fn get_config_dir() -> Result<PathBuf, AppError> {
     dirs::config_dir()
         .map(|p| p.join("mdviewer"))
@@ -443,6 +567,81 @@ fn ensure_history_dir() -> Result<PathBuf, AppError> {
         })?;
     }
     Ok(history_path)
+}
+
+/// Link text: every ASCII punctuation character backslash-escaped, so names
+/// with `[`, `]`, `*` or `_` stay literal.
+fn markdown_link_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if c.is_ascii_punctuation() {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Link destination: percent-encode everything that could end or confuse it
+/// (spaces, parentheses, `<>`, `%`, backslashes...). The history panel decodes
+/// the href with `decodeURIComponent`.
+fn markdown_link_destination(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for c in path.chars() {
+        if c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '.' | '_' | '~' | ':') || !c.is_ascii() {
+            out.push(c);
+        } else {
+            out.push_str(&format!("%{:02X}", c as u32));
+        }
+    }
+    out
+}
+
+/// Insert an entry under today's date (newest first within a day; days are in
+/// chronological order) and drop the oldest entries beyond the cap.
+fn add_history_entry(content: &str, date_str: &str, entry: &str, max_entries: usize) -> String {
+    // Preamble ("# History", notes) and the "## <date>" sections in file order
+    let mut preamble = String::new();
+    let mut sections: Vec<(String, Vec<String>)> = Vec::new();
+    for line in content.lines() {
+        if let Some(date) = line.strip_prefix("## ") {
+            sections.push((date.trim().to_string(), Vec::new()));
+        } else if let Some((_, entries)) = sections.last_mut() {
+            if !line.trim().is_empty() {
+                entries.push(line.to_string());
+            }
+        } else {
+            preamble.push_str(line);
+            preamble.push('\n');
+        }
+    }
+
+    match sections.iter_mut().find(|(date, _)| date == date_str) {
+        Some((_, entries)) => entries.insert(0, entry.to_string()),
+        None => sections.push((date_str.to_string(), vec![entry.to_string()])),
+    }
+
+    // Oldest day first, oldest entry last within a day
+    let mut total: usize = sections.iter().map(|(_, entries)| entries.len()).sum();
+    while total > max_entries {
+        let Some((_, oldest_day)) = sections.first_mut() else { break };
+        oldest_day.pop();
+        total -= 1;
+        if oldest_day.is_empty() {
+            sections.remove(0);
+        }
+    }
+
+    let mut out = preamble.trim_end().to_string();
+    out.push('\n');
+    for (date, entries) in &sections {
+        out.push_str(&format!("\n## {}\n", date));
+        for entry in entries {
+            out.push_str(entry);
+            out.push('\n');
+        }
+    }
+    out
 }
 
 // ============================================================
@@ -468,50 +667,43 @@ async fn read_history() -> Result<String, AppError> {
 }
 
 #[tauri::command]
-async fn append_to_history(file_path: String, file_name: String) -> Result<(), AppError> {
+async fn append_to_history(
+    file_path: String,
+    file_name: String,
+    access: State<'_, AccessState>,
+) -> Result<(), AppError> {
+    // Only files the app could open end up in the history
+    let canonical = expand_path(&file_path)?;
+    access.check(&canonical, Access::can_open)?;
+
+    let _guard = HISTORY_LOCK.lock()
+        .map_err(|_| AppError::new("STATE_ERROR", "Failed to lock history"))?;
     let history_path = ensure_history_dir()?;
 
-    // Get current date
     let now = chrono::Local::now();
     let date_str = now.format("%Y-%m-%d").to_string();
-    let time_str = now.format("%H:%M").to_string();
+    let entry = format!(
+        "- {} [{}]({})",
+        now.format("%H:%M"),
+        markdown_link_text(&file_name),
+        markdown_link_destination(&canonical.to_string_lossy()),
+    );
 
-    // Read existing content or start fresh
-    let mut content = if history_path.exists() {
-        fs::read_to_string(&history_path).unwrap_or_default()
-    } else {
-        String::from("# History\n\n")
-    };
+    let content = fs::read_to_string(&history_path).unwrap_or_else(|_| String::from("# History\n"));
+    let content = add_history_entry(&content, &date_str, &entry, MAX_HISTORY_ENTRIES);
 
-    // Check if we need to add a date header
-    let date_header = format!("## {}\n", date_str);
-    if !content.contains(&date_header) {
-        // Add date header
-        content.push_str(&format!("\n{}", date_header));
-    }
-
-    // Format the new entry
-    let entry = format!("- {} [{}]({})\n", time_str, file_name, file_path);
-
-    // Find the position right after the date header and insert the new entry there
-    if let Some(pos) = content.find(&date_header) {
-        let insert_pos = pos + date_header.len();
-        content.insert_str(insert_pos, &entry);
-    } else {
-        // Fallback: append at end
-        content.push_str(&entry);
-    }
-
-    fs::write(&history_path, &content)
+    atomic_write(&history_path, content.as_bytes())
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to write history", &e.to_string()))
 }
 
 #[tauri::command]
 async fn clear_history() -> Result<(), AppError> {
+    let _guard = HISTORY_LOCK.lock()
+        .map_err(|_| AppError::new("STATE_ERROR", "Failed to lock history"))?;
     let history_path = ensure_history_dir()?;
     let content = "# History\n\nHistory cleared.\n";
 
-    fs::write(&history_path, content)
+    atomic_write(&history_path, content.as_bytes())
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to clear history", &e.to_string()))
 }
 
@@ -519,24 +711,26 @@ async fn clear_history() -> Result<(), AppError> {
 async fn scan_directories(
     paths: Vec<String>,
     include_text_files: Option<bool>,
+    access: State<'_, AccessState>,
 ) -> Result<Vec<FileNode>, AppError> {
     let include_text = include_text_files.unwrap_or(false);
     let mut results = Vec::new();
     
     for path_str in paths {
-        let expanded_path = match expand_path(&path_str) {
+        let expanded_path = match expand_path(&path_str).and_then(|p| {
+            access.check(&p, Access::can_list)?;
+            Ok(p)
+        }) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("Skipping invalid path '{}': {}", path_str, e.message);
+                eprintln!("Skipping '{}': {}", path_str, e.message);
                 continue;
             }
         };
         
-        if expanded_path.exists() {
-            let mut file_count = 0;
-            if let Some(node) = scan_directory_recursive(&expanded_path, 0, &mut file_count, include_text) {
-                results.push(node);
-            }
+        let mut file_count = 0;
+        if let Some(node) = scan_directory_recursive(&expanded_path, 0, &mut file_count, include_text) {
+            results.push(node);
         }
     }
     
@@ -544,8 +738,9 @@ async fn scan_directories(
 }
 
 #[tauri::command]
-async fn read_file(path: String) -> Result<String, AppError> {
+async fn read_file(path: String, access: State<'_, AccessState>) -> Result<String, AppError> {
     let expanded = expand_path(&path)?;
+    access.check(&expanded, Access::can_open)?;
     
     // Check file size (max 10MB)
     let metadata = fs::metadata(&expanded)
@@ -560,59 +755,120 @@ async fn read_file(path: String) -> Result<String, AppError> {
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to read file", &e.to_string()))
 }
 
-/// Expand path for write operations (file may not exist yet)
-fn expand_path_for_write(path_str: &str) -> Result<PathBuf, AppError> {
-    let path = if path_str.starts_with("~/") {
-        let home = dirs::home_dir()
-            .ok_or_else(|| AppError::new("PATH_ERROR", "Cannot determine home directory"))?;
-        home.join(&path_str[2..])
-    } else if path_str.starts_with('~') {
-        return Err(AppError::new("PATH_ERROR", "~user syntax not supported"));
-    } else {
-        PathBuf::from(path_str)
-    };
-
-    // For new files, check that parent directory exists and is allowed
-    let parent = path.parent()
-        .ok_or_else(|| AppError::new("PATH_ERROR", "Invalid path: no parent directory"))?;
-
-    let canonical_parent = parent.canonicalize().map_err(|e| {
-        AppError::with_details("PATH_ERROR", "Parent directory does not exist", &e.to_string())
-    })?;
-
-    // Security check on parent directory
-    if !is_path_allowed(&canonical_parent) {
-        return Err(AppError::new("ACCESS_DENIED", "Access to this path is not allowed"));
-    }
-
-    // Return the full path with canonical parent + filename
-    let file_name = path.file_name()
-        .ok_or_else(|| AppError::new("PATH_ERROR", "Invalid path: no filename"))?;
-
-    Ok(canonical_parent.join(file_name))
-}
-
+/// Save an open document. The file must exist and be one the user opened; a
+/// symlink is resolved and its target is replaced atomically.
 #[tauri::command]
-async fn write_file(path: String, content: String) -> Result<(), AppError> {
-    let expanded = expand_path_for_write(&path)?;
+async fn write_file(path: String, content: String, access: State<'_, AccessState>) -> Result<(), AppError> {
+    let expanded = expand_path(&path)?;
+    access.check(&expanded, Access::can_open)?;
 
-    let previous = if expanded.exists() { fs::read(&expanded).ok() } else { None };
-    let bytes = encode_text(&content, previous.as_deref())?;
+    let previous = fs::read(&expanded)
+        .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to read file", &e.to_string()))?;
+    let bytes = encode_text(&content, Some(&previous))?;
 
-    // Create backup before overwriting existing file ("notes.md" -> "notes.md.backup")
-    if previous.is_some() {
-        let mut backup_name = expanded.file_name().unwrap_or_default().to_os_string();
-        backup_name.push(".backup");
-        let _ = fs::copy(&expanded, expanded.with_file_name(backup_name));
-    }
-
-    fs::write(&expanded, &bytes)
+    atomic_write(&expanded, &bytes)
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to write file", &e.to_string()))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct FileFilter {
+    name: String,
+    extensions: Vec<String>,
+}
+
+/// Native folder picker. The chosen folder is added to the access list.
 #[tauri::command]
-async fn get_file_info(path: String) -> Result<serde_json::Value, AppError> {
+async fn pick_directory(app: AppHandle, access: State<'_, AccessState>) -> Result<Option<String>, AppError> {
+    let Some(picked) = app.dialog().file().set_title("Select Directory").blocking_pick_folder() else {
+        return Ok(None);
+    };
+    let path = picked.into_path()
+        .map_err(|e| AppError::with_details("PATH_ERROR", "Invalid folder", &e.to_string()))?;
+    let canonical = canonicalize(&path)
+        .map_err(|e| AppError::with_details("PATH_ERROR", "Invalid folder", &e.to_string()))?;
+    access.grant([&canonical]);
+    Ok(Some(canonical.to_string_lossy().to_string()))
+}
+
+/// Native save dialog, then write `content` (UTF-8) where the user chose.
+/// Returns the saved path, or `None` when cancelled.
+#[tauri::command]
+async fn export_file(
+    app: AppHandle,
+    default_name: String,
+    content: String,
+    filters: Option<Vec<FileFilter>>,
+    title: Option<String>,
+) -> Result<Option<String>, AppError> {
+    let mut dialog = app.dialog().file()
+        .set_file_name(&default_name)
+        .set_title(title.as_deref().unwrap_or("Export"));
+    for filter in filters.unwrap_or_default() {
+        let extensions: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
+        dialog = dialog.add_filter(&filter.name, &extensions);
+    }
+
+    let Some(picked) = dialog.blocking_save_file() else {
+        return Ok(None);
+    };
+    let path = picked.into_path()
+        .map_err(|e| AppError::with_details("PATH_ERROR", "Invalid path", &e.to_string()))?;
+
+    atomic_write(&path, content.as_bytes())
+        .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to write file", &e.to_string()))?;
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
+/// One-time carry-over of a session saved before the access list existed:
+/// its folders, tabs and workspaces, plus the files in the history. Only works
+/// while no access file has been written yet.
+#[tauri::command]
+async fn adopt_session_access(
+    directories: Vec<String>,
+    files: Vec<String>,
+    access: State<'_, AccessState>,
+) -> Result<(), AppError> {
+    let mut pending = access.migration_pending.lock()
+        .map_err(|_| AppError::new("STATE_ERROR", "Failed to access the access list"))?;
+    if !*pending {
+        return Ok(());
+    }
+    *pending = false;
+
+    let history = get_history_file_path().ok()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .unwrap_or_default();
+    let history_files = history_link_destinations(&history);
+
+    let paths: Vec<PathBuf> = directories.iter()
+        .chain(files.iter())
+        .chain(history_files.iter())
+        .filter_map(|path| expand_path(path).ok())
+        .collect();
+    access.grant(&paths);
+
+    // Write the file even when nothing was granted, so this never runs again
+    if let Ok(list) = access.access.lock() {
+        access.save(&list);
+    }
+    Ok(())
+}
+
+/// Link destinations in history.md (`- 12:34 [name](path)`), decoded.
+fn history_link_destinations(history: &str) -> Vec<String> {
+    history.lines()
+        .filter_map(|line| {
+            let line = line.trim_end().strip_suffix(')')?;
+            let start = line.rfind("](")? + 2;
+            Some(percent_decode(&line[start..]))
+        })
+        .collect()
+}
+
+#[tauri::command]
+async fn get_file_info(path: String, access: State<'_, AccessState>) -> Result<serde_json::Value, AppError> {
     let expanded = expand_path(&path)?;
+    access.check(&expanded, Access::can_stat)?;
     
     let metadata = fs::metadata(&expanded)
         .map_err(|e| AppError::with_details("FILE_ERROR", "Failed to get metadata", &e.to_string()))?;
@@ -629,25 +885,11 @@ async fn get_file_info(path: String) -> Result<serde_json::Value, AppError> {
 }
 
 #[tauri::command]
-async fn load_config(state: State<'_, AppState>) -> Result<AppConfig, AppError> {
-    let config = state.config.lock()
-        .map_err(|_| AppError::new("STATE_ERROR", "Failed to access configuration"))?;
-    Ok(config.clone())
-}
-
-#[tauri::command]
-async fn save_config(config: AppConfig, state: State<'_, AppState>) -> Result<(), AppError> {
-    let mut current_config = state.config.lock()
-        .map_err(|_| AppError::new("STATE_ERROR", "Failed to access configuration"))?;
-    *current_config = config;
-    Ok(())
-}
-
-#[tauri::command]
 async fn start_watching(
     paths: Vec<String>,
     app_handle: AppHandle,
     state: State<'_, AppState>,
+    access: State<'_, AccessState>,
 ) -> Result<(), AppError> {
     let mut watcher_guard = state.watcher.lock()
         .map_err(|_| AppError::new("STATE_ERROR", "Failed to access watcher"))?;
@@ -683,14 +925,17 @@ async fn start_watching(
     ).map_err(|e| AppError::with_details("WATCHER_ERROR", "Failed to create file watcher", &e.to_string()))?;
     
     *watcher_guard = Some(watcher);
+    watched_paths.clear();
     
     // Watch each path
     if let Some(ref mut w) = *watcher_guard {
         for path_str in paths {
-            if let Ok(expanded) = expand_path(&path_str) {
-                if w.watch(&expanded, RecursiveMode::Recursive).is_ok() {
-                    watched_paths.insert(expanded);
-                }
+            let Ok(expanded) = expand_path(&path_str) else { continue };
+            if access.check(&expanded, Access::can_list).is_err() {
+                continue;
+            }
+            if w.watch(&expanded, RecursiveMode::Recursive).is_ok() {
+                watched_paths.insert(expanded);
             }
         }
     }
@@ -712,8 +957,9 @@ async fn stop_watching(state: State<'_, AppState>) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-async fn open_in_explorer(path: String) -> Result<(), AppError> {
+async fn open_in_explorer(path: String, access: State<'_, AccessState>) -> Result<(), AppError> {
     let expanded = expand_path(&path)?;
+    access.check(&expanded, Access::can_stat)?;
 
     #[cfg(target_os = "windows")]
     {
@@ -754,17 +1000,22 @@ async fn open_in_explorer(path: String) -> Result<(), AppError> {
 // Local File Protocol (for serving images in markdown)
 // ============================================================
 
+/// Largest image the `localfile://` protocol serves.
+const MAX_IMAGE_SIZE: u64 = 50 * 1024 * 1024;
+
+/// Decode `%XX` escapes (UTF-8). Invalid escapes are kept as they are.
 fn percent_decode(input: &str) -> String {
-    let mut result = Vec::new();
+    fn hex(b: u8) -> Option<u8> {
+        (b as char).to_digit(16).map(|d| d as u8)
+    }
+
     let bytes = input.as_bytes();
+    let mut result = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(byte) = u8::from_str_radix(
-                &input[i + 1..i + 3],
-                16,
-            ) {
-                result.push(byte);
+            if let (Some(hi), Some(lo)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                result.push(hi << 4 | lo);
                 i += 3;
                 continue;
             }
@@ -775,8 +1026,9 @@ fn percent_decode(input: &str) -> String {
     String::from_utf8(result).unwrap_or_else(|_| input.to_string())
 }
 
-fn guess_mime(path: &Path) -> &'static str {
-    match path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase().as_str() {
+fn image_mime(path: &Path) -> Option<&'static str> {
+    let ext = path.extension()?.to_str()?.to_lowercase();
+    Some(match ext.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
@@ -785,8 +1037,48 @@ fn guess_mime(path: &Path) -> &'static str {
         "bmp" => "image/bmp",
         "ico" => "image/x-icon",
         "avif" => "image/avif",
-        "pdf" => "application/pdf",
-        _ => "application/octet-stream",
+        _ => return None,
+    })
+}
+
+fn is_image_file(path: &Path) -> bool {
+    image_mime(path).is_some()
+}
+
+/// Serve an image referenced by a document. The URL path is the
+/// percent-encoded absolute file path (see `convertFileSrc` in the frontend):
+/// `localfile://localhost/<path>` on macOS/Linux,
+/// `http://localfile.localhost/<path>` on Windows.
+fn serve_local_image(access: &AccessState, url_path: &str) -> HttpResponse<Vec<u8>> {
+    let respond = |status: StatusCode, mime: &str, body: Vec<u8>| {
+        HttpResponse::builder()
+            .status(status)
+            .header("Content-Type", mime)
+            .header("X-Content-Type-Options", "nosniff")
+            .body(body)
+            .unwrap()
+    };
+
+    let decoded = percent_decode(url_path.trim_start_matches('/'));
+    let Ok(path) = canonicalize(Path::new(&decoded)) else {
+        return respond(StatusCode::NOT_FOUND, "text/plain", Vec::new());
+    };
+    if access.check(&path, Access::can_read_image).is_err() {
+        return respond(StatusCode::FORBIDDEN, "text/plain", Vec::new());
+    }
+    let Some(mime) = image_mime(&path) else {
+        return respond(StatusCode::FORBIDDEN, "text/plain", Vec::new());
+    };
+    match fs::metadata(&path) {
+        Ok(metadata) if metadata.len() > MAX_IMAGE_SIZE => {
+            return respond(StatusCode::PAYLOAD_TOO_LARGE, "text/plain", Vec::new());
+        }
+        Err(_) => return respond(StatusCode::NOT_FOUND, "text/plain", Vec::new()),
+        _ => {}
+    }
+    match fs::read(&path) {
+        Ok(data) => respond(StatusCode::OK, mime, data),
+        Err(_) => respond(StatusCode::NOT_FOUND, "text/plain", Vec::new()),
     }
 }
 
@@ -794,9 +1086,6 @@ fn guess_mime(path: &Path) -> &'static str {
 // Main Entry Point
 // ============================================================
 
-/// Workaround for the torn / corrupted rendering seen on Raspberry Pi and other
-/// ARM GL drivers: https://github.com/tauri-apps/tauri/issues/9289
-///
 /// Files/folders passed on the command line (e.g. "Open with" from a file
 /// manager). Taken once by the frontend after it has restored the session.
 #[derive(Default)]
@@ -824,6 +1113,9 @@ fn take_launch_paths(launch: State<'_, LaunchPaths>) -> Vec<String> {
     std::mem::take(&mut *launch.0.lock().unwrap())
 }
 
+/// Workaround for the torn / corrupted rendering seen on Raspberry Pi and other
+/// ARM GL drivers: https://github.com/tauri-apps/tauri/issues/9289
+///
 /// WebKitGTK reads these on startup, so they have to be set before the webview
 /// is created. Anything the user already exported wins, and setting
 /// `MDVIEWER_ENABLE_DMABUF=1` opts back into the default WebKit renderer.
@@ -852,11 +1144,16 @@ fn main() {
     let cwd = std::env::current_dir().unwrap_or_default();
     let launch_paths = resolve_cli_paths(&args, &cwd);
 
+    // Files the app was launched with were chosen by the user
+    let access = AccessState::load();
+    access.grant(&launch_paths);
+
     tauri::Builder::default()
         // Must be the first plugin: a second launch ("Open with" while the app
         // is already running) hands its files to this instance and exits.
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             let paths = resolve_cli_paths(&argv, Path::new(&cwd));
+            app.state::<AccessState>().grant(&paths);
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.set_focus();
@@ -866,44 +1163,28 @@ fn main() {
             }
         }))
         .manage(AppState::default())
+        .manage(access)
         .manage(LaunchPaths(Mutex::new(launch_paths)))
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .register_uri_scheme_protocol("localfile", |_app, request| {
-            let uri = request.uri().to_string();
-            // URI format: localfile://localhost/<encoded-path>
-            let path_str = uri
-                .strip_prefix("localfile://localhost/")
-                .or_else(|| uri.strip_prefix("localfile:///"))
-                .unwrap_or("");
-            let decoded = percent_decode(path_str);
-            let path = PathBuf::from(&decoded);
-
-            match fs::read(&path) {
-                Ok(data) => {
-                    let mime = guess_mime(&path);
-                    HttpResponse::builder()
-                        .header("Content-Type", mime)
-                        .header("Access-Control-Allow-Origin", "*")
-                        .status(200)
-                        .body(data)
-                        .unwrap()
-                }
-                Err(_) => {
-                    HttpResponse::builder()
-                        .status(404)
-                        .body(Vec::new())
-                        .unwrap()
-                }
+        // Dropped files and folders were chosen by the user. Tauri runs this
+        // listener in the same event-loop turn that queues the drop event for
+        // the webview, so the paths are granted before the frontend sees them.
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+                window.state::<AccessState>().grant(paths);
             }
+        })
+        .register_uri_scheme_protocol("localfile", |ctx, request| {
+            serve_local_image(&ctx.app_handle().state::<AccessState>(), request.uri().path())
         })
         .invoke_handler(tauri::generate_handler![
             scan_directories,
             read_file,
             write_file,
+            pick_directory,
+            export_file,
+            adopt_session_access,
             get_file_info,
-            load_config,
-            save_config,
             start_watching,
             stop_watching,
             open_in_explorer,
@@ -915,4 +1196,123 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Fresh empty folder under the system temp dir.
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("mdviewer-test-{}-{}", name, std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        canonicalize(&dir).unwrap()
+    }
+
+    #[test]
+    fn percent_decode_handles_trailing_escape_and_non_ascii() {
+        assert_eq!(percent_decode("a%41"), "aA");
+        assert_eq!(percent_decode("%2Ftmp%2Fx%20y.md"), "/tmp/x y.md");
+        assert_eq!(percent_decode("%D0%BF%D1%80%D0%B8"), "при");
+        // Used to panic: slicing into the middle of a multi-byte character
+        assert_eq!(percent_decode("%Ж1"), "%Ж1");
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("%4"), "%4");
+        assert_eq!(percent_decode("%zz"), "%zz");
+    }
+
+    #[test]
+    fn access_list_limits_reads_to_opened_folders_and_files() {
+        let root = temp_dir("access");
+        let docs = root.join("docs");
+        let other = root.join("other");
+        fs::create_dir_all(docs.join("img")).unwrap();
+        fs::create_dir_all(&other).unwrap();
+        for file in ["docs/a.md", "docs/.bashrc", "docs/id_rsa", "docs/img/p.png", "other/b.md", "other/c.md", "other/pic.png", "other/sub.png"] {
+            fs::write(root.join(file), "x").unwrap();
+        }
+
+        let mut access = Access::default();
+        assert!(access.grant(&docs));
+        assert!(access.grant(&other.join("b.md")));
+
+        assert!(access.can_open(&docs.join("a.md")));
+        assert!(!access.can_open(&docs.join(".bashrc")), "dotfiles aren't documents");
+        assert!(!access.can_open(&docs.join("id_rsa")), "keys aren't documents");
+        assert!(access.can_open(&other.join("b.md")));
+        assert!(!access.can_open(&other.join("c.md")), "only the opened file, not its siblings");
+        assert!(!access.can_open(&root.join("docs-evil/a.md")), "prefix match is per component");
+
+        assert!(access.can_list(&docs));
+        assert!(!access.can_list(&other));
+
+        assert!(access.can_read_image(&docs.join("img/p.png")));
+        assert!(access.can_read_image(&other.join("pic.png")), "images next to an opened file");
+        assert!(!access.can_read_image(&docs.join("a.md")), "not an image");
+
+        // Opening the parent folder replaces what's inside it
+        assert!(access.grant(&root));
+        assert_eq!(access.directories, vec![root.clone()]);
+        assert!(access.files.is_empty());
+        assert!(!access.grant(&docs), "already covered");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn atomic_write_replaces_content_and_keeps_permissions() {
+        let dir = temp_dir("atomic");
+        let file = dir.join("note.md");
+        fs::write(&file, "old").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&file, fs::Permissions::from_mode(0o640)).unwrap();
+        }
+
+        atomic_write(&file, b"new").unwrap();
+
+        assert_eq!(fs::read_to_string(&file).unwrap(), "new");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o640);
+        }
+        let leftovers: Vec<_> = fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
+        assert_eq!(leftovers, vec![std::ffi::OsString::from("note.md")], "no temp file left behind");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn history_links_survive_spaces_brackets_and_round_trip() {
+        let path = "/Users/me/My Notes (old)/[draft] 100%.md";
+        let entry = format!("- 10:00 [{}]({})", markdown_link_text("[draft] 100%.md"), markdown_link_destination(path));
+        assert_eq!(
+            entry,
+            r"- 10:00 [\[draft\] 100\%\.md](/Users/me/My%20Notes%20%28old%29/%5Bdraft%5D%20100%25.md)"
+        );
+        assert_eq!(history_link_destinations(&entry), vec![path.to_string()]);
+    }
+
+    #[test]
+    fn history_is_capped_and_newest_first_within_a_day() {
+        let mut content = String::from("# History\n");
+        for i in 0..5 {
+            content = add_history_entry(&content, "2026-10-09", &format!("- old {}", i), 4);
+        }
+        content = add_history_entry(&content, "2026-10-10", "- new", 4);
+
+        assert_eq!(
+            content,
+            "# History\n\n## 2026-10-09\n- old 4\n- old 3\n- old 2\n\n## 2026-10-10\n- new\n"
+        );
+
+        // A full day is dropped once its entries are gone
+        for i in 0..3 {
+            content = add_history_entry(&content, "2026-10-10", &format!("- newer {}", i), 4);
+        }
+        assert!(!content.contains("2026-10-09"));
+    }
 }
