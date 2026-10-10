@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=MDViewer
+Comment=MD File Viewer
+Exec=mdviewer %F
+Icon=mdviewer
+Terminal=false
+Type=Application
+Categories=Office;Viewer;
+MimeType=text/markdown;text/x-markdown;inode/directory;
+StartupNotify=true

@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MDViewer - Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+/* ============================================================
+   MDViewer - Standalone Demo Styles
+   ============================================================ */
+
+:root {
+  --surface-bg: #1e1e1e;
+  --surface-elevated: #252526;
+  --surface-overlay: #2d2d30;
+  --surface-input: #3c3c3c;
+  --border-default: #3c3c3c;
+  --border-active: #007acc;
+  --border-subtle: #2d2d30;
+  --text-primary: #cccccc;
+  --text-secondary: #858585;
+  --text-accent: #4fc1ff;
+  --text-disabled: #5a5a5a;
+  --hover-bg: #2a2d2e;
+  --selected-bg: #094771;
+  --focus-ring: #007acc;
+  --scrollbar-thumb: #5a5a5a;
+  --font-sans: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; width: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { 
+  background: var(--scrollbar-thumb); 
+  border-radius: 5px; 
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+/* Toolbar */
+.toolbar {
+  height: 48px;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.toolbar-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+.toolbar-btn.active { background: var(--selected-bg); color: var(--text-accent); }
+
+.toolbar-separator { width: 1px; height: 24px; background: var(--border-default); margin: 0 8px; }
+.toolbar-spacer { flex: 1; }
+
+.toolbar-search {
+  position: relative;
+  width: 200px;
+}
+.toolbar-search input {
+  width: 100%;
+  height: 32px;
+  padding: 0 12px 0 36px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+}
+.toolbar-search input:focus { outline: none; border-color: var(--border-active); }
+.toolbar-search input::placeholder { color: var(--text-disabled); }
+.toolbar-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-disabled);
+}
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.zoom-control button {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.zoom-control button:hover { background: var(--hover-bg); color: var(--text-primary); }
+.zoom-control input[type="range"] {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--border-default);
+  border-radius: 2px;
+}
+.zoom-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--text-accent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Main Content */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* File Panel */
+.file-panel {
+  width: 280px;
+  min-width: 200px;
+  max-width: 400px;
+  background: var(--surface-elevated);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.file-panel-header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.file-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+.file-tree { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.tree-item:hover { background: var(--hover-bg); }
+.tree-item.selected { background: var(--selected-bg); }
+.tree-item.dir { color: #dcb67a; }
+.tree-item.file { padding-left: 32px; color: var(--text-accent); }
+.tree-item svg { flex-shrink: 0; }
+
+/* Resizer */
+.resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+}
+.resizer:hover { background: var(--border-active); }
+
+/* Document Panel */
+.doc-panel { flex: 1; display: flex; flex-direction: column; min-width: 400px; }
+
+.tab-bar {
+  height: 36px;
+  display: flex;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-right: 1px solid var(--border-subtle);
+  cursor: pointer;
+  font-size: 13px;
+  position: relative;
+}
+.tab:hover { background: var(--hover-bg); }
+.tab.active { background: var(--surface-bg); }
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-active);
+}
+.tab svg { color: var(--text-accent); }
+.tab-close {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+}
+.tab:hover .tab-close { opacity: 1; }
+.tab-close:hover { background: var(--hover-bg); color: var(--text-primary); }
+
+.doc-content {
+  flex: 1;
+  overflow: auto;
+  padding: 32px 48px;
+}
+.doc-inner {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* TOC Sidebar */
+.toc-sidebar {
+  width: 220px;
+  min-width: 180px;
+  max-width: 320px;
+  background: var(--surface-elevated);
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+}
+.toc-header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.toc-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+.toc-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.toc-item {
+  display: block;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toc-item:hover { color: var(--text-primary); background: var(--hover-bg); }
+.toc-item.active { color: var(--text-accent); background: var(--selected-bg); }
+.toc-item.l2 { padding-left: 24px; }
+.toc-item.l3 { padding-left: 36px; }
+.toc-item.l4 { padding-left: 48px; }
+
+/* Markdown Styles */
+.markdown-body {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.markdown-body h1 { font-size: 32px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 24px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.3em; }
+.markdown-body h3 { font-size: 18px; }
+.markdown-body h4 { font-size: 16px; }
+.markdown-body h1:first-child { margin-top: 0; }
+.markdown-body p { margin: 1em 0; }
+.markdown-body a { color: var(--text-accent); }
+.markdown-body strong { font-weight: 600; }
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 0.2em 0.4em;
+  background: var(--surface-overlay);
+  border-radius: 3px;
+}
+.markdown-body pre {
+  margin: 1em 0;
+  padding: 16px;
+  background: var(--surface-overlay);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.markdown-body pre code {
+  padding: 0;
+  background: none;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.markdown-body blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid var(--border-active);
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+}
+.markdown-body ul, .markdown-body ol { margin: 1em 0; padding-left: 2em; }
+.markdown-body li { margin: 0.5em 0; }
+.markdown-body hr { margin: 2em 0; border: none; border-top: 1px solid var(--border-default); }
+.markdown-body table { width: 100%; margin: 1em 0; border-collapse: collapse; }
+.markdown-body th, .markdown-body td { padding: 10px 16px; border: 1px solid var(--border-default); text-align: left; }
+.markdown-body th { background: var(--surface-elevated); font-weight: 600; }
+.markdown-body tr:nth-child(even) { background: var(--surface-elevated); }
+
+.mermaid { margin: 1em 0; padding: 16px; background: var(--surface-overlay); border-radius: 6px; }
+
+/* Status Bar */
+.status-bar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--surface-elevated);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+  color: var(--text-secondary);
+  gap: 16px;
+}
+.status-sep { width: 1px; height: 14px; background: var(--border-default); }
+.status-spacer { flex: 1; }
+
+/* Icons (inline SVG) */
+.icon { width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Toolbar -->
+    <header class="toolbar">
+      <button class="toolbar-btn" title="Menu">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <button class="toolbar-btn" title="Add Directory">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          <line x1="12" y1="11" x2="12" y2="17"></line>
+          <line x1="9" y1="14" x2="15" y2="14"></line>
+        </svg>
+      </button>
+      <div class="toolbar-search">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" placeholder="Search files..." id="search-input">
+      </div>
+      <div class="toolbar-separator"></div>
+      <button class="toolbar-btn" title="Edit Mode">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </button>
+      <button class="toolbar-btn" title="Export">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+      </button>
+      <div class="toolbar-spacer"></div>
+      <div class="zoom-control">
+        <button onclick="zoomOut()">−</button>
+        <input type="range" min="50" max="200" value="100" id="zoom-slider" onchange="setZoom(this.value)">
+        <button onclick="zoomIn()">+</button>
+        <span id="zoom-value">100%</span>
+      </div>
+      <div class="toolbar-separator"></div>
+      <button class="toolbar-btn" id="toc-toggle" onclick="toggleToc()" title="Toggle TOC">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main">
+      <!-- File Panel -->
+      <aside class="file-panel" id="file-panel">
+        <div class="file-panel-header">
+          <span class="file-panel-title">Files</span>
+        </div>
+        <nav class="file-tree" id="file-tree"></nav>
+      </aside>
+
+      <div class="resizer" id="resizer-left"></div>
+
+      <!-- Document Panel -->
+      <main class="doc-panel">
+        <div class="tab-bar" id="tab-bar"></div>
+        <div class="doc-content" id="doc-content">
+          <div class="doc-inner markdown-body" id="doc-inner"></div>
+        </div>
+      </main>
+
+      <div class="resizer" id="resizer-right"></div>
+
+      <!-- TOC Sidebar -->
+      <aside class="toc-sidebar" id="toc-sidebar">
+        <div class="toc-header">
+          <span class="toc-title">Contents</span>
+        </div>
+        <nav class="toc-list" id="toc-list"></nav>
+      </aside>
+    </div>
+
+    <!-- Status Bar -->
+    <footer class="status-bar">
+      <span id="status-path">/Documentation/getting-started.md</span>
+      <div class="status-sep"></div>
+      <span id="status-size">4.2 KB</span>
+      <div class="status-sep"></div>
+      <span id="status-modified">Modified 2 min ago</span>
+      <div class="status-spacer"></div>
+      <span id="status-words">1,234 words</span>
+      <div class="status-sep"></div>
+      <span id="status-time">5 min read</span>
+    </footer>
+  </div>
+
+  <script>
+// ============================================================
+// Demo Data
+// ============================================================
+
+const FILES = [
+  { id: '1', name: 'Documentation', type: 'dir', children: [
+    { id: '2', name: 'getting-started.md', type: 'file', path: '/Documentation/getting-started.md' },
+    { id: '3', name: 'api-reference.md', type: 'file', path: '/Documentation/api-reference.md' },
+    { id: '4', name: 'guides', type: 'dir', children: [
+      { id: '5', name: 'installation.md', type: 'file', path: '/Documentation/guides/installation.md' },
+      { id: '6', name: 'configuration.md', type: 'file', path: '/Documentation/guides/configuration.md' },
+    ]},
+  ]},
+  { id: '7', name: 'Notes', type: 'dir', children: [
+    { id: '8', name: 'meeting-notes.md', type: 'file', path: '/Notes/meeting-notes.md' },
+    { id: '9', name: 'ideas.md', type: 'file', path: '/Notes/ideas.md' },
+  ]},
+];
+
+const CONTENT = {
+  '/Documentation/getting-started.md': `# Getting Started with MDViewer
+
+Welcome to **MDViewer**, a powerful markdown document viewer built with modern web technologies.
+
+## Features
+
+- 📁 **Multi-directory browsing** with recursive file discovery
+- 🎨 **Syntax highlighting** for 15+ programming languages
+- 📊 **Mermaid diagram support** for flowcharts, sequences, and more
+- 🔍 **Full-text search** across all documents
+- 🌙 **Dark mode** with IntelliJ IDEA-inspired theme
+- 📑 **Tabbed interface** for multi-document workflows
+
+## Quick Start
+
+1. Add a directory to watch using the **+ Add Directory** button
+2. Browse your markdown files in the file tree
+3. Click any file to view it
+4. Use the zoom controls to adjust the view
+
+## Code Example
+
+Here's a simple TypeScript example:
+
+\`\`\`typescript
+interface Document {
+  path: string;
+  content: string;
+  headings: Heading[];
+}
+
+function parseMarkdown(content: string): Document {
+  const headings = extractHeadings(content);
+  return { path: '', content, headings };
+}
+\`\`\`
+
+## Mermaid Diagrams
+
+MDViewer supports Mermaid diagrams out of the box:
+
+\`\`\`mermaid
+flowchart TD
+    A[Open MDViewer] --> B{Select File}
+    B -->|Markdown| C[Render Document]
+    B -->|Directory| D[Expand Tree]
+    C --> E[View Content]
+    D --> B
+\`\`\`
+
+## Table Example
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| File Navigation | ✅ Complete | High |
+| Markdown Rendering | ✅ Complete | High |
+| Mermaid Support | ✅ Complete | Medium |
+| Search | 🚧 In Progress | Medium |
+
+---
+
+*Happy documenting! 📝*
+`,
+  '/Documentation/api-reference.md': `# API Reference
+
+This document describes the internal API.
+
+## Store API
+
+### useStore
+
+The main Zustand store hook.
+
+\`\`\`typescript
+import { useStore } from './store';
+
+function MyComponent() {
+  const { files, zoom, setZoom } = useStore();
+  return <div style={{ zoom }}>{files.length} files</div>;
+}
+\`\`\`
+
+## Sequence Diagram
+
+\`\`\`mermaid
+sequenceDiagram
+    participant U as User
+    participant A as App
+    participant S as Store
+    
+    U->>A: Click file
+    A->>S: openDocument(path)
+    S-->>A: Update state
+    A-->>U: Display document
+\`\`\`
+`,
+  '/Documentation/guides/installation.md': `# Installation Guide
+
+## Prerequisites
+
+- **Node.js** 18.x or later
+- **Rust** 1.70 or later
+
+## Steps
+
+\`\`\`bash
+git clone https://github.com/example/mdviewer.git
+cd mdviewer
+npm install
+npm run tauri dev
+\`\`\`
+`,
+  '/Documentation/guides/configuration.md': `# Configuration Guide
+
+## Config Location
+
+| Platform | Path |
+|----------|------|
+| Linux/macOS | ~/.config/mdviewer/config.toml |
+| Windows | %APPDATA%\\mdviewer\\config.toml |
+
+## Example
+
+\`\`\`toml
+[directories]
+watch = ["~/Documents/notes"]
+
+[appearance]
+theme = "intellij-dark"
+zoom_default = 100
+\`\`\`
+`,
+  '/Notes/meeting-notes.md': `# Meeting Notes
+
+## Project Kickoff - January 15, 2026
+
+### Attendees
+- Alice (Product Lead)
+- Bob (Tech Lead)
+
+### Decisions
+
+> We will use Tauri for the desktop application.
+
+### Timeline
+
+\`\`\`mermaid
+gantt
+    title Project Timeline
+    dateFormat YYYY-MM-DD
+    section Phase 1
+    Requirements :a1, 2026-01-15, 7d
+    Design :a2, after a1, 7d
+    section Phase 2
+    Development :a3, after a2, 21d
+\`\`\`
+`,
+  '/Notes/ideas.md': `# Ideas
+
+## Feature Ideas
+
+1. **Split View Mode**
+2. **Quick Search** (Cmd+P)
+3. **Bookmarks**
+
+## Architecture
+
+\`\`\`mermaid
+graph LR
+    A[User] --> B[Tauri App]
+    B --> C[React Frontend]
+    B --> D[Rust Backend]
+\`\`\`
+`,
+};
+
+// ============================================================
+// State
+// ============================================================
+
+let currentFile = null;
+let openTabs = [];
+let zoom = 100;
+let tocVisible = true;
+let expandedDirs = new Set(['1', '4', '7']);
+
+// ============================================================
+// Functions
+// ============================================================
+
+function renderFileTree() {
+  const container = document.getElementById('file-tree');
+  container.innerHTML = renderNodes(FILES, 0);
+}
+
+function renderNodes(nodes, level) {
+  return nodes.map(node => {
+    if (node.type === 'dir') {
+      const isExpanded = expandedDirs.has(node.id);
+      return `
+        <div class="tree-item dir" style="padding-left: ${12 + level * 16}px" onclick="toggleDir('${node.id}')">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform: rotate(${isExpanded ? 90 : 0}deg)">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>${node.name}</span>
+        </div>
+        ${isExpanded && node.children ? renderNodes(node.children, level + 1) : ''}
+      `;
+    } else {
+      return `
+        <div class="tree-item file ${currentFile === node.path ? 'selected' : ''}" style="padding-left: ${12 + level * 16}px" onclick="openFile('${node.path}', '${node.name}')">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          <span>${node.name}</span>
+        </div>
+      `;
+    }
+  }).join('');
+}
+
+function toggleDir(id) {
+  if (expandedDirs.has(id)) {
+    expandedDirs.delete(id);
+  } else {
+    expandedDirs.add(id);
+  }
+  renderFileTree();
+}
+
+function openFile(path, name) {
+  currentFile = path;
+  
+  // Add tab if not exists
+  if (!openTabs.find(t => t.path === path)) {
+    openTabs.push({ path, name });
+  }
+  
+  renderTabs();
+  renderDocument();
+  renderFileTree();
+}
+
+function closeTab(path, e) {
+  e.stopPropagation();
+  openTabs = openTabs.filter(t => t.path !== path);
+  if (currentFile === path) {
+    currentFile = openTabs.length > 0 ? openTabs[openTabs.length - 1].path : null;
+  }
+  renderTabs();
+  renderDocument();
+}
+
+function renderTabs() {
+  const container = document.getElementById('tab-bar');
+  container.innerHTML = openTabs.map(tab => `
+    <div class="tab ${currentFile === tab.path ? 'active' : ''}" onclick="openFile('${tab.path}', '${tab.name}')">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      </svg>
+      <span>${tab.name}</span>
+      <button class="tab-close" onclick="closeTab('${tab.path}', event)">×</button>
+    </div>
+  `).join('');
+}
+
+function renderDocument() {
+  const container = document.getElementById('doc-inner');
+  
+  if (!currentFile || !CONTENT[currentFile]) {
+    container.innerHTML = '<div style="text-align:center;padding:100px;color:var(--text-secondary)"><h2>No Document Open</h2><p>Select a file from the sidebar</p></div>';
+    return;
+  }
+  
+  const content = CONTENT[currentFile];
+  container.innerHTML = marked.parse(content);
+  container.style.fontSize = zoom + '%';
+  
+  // Render Mermaid
+  mermaid.init(undefined, container.querySelectorAll('.language-mermaid'));
+  
+  // Update TOC
+  renderToc();
+  
+  // Update status
+  const words = content.split(/\s+/).length;
+  document.getElementById('status-path').textContent = currentFile;
+  document.getElementById('status-size').textContent = (content.length / 1024).toFixed(1) + ' KB';
+  document.getElementById('status-words').textContent = words.toLocaleString() + ' words';
+  document.getElementById('status-time').textContent = Math.ceil(words / 200) + ' min read';
+}
+
+function renderToc() {
+  const container = document.getElementById('toc-list');
+  const content = document.getElementById('doc-inner');
+  const headings = content.querySelectorAll('h1, h2, h3, h4');
+  
+  container.innerHTML = Array.from(headings).map((h, i) => {
+    const level = parseInt(h.tagName[1]);
+    const id = 'heading-' + i;
+    h.id = id;
+    return `<a class="toc-item l${level}" href="#${id}" onclick="scrollToHeading('${id}')">${h.textContent}</a>`;
+  }).join('');
+}
+
+function scrollToHeading(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function setZoom(value) {
+  zoom = parseInt(value);
+  document.getElementById('zoom-value').textContent = zoom + '%';
+  document.getElementById('zoom-slider').value = zoom;
+  if (currentFile) {
+    document.getElementById('doc-inner').style.fontSize = zoom + '%';
+  }
+}
+
+function zoomIn() { setZoom(Math.min(200, zoom + 10)); }
+function zoomOut() { setZoom(Math.max(50, zoom - 10)); }
+
+function toggleToc() {
+  tocVisible = !tocVisible;
+  document.getElementById('toc-sidebar').style.display = tocVisible ? 'flex' : 'none';
+  document.getElementById('toc-toggle').classList.toggle('active', tocVisible);
+}
+
+// Initialize Mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#4fc1ff',
+    primaryTextColor: '#cccccc',
+    primaryBorderColor: '#3c3c3c',
+    lineColor: '#858585',
+    background: '#1e1e1e',
+    mainBkg: '#2d2d30',
+  }
+});
+
+// Initialize
+renderFileTree();
+openFile('/Documentation/getting-started.md', 'getting-started.md');
+  </script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+# MDViewer - Fixes Applied
+
+## Version 1.0.3 - todo/todo.md Round 2
+
+#### "Open with" did not open the file (`src-tauri/src/main.rs`, `App.tsx`, `mdviewer.desktop`)
+- **Before:** command-line arguments were ignored, so `mdviewer %F` from a file manager only launched the app
+- **After:** launch paths (plain paths or `file://` URIs, relative to the caller's cwd) are opened once the previous session is restored; files go to tabs, folders go to the file tree. `tauri-plugin-single-instance` sends files from a second launch to the running window and focuses it. The desktop entry declares `MimeType=text/markdown;...`
+
+#### Tab context menu (`TabBar.tsx`, `store/index.ts`)
+- **Before:** tabs could only be closed one at a time (Ctrl+Shift+W force-closed everything, discarding unsaved changes)
+- **After:** right-click a tab for Close / Close Others / Close to the Left / Close to the Right / Close All, Keep Open, Copy Path and Reveal in File Manager. Bulk closes (and Ctrl+Shift+W) keep tabs with unsaved changes open and say which
+
+#### Preview tab (`TabBar.tsx`, `FilePanel.tsx`, `store/index.ts`)
+- **Before:** every click in the file tree opened another tab
+- **After:** VS Code model - a single click opens the file in the preview tab (italic title), which the next single click reuses; double-clicking the file or the tab, the pin button, "Keep Open" or editing makes it permanent. Files opened any other way (drop, "Open with", history) open permanently
+
+#### Tab strip scrolling (`TabBar.tsx`, `styles/index.css`)
+- **Before:** overflowing tabs could only be reached by keyboard
+- **After:** the mouse wheel scrolls the strip horizontally, and `[<] [tabs] [>]` buttons appear when the tabs overflow; scrolling never switches tabs. The active tab is scrolled into view when it changes
+
+#### Back / forward between tabs (`TabBar.tsx`, `App.tsx`, `store/index.ts`)
+- **After:** back/forward buttons at the start of the tab bar, Alt+Left/Right and the mouse back/forward buttons walk the tab activation history (closed tabs are skipped)
+
+#### Wheel scrolling follows the wheel (`hooks/useSmoothWheelScroll.ts`)
+- **Before:** every notch eased towards a target at a fixed rate, so slow and fast spinning felt the same
+- **After:** each notch adds its distance to a pending budget and the time between notches sets the speed. The scroll ramps up gradually, and when the notches stop it brakes smoothly into the remaining distance instead of halting. Fast spinning (notches < 60ms apart) also covers up to 2.5x the distance. The file panel and the TOC use the same scrolling now. Tuning constants sit at the top of the hook
+
+#### Separate zoom for the file panel and the TOC (`App.tsx`, `FilePanel.tsx`, `TocSidebar.tsx`, `store/index.ts`)
+- **Before:** Ctrl + wheel anywhere zoomed the document
+- **After:** Ctrl + wheel zooms what is under the cursor: the file panel and the TOC each have their own zoom (50%..400%, persisted), everywhere else it is the document zoom. A panel that is not at 100% shows its zoom in the header; click it to reset. Keyboard zoom (Ctrl +/-/0) and the toolbar still control the document
+
+#### Hiding side panels with the separator (`Resizer.tsx`, `App.tsx`, `store/index.ts`)
+- **Before:** separators only resized between fixed limits; panels could only be hidden from the toolbar/shortcuts, and the file panel's visibility was forgotten on restart
+- **After:** dragging a separator towards the window edge past half the panel's minimum width hides the panel (file/history panel on the left, TOC on the right); double-clicking it (or Enter) toggles the panel. A hidden panel's separator stays at the window edge, and a grip slides in when the cursor comes within 24px of that edge - click it, double-click or drag it out to bring the panel back. File panel visibility is now persisted like the TOC's
+
+#### Find in document (`FindBar.tsx`, `utils/search.ts`)
+- **Before:** Ctrl+F was a placeholder
+- **After:** Ctrl+F opens a find bar over the document (seeded with the selected text): match case / whole word / regex toggles, "3 of 17" counter, Enter / Shift+Enter / F3 / Shift+F3 to step, Escape to close. Matches are painted with the CSS Custom Highlight API, so the rendered document is never modified; matches may span inline formatting (`foo **bar**`). The search follows late Shiki/Mermaid output and file reloads without jumping the view
+
+#### Search in open tabs and folders (`SearchPanel.tsx`, `utils/markdown.ts`)
+- **Before:** Ctrl+Shift+F was a placeholder; only file names could be filtered
+- **After:** Ctrl+Shift+F (or the toolbar button) opens a search panel in the left slot with the same options and an "Open tabs / Folders" scope. Folder search covers every markdown file in the file tree (open tabs are searched in memory, the rest read in parallel), results are grouped per file with the match highlighted, and stop at 2000 matches. Clicking a result opens the document (preview tab) and jumps to exactly that match: rendered blocks now carry a `data-line` source line, which maps the source match to the rendered one
+
+#### Other text files (`src-tauri/src/main.rs`, `utils/files.ts`, `utils/markdown.ts`, `utils/fb2.ts`)
+- **Before:** only `.md` / `.markdown` files were listed and opened
+- **After:** code and config files (scala, py, ts, rs, json, yaml, toml, ini/conf, sh, ...) open as one Shiki-highlighted code block; txt/log/csv/rst/... as wrapped plain text; fb2 books are converted to markdown (title page, nested chapters as headings - so the TOC lists the chapters -, epigraphs, poems, emphasis, notes). Setting *Show text files* (default on) controls whether the file tree lists them; drops and "Open with" accept them either way. `read_file` now decodes non-UTF-8 files: UTF-16 by BOM, and the encoding named in an XML declaration (fb2 books are often windows-1251); anything else falls back to lossy UTF-8. Files over 512KB are not highlighted
+
+#### Compact folders (`FilePanel.tsx`, `styles/index.css`)
+- **Before:** deep single-folder chains took one nested row per folder; long root paths were cut with an ellipsis
+- **After:** like VS Code, a folder whose only child is a folder is shown as one row `src/main/scala/cc/teob` - long chains and root paths wrap at the `/` when the panel is narrow. Files get code/book icons by type
+
+#### Opening folders (`App.tsx`, `store/index.ts`)
+- **Before:** every opened folder was added as another root, even when it was already inside an open one; a new folder showed collapsed
+- **After:** opening a folder inside an open one expands the tree down to it and selects it instead of adding a duplicate root; opening a parent of open folders replaces them (keeping their expanded state). A newly added folder is expanded down to its first markdown file (the shallowest one, README/index first), which opens in the preview tab. Selected tree rows scroll into view
+
+#### Light theme (`styles/index.css`, `main.tsx`, `utils/markdown.ts`, `Toolbar.tsx`)
+- **Before:** the theme button only flipped its own icon
+- **After:** the toolbar button switches between the dark and a light (IntelliJ / VS Code light) theme; the choice is persisted and applied before the first paint. Code blocks are highlighted once with both Shiki themes as CSS variables, so switching needs no re-highlighting; Mermaid diagrams re-render in the new colors. The markdown text color setting is now per theme, and *Export as HTML* uses the current theme
+
+#### Workspaces (`WorkspaceMenu.tsx`, `store/index.ts`)
+- **After:** the toolbar's workspace menu saves the open folders, expanded tree state, tabs and active tab under a name, and switches between saved workspaces (the current one is saved first; tabs whose file is gone are dropped). Workspaces can be re-saved, deleted, or detached from. Stored with the other settings (localStorage), not in the unused TOML config
+
+#### Edit mode (`Editor.tsx`, `DocumentPanel.tsx`, `utils/save.ts`, `src-tauri/src/main.rs`)
+- **Before:** the edit button was a placeholder, and Ctrl+S only cleared the dirty flag without writing anything
+- **After:** Ctrl+E (or the toolbar button) opens a CodeMirror 6 editor: markdown and fb2 get a live preview next to it (the preview follows the editor's scroll via `data-line`), code and text files the editor alone. Markdown syntax colors, line numbers, undo history per tab, the editor's own Ctrl+F search, Tab indents, and it follows the document zoom and theme. Ctrl+S (or the Save button) writes the file; closing a dirty tab or the window asks first. CodeMirror is lazy-loaded, so startup does not pay for it
+- `write_file` keeps the file's encoding: an XML declaration naming a legacy encoding (fb2 in windows-1251) is honored, UTF-16/UTF-8 BOM files keep their BOM, and files in an unknown non-UTF-8 encoding are refused instead of being corrupted. The backup is now `<name>.backup` (it was always `<name>.md.backup`)
+
+#### Unresponsive UI while the file list updates (`App.tsx`, `FilePanel.tsx`, `utils/files.ts`, `src-tauri/src/main.rs`)
+- **Before:** every single file-system event (a checkout or build sends hundreds, including from `node_modules`, `target` and `.git`) triggered a full rescan, and each rescan and each keystroke in the file filter re-rendered the whole tree - the main thread was busy and typing lagged. (The documented 300ms watcher debounce only applied to notify's polling backend, not inotify.)
+- **After:** watcher events inside `node_modules`, `target` and `.git` are dropped; rescans wait for 300ms of quiet and never overlap; a rescan keeps unchanged tree nodes, and memoized rows skip re-rendering; filtering renders in the background (deferred), so the filter box always responds first
+
+#### Empty strip under a hidden status bar (`styles/index.css`)
+- **Before:** the auto-hiding status bar only slid out of view - its 28px row stayed in the layout as an empty panel
+- **After:** unpinned, the status bar overlays the bottom edge (shown when the cursor comes near it) and takes no space when hidden; pinned, it has its own row so it never covers the document
+- WebKitGTK left a stale horizontal-scrollbar image in the viewer after unpinning (until the text was scrolled); the panels area is now force-repainted after pin changes and after the bar's slide animation
+
+#### Tab limit removed (`store/index.ts`)
+- **Before:** at most 20 tabs
+- **After:** no limit
+
+#### Zoom up to 1600% (`store/index.ts`, `Toolbar.tsx`)
+- **Before:** 50%..200% in +/-10 steps
+- **After:** 50%..1600% in x1.1 steps; the toolbar slider is logarithmic
+
+#### Hidden folders in the file panel (`src-tauri/src/main.rs`)
+- **Before:** every dot-entry was skipped
+- **After:** dot-folders/files are scanned like any other (folders without markdown are still pruned); only `node_modules` and `target` are skipped
+
+#### Dark mode text color (`store/index.ts`)
+- **Before:** `#cccccc`
+- **After:** `#9a9996`; stored settings still at the old default are migrated, custom colors are kept
+
+## Version 1.0.2 - todo/todo.md Round
+
+### Rendering / Platform
+
+#### Torn screen on Raspberry Pi (`src-tauri/src/main.rs`)
+- **Before:** WebKitGTK used its DMA-BUF renderer, which tears/corrupts the window on Raspberry Pi and some other ARM GL drivers ([tauri#9289](https://github.com/tauri-apps/tauri/issues/9289))
+- **After:** `WEBKIT_DISABLE_DMABUF_RENDERER=1` is set on Linux before the webview starts; `MDVIEWER_ENABLE_DMABUF=1` opts back out, `MDVIEWER_DISABLE_COMPOSITING=1` adds the heavier `WEBKIT_DISABLE_COMPOSITING_MODE` fallback, and an explicitly exported value is never overridden
+
+### Tabs & Scrolling
+
+#### Scroll position shared by all tabs (`DocumentPanel.tsx`, `store/index.ts`)
+- **Before:** every tab rendered into the same scroll container, so switching tabs kept the previous document's offset
+- **After:** `scrollPositions` (keyed by document path) is persisted; switching tabs stashes the outgoing offset and re-applies the incoming one, re-asserting it through a `ResizeObserver` while Shiki/Mermaid/images settle, and stopping as soon as the user scrolls
+
+#### Dead tabs after restart (`store/index.ts`, `App.tsx`)
+- **Before:** tabs were persisted without their `id`, so `closeDocument(undefined)` matched every tab (closing one closed all) and no document was ever reloaded - the restored tabs did nothing when clicked
+- **After:** tabs persist with `id` + `activeTabId`, any legacy/missing id is regenerated on rehydrate, and startup re-reads each tab's file and drops only the ones that no longer exist. `migrate` keeps existing settings across the storage version bump
+
+### UI
+
+#### Toolbar height (`styles/index.css`, `Toolbar.tsx`)
+- **Before:** 48px bar with 36px buttons and 32px inputs; tab bar 36px
+- **After:** 32px bar with 24px buttons, 24px search/zoom controls and 16px icons; tab bar 30px
+
+#### Zoom did not widen the document (`styles/index.css`, `DocumentPanel.tsx`)
+- **Before:** the text column was pinned at 800px, so zooming only made the text bigger inside the same width
+- **After:** the column is `calc(800px * zoom)`, capped by the viewport - it widens with zoom until it fills the window, then the text simply re-wraps
+
+#### Smooth scrolling (`DocumentPanel.tsx`, `SettingsModal.tsx`)
+- **Before:** WebKitGTK scrolled in discrete per-notch jumps, and every scroll event re-rendered the whole app through the shared store subscription
+- **After:** wheel scrolling eases toward an accumulated target (respects `prefers-reduced-motion`, nested scrollers and Mermaid zoom, toggle in Settings > General), heading tracking uses cached offsets instead of a layout read per heading, `setActiveHeadingId` is a no-op when unchanged, and every component subscribes to individual store fields instead of the entire state
+
+#### Drag & drop (`App.tsx`, `utils/tauri.ts`, `main.rs`)
+- **New:** dropping markdown files opens them in tabs, dropping folders adds them to the file tree, with a drop overlay while dragging. Uses Tauri's native drag & drop event (the only one that carries real file paths); `get_file_info` now reports `isDirectory`
+
+
+## Version 1.0.1 - Bug Fixes
+
+### 🔴 Critical Fixes
+
+#### 1. Memory Leak in Event Listeners (DocumentPanel.tsx)
+- **Before:** Event listeners added to copy buttons on every render, never cleaned up
+- **After:** Using event delegation with single listener on container, properly cleaned up in useEffect return
+
+#### 2. XSS Vulnerability (markdown.ts)
+- **Before:** `html: true` in MarkdownIt config allowed arbitrary HTML injection
+- **After:** 
+  - Set `html: false` to disable raw HTML
+  - Added `sanitizeHtml()` function that strips script tags, event handlers, javascript: URLs
+  - Mermaid security level set to 'strict'
+  - External links get `rel="noopener noreferrer"`
+
+#### 3. Set/Map Serialization (store/index.ts)
+- **Before:** Used `Set` and `Map` which don't serialize to JSON
+- **After:** 
+  - `expandedPaths` is now `string[]` array
+  - `documents` is now `Record<string, Document>` object
+  - Added Zustand `persist` middleware for session storage
+
+#### 4. Tab Limit Not Enforced (store/index.ts)
+- **Before:** No limit on tabs
+- **After:**
+  - `MAX_TABS = 20` constant exported
+  - `openDocument()` returns `{ success: boolean; error?: string }` 
+  - Returns error if limit exceeded
+  - UI shows alert when limit reached
+
+#### 5. Missing `dirs` Crate (Cargo.toml)
+- **Before:** Code referenced `dirs::home_dir()` but crate not in dependencies
+- **After:** Added `dirs = "5.0"` to dependencies
+
+### 🟠 High Priority Fixes
+
+#### 6. React Error Boundary (DocumentPanel.tsx)
+- Added `ErrorBoundary` class component wrapping `MarkdownViewer`
+- Catches render errors and displays friendly message with retry button
+
+#### 7. Mermaid ID Collisions (markdown.ts)
+- **Before:** Used sequential index `mermaid-${i}`
+- **After:** Uses `mermaid-${Date.now()}-${random}` for uniqueness
+
+#### 8. Scroll Handler Not Debounced (DocumentPanel.tsx)
+- **Before:** DOM query on every scroll event
+- **After:**
+  - Custom `debounce()` utility with 50ms delay
+  - Cached headings reference (`headingsRef`)
+  - Cleanup with `debouncedScrollHandler.cancel()`
+
+#### 9. Path Traversal Vulnerability (main.rs)
+- **Before:** No validation of paths
+- **After:**
+  - `FORBIDDEN_PATHS` array blocks system directories
+  - `expand_path()` canonicalizes paths and validates
+  - `is_path_allowed()` checks against blocklist
+  - `MAX_SCAN_DEPTH` and `MAX_FILES_PER_DIRECTORY` limits
+
+#### 10. File Watching Added (main.rs)
+- Added `start_watching()` and `stop_watching()` Tauri commands
+- Uses `notify` crate with 300ms debounce
+- Emits `file-change` events to frontend
+
+### 🟡 Medium Priority Fixes
+
+#### 11. Duplicate Heading IDs (markdown.ts)
+- Created `HeadingIdGenerator` class that tracks used IDs
+- Appends `-1`, `-2`, etc. for duplicates
+- Resets on each document render
+
+#### 12. Keyboard Shortcuts (App.tsx)
+- **Ctrl+W:** Close current tab
+- **Ctrl+Shift+W:** Close all tabs
+- **Ctrl+Shift+T:** Reopen closed tab
+- **Ctrl+Tab / Ctrl+Shift+Tab:** Next/previous tab
+- **Ctrl+1-9:** Go to tab by index
+- **Ctrl+Shift+O:** Toggle TOC
+- **Ctrl+B:** Toggle file panel
+- **Ctrl+Plus/Minus/0:** Zoom in/out/reset
+- **Ctrl+P:** Focus search
+- **Ctrl+Scroll:** Zoom in/out
+
+#### 13. Zoom Scaling Fixed (DocumentPanel.tsx)
+- **Before:** `fontSize: ${zoom}%` didn't scale images/diagrams
+- **After:** Using CSS `zoom: zoom / 100` for proper scaling
+
+#### 14. Status Bar Flicker Fixed (StatusBar.tsx)
+- **Before:** Rapid show/hide near boundary
+- **After:**
+  - Hysteresis with different show (40px) and hide (80px) thresholds
+  - Delayed hide (300ms)
+  - Pin button to keep visible
+  - `useMemo` for stats calculation
+
+#### 15. Unsaved Changes Warning (store/index.ts, DocumentPanel.tsx)
+- Added `showUnsavedModal` and `pendingCloseTabId` state
+- `closeDocument(tabId, force)` checks dirty state
+- Modal component with Cancel/Close options
+- `confirmCloseDocument()` and `cancelCloseDocument()` actions
+
+### Additional Improvements
+
+#### Store Enhancements
+- `originalContent` field for dirty detection
+- `recentlyClosed` array for Ctrl+Shift+T
+- `reopenClosedTab()` action
+- `activateNextTab()`, `activatePrevTab()`, `activateTabByIndex()` actions
+- `toggleTocVisible()` action
+- `zoomIn()`, `zoomOut()`, `resetZoom()` actions
+- `statusBarPinned` state
+
+#### Rust Backend Enhancements
+- `AppError` struct for structured error responses
+- Automatic backup before overwriting files
+- File size limit check (10MB max)
+- Hidden file/folder filtering (`.git`, `node_modules`, `target`)
+- Sorted directory listing (folders first, then alphabetically)
+
+#### CSS Additions
+- Modal overlay and dialog styles
+- Error state styling
+- Status bar pin button
+- Empty state keyboard hint
+- Code block copy button states
+- Mermaid placeholder and error states
+
+## Files Changed
+
+| File | Changes |
+|------|---------|
+| `src-tauri/Cargo.toml` | Added `dirs = "5.0"` |
+| `src-tauri/src/main.rs` | Security, file watching, error handling |
+| `src/store/index.ts` | Serialization, tab limits, actions |
+| `src/utils/markdown.ts` | XSS protection, unique IDs |
+| `src/components/DocumentPanel.tsx` | Memory leak, error boundary, debounce |
+| `src/components/StatusBar.tsx` | Flicker fix, pin button |
+| `src/components/Toolbar.tsx` | Use new store methods |
+| `src/components/FilePanel.tsx` | Use new store structure |
+| `src/App.tsx` | Keyboard shortcuts |
+| `src/styles/index.css` | New component styles |
+
+## Testing Recommendations
+
+1. Open 20+ files to verify tab limit
+2. Edit file and close without saving to verify modal
+3. Check Ctrl+W, Ctrl+Tab shortcuts
+4. Verify zoom affects images and diagrams
+5. Test status bar hover/pin behavior
+6. Check Mermaid renders without ID conflicts
+7. Verify no memory growth over extended use
