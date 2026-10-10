@@ -147,6 +147,23 @@ export async function openInExplorer(path: string): Promise<void> {
 }
 
 /**
+ * Open a web or mail link in the default browser / mail app. The backend
+ * only accepts http, https and mailto.
+ */
+export async function openExternal(url: string): Promise<void> {
+  if (!isTauri()) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  try {
+    await invoke('open_external', { url });
+  } catch (error) {
+    throw new Error(extractErrorMessage(error));
+  }
+}
+
+/**
  * Start watching directories for changes
  * @param paths Array of directory paths to watch
  */

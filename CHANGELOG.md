@@ -16,6 +16,13 @@
 - **Before:** `csp: null`
 - **After:** only the app's own scripts (plus WebAssembly for Shiki), no plugins, frames, forms or network requests besides IPC; images may still be remote. `devCsp` is off for `tauri dev` (Vite's HMR needs inline scripts and websockets)
 
+#### Links in documents (`App.tsx`, `utils/files.ts`, `main.rs`)
+- **Before:** clicks on links weren't handled. A relative link (`[next](other.md)`) navigated the whole window away from the app, and web links did nothing (the webview ignores `target="_blank"`)
+- **After:** `#anchors` scroll within the document, `http`/`https`/`mailto` links open in the default browser or mail app (`open_external`, nothing else is accepted), and links to local files open in a tab, subject to the access list (other files are revealed in the file manager). A navigation guard in the backend keeps the window on the app's own pages, whatever a link or script tries
+
+#### Dependencies
+- Tauri 2.9 → 2.12 (Rust crates and `@tauri-apps/api`/`cli`); `npm audit fix` for runtime dependencies (markdown-it, linkify-it, DOMPurify, lodash-es)
+
 #### HTML sanitizer removed (`utils/markdown.ts`)
 - **Before:** `sanitizeHtml` ran regexes over the rendered HTML: "Let one = 1" became "Let and>", and code blocks lost parts of tags such as `</code>`, breaking the page
 - **After:** removed. markdown-it runs with `html: false`, so raw HTML is escaped, and every custom renderer escapes what it emits

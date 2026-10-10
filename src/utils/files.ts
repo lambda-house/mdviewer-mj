@@ -140,6 +140,40 @@ export function normalizeDirPath(path: string): string {
 }
 
 /** True when `child` is strictly inside directory `parent`. */
+/**
+ * Resolve a link in a document to a local file path. `href` as it appears in
+ * the rendered HTML (percent-encoded by markdown-it); relative links resolve
+ * against the document's folder, `#fragment` and `?query` are dropped.
+ */
+export function resolveLinkPath(href: string, documentPath: string): string {
+  let target = href.replace(/[?#].*$/, '');
+  try {
+    target = decodeURIComponent(target);
+  } catch {
+    // Malformed escape: use the link as written
+  }
+  if (target.startsWith('file://')) {
+    target = target.slice('file://'.length);
+    // file:///C:/x on Windows
+    if (/^\/[A-Za-z]:\//.test(target)) target = target.slice(1);
+  }
+  if (target.startsWith('/') || /^[A-Za-z]:[\\/]/.test(target)) {
+    return target;
+  }
+
+  const separator = documentPath.includes('\\') && !documentPath.includes('/') ? '\\' : '/';
+  const parts = documentPath.split(/[/\\]/);
+  parts.pop(); // the document's file name
+  for (const part of target.split(/[/\\]/)) {
+    if (part === '..') {
+      if (parts.length > 1) parts.pop();
+    } else if (part !== '.' && part !== '') {
+      parts.push(part);
+    }
+  }
+  return parts.join(separator);
+}
+
 export function isPathInside(child: string, parent: string): boolean {
   const base = normalizeDirPath(parent);
   if (child.length <= base.length || !child.startsWith(base)) return false;
