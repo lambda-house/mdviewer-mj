@@ -1,5 +1,32 @@
 # MDViewer - Fixes Applied
 
+## Version 1.0.5
+
+### Privacy and access
+
+#### Remote images are not loaded until you allow it (`utils/markdown.ts`, `DocumentPanel.tsx`, `SettingsModal.tsx`)
+- **Before:** images from the web loaded as soon as a document opened, telling their server when and where it was read (tracking pixels)
+- **After:** they render as placeholders and a notice above the document offers **Load images** (this document, this session) or **Always load**. The setting is in Settings → General → Load remote images, off by default. HTML export includes the images
+
+#### Links to files outside the opened folders (`main.rs`, `App.tsx`)
+- **Before:** with a single file open, a link to another file next to it failed with "Not inside a folder or file you opened"
+- **After:** the backend asks in a native dialog ("Open linked file?") and, if you confirm, adds that file to the access list. The webview can't answer the dialog, so a script still can't widen access on its own. Links to non-documents ask before revealing them in the file manager
+
+#### Symlinks inside opened folders (`main.rs`)
+- **Before:** a symlink pointing outside an opened folder was listed in the tree but refused when clicked
+- **After:** followed when its target is a document (or, for images, an image), the way an editor would. A `.md` link to a non-document (`notes.md -> ~/.ssh/id_rsa`) is neither listed nor readable, `..` is never followed through a link, and a link back to a parent folder no longer repeats the tree. History records the path as listed
+
+### Updates (`main.rs`, `UpdateBanner.tsx`, `SettingsModal.tsx`, `release.yml`)
+- The app checks GitHub for a new version a few seconds after start and shows a bar with **Install and restart**; it installs only when clicked, and not while documents have unsaved changes. Settings → General has the on/off switch and **Check now**
+- Update packages are signed in CI and verified against the public key in `tauri.conf.json` before installing. A final `updater-manifest` job writes `latest.json` after all four builds
+
+### Dependencies
+- Vite 5 → 8 and `@vitejs/plugin-react` 4 → 6, which clears the remaining build-tool advisories (esbuild, rollup, postcss); KaTeX (used by Mermaid) pinned to 0.19 for GHSA-238p-pmpm-9mq7. `npm audit` reports no vulnerabilities
+
+### Release
+- Optional code signing in the release workflow: macOS signing and notarization, and Windows signing through Azure Trusted Signing, each turned on by adding its secrets (README, "Code signing")
+- Backend errors in "Could not open" alerts show their message instead of `[object Object]`
+
 ## Version 1.0.4 - Security and robustness review
 
 ### Security

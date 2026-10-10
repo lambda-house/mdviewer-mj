@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { X, Folder, Trash2, FolderPlus, Settings, ExternalLink, Code, Plus, Palette } from 'lucide-react';
 import { useStore } from '../store';
-import { pickDirectory, scanDirectories, isTauri, openInExplorer } from '../utils/tauri';
+import { pickDirectory, scanDirectories, isTauri, openInExplorer, checkForUpdate } from '../utils/tauri';
 
 type SettingsCategory = 'directories' | 'general' | 'appearance' | 'highlighting';
 
@@ -18,6 +18,12 @@ const SettingsModal: React.FC = () => {
   const showTextFiles = useStore((s) => s.showTextFiles);
   const setShowTextFiles = useStore((s) => s.setShowTextFiles);
   const setSmoothScroll = useStore((s) => s.setSmoothScroll);
+  const checkUpdatesOnStart = useStore((s) => s.checkUpdatesOnStart);
+  const setCheckUpdatesOnStart = useStore((s) => s.setCheckUpdatesOnStart);
+  const setAvailableUpdate = useStore((s) => s.setAvailableUpdate);
+  const [updateStatus, setUpdateStatus] = useState('');
+  const loadRemoteImages = useStore((s) => s.loadRemoteImages);
+  const setLoadRemoteImages = useStore((s) => s.setLoadRemoteImages);
   const languageAliases = useStore((s) => s.languageAliases);
   const setLanguageAlias = useStore((s) => s.setLanguageAlias);
   const removeLanguageAlias = useStore((s) => s.removeLanguageAlias);
@@ -198,6 +204,58 @@ const SettingsModal: React.FC = () => {
                       type="checkbox"
                       checked={smoothScroll}
                       onChange={(e) => setSmoothScroll(e.target.checked)}
+                    />
+                    <span className="settings-toggle-slider" />
+                  </label>
+                </div>
+
+                <div className="settings-option">
+                  <div className="settings-option-info">
+                    <span className="settings-option-label">Load remote images</span>
+                    <span className="settings-option-description">
+                      Show images from the web without asking. Loading them tells their server when you read a document
+                    </span>
+                  </div>
+                  <label className="settings-toggle">
+                    <input
+                      type="checkbox"
+                      checked={loadRemoteImages}
+                      onChange={(e) => setLoadRemoteImages(e.target.checked)}
+                    />
+                    <span className="settings-toggle-slider" />
+                  </label>
+                </div>
+
+                <div className="settings-option">
+                  <div className="settings-option-info">
+                    <span className="settings-option-label">Check for updates on start</span>
+                    <span className="settings-option-description">
+                      {updateStatus || 'Look for a new version on GitHub when the app starts. Updates install only when you click Install'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="settings-button"
+                    disabled={!isTauri() || updateStatus === 'Checking…'}
+                    onClick={async () => {
+                      setUpdateStatus('Checking…');
+                      try {
+                        const update = await checkForUpdate();
+                        setAvailableUpdate(update);
+                        setUpdateStatus(update ? `Version ${update.version} is available, see the bar above` : 'You have the latest version');
+                      } catch (error) {
+                        const message = error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error);
+                        setUpdateStatus(`Could not check: ${message}`);
+                      }
+                    }}
+                  >
+                    Check now
+                  </button>
+                  <label className="settings-toggle">
+                    <input
+                      type="checkbox"
+                      checked={checkUpdatesOnStart}
+                      onChange={(e) => setCheckUpdatesOnStart(e.target.checked)}
                     />
                     <span className="settings-toggle-slider" />
                   </label>

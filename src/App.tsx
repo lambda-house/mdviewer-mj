@@ -14,7 +14,8 @@ import {
   takeLaunchPaths,
   onOpenPaths,
   openExternal,
-  openInExplorer,
+  followLocalLink,
+  checkForUpdate,
 } from './utils/tauri';
 import { saveActiveDocument } from './utils/save';
 import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
@@ -27,6 +28,7 @@ import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
+import UpdateBanner from './components/UpdateBanner';
 
 // ============================================================
 // Main App Component
@@ -34,6 +36,13 @@ import SearchPanel from './components/SearchPanel';
 
 /** Quiet time after the last file change event before the tree is rescanned. */
 const RESCAN_DEBOUNCE = 300;
+
+/** Message of an Error or of a backend error ({ code, message }). */
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) return String(error.message);
+  return String(error);
+}
 
 /** Single-line selected text, to seed find/search (undefined keeps the old query). */
 function getSelectedText(): string | undefined {
@@ -275,9 +284,21 @@ const App: React.FC = () => {
     });
   }, [openDocument]);
   
+  // Look for a new version a few seconds after start (not during startup work)
+  useEffect(() => {
+    if (!isTauri() || !useStore.getState().checkUpdatesOnStart) return;
+    const timer = setTimeout(() => {
+      checkForUpdate()
+        .then((update) => useStore.getState().setAvailableUpdate(update))
+        .catch((error) => console.warn('Update check failed:', error));
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Links in the document. The window itself never navigates (the backend
   // blocks it): anchors scroll, web/mail links open in the default browser,
-  // links to local files open in a tab (or are revealed if not viewable).
+  // links to local files open in a tab (or are revealed if not viewable),
+  // after a native confirmation when they're outside what the user opened.
   useEffect(() => {
     const handleClick = async (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0) return;
@@ -310,14 +331,12 @@ const App: React.FC = () => {
         const documentPath = tabs.find((tab) => tab.id === activeTabId)?.path;
         if (!documentPath) return;
         const path = resolveLinkPath(href, documentPath);
-        if (isViewableFile(path)) {
+        if ((await followLocalLink(path)) === 'open') {
           await openPath(path);
-        } else {
-          await openInExplorer(path);
         }
       } catch (error) {
         console.error('Failed to open link:', href, error);
-        alert(`Could not open ${href}:\n${error instanceof Error ? error.message : String(error)}`);
+        alert(`Could not open ${href}:\n${errorText(error)}`);
       }
     };
 
@@ -379,7 +398,7 @@ const App: React.FC = () => {
         }
       } catch (error) {
         console.error('Failed to handle dropped path:', path, error);
-        errors.push(`${getFileName(path)}: ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(`${getFileName(path)}: ${errorText(error)}`);
       }
     }
 
@@ -730,6 +749,8 @@ const App: React.FC = () => {
         searchVisible={searchVisible}
         onToggleSearch={() => (searchVisible ? setSearchVisible(false) : openSearch())}
       />
+
+      <UpdateBanner />
 
       <div className="main-content">
         {searchVisible && <SearchPanel width={panelWidth} />}
