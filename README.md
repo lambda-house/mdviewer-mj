@@ -25,7 +25,7 @@ A powerful, elegant markdown document viewer built with Tauri, React, and TypeSc
 | State | Zustand |
 | Markdown | markdown-it |
 | Highlighting | Shiki |
-| Diagrams | Mermaid 10.x |
+| Diagrams | Mermaid 11 |
 | Styling | CSS Variables + Custom Properties |
 
 ## Install
