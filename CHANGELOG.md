@@ -20,6 +20,9 @@
 - The app checks GitHub for a new version a few seconds after start and shows a bar with **Install and restart**; it installs only when clicked, and not while documents have unsaved changes. Settings → General has the on/off switch and **Check now**
 - Update packages are signed in CI and verified against the public key in `tauri.conf.json` before installing. A final `updater-manifest` job writes `latest.json` after all four builds
 
+### Mermaid 11 (`package.json`, `utils/markdown.ts`)
+- Mermaid 10.9 → 11.17: architecture, kanban, packet and other newer diagram types render instead of showing an error. Quadrant charts get colors from the app's theme instead of bright blue
+
 ### Dependencies
 - Vite 5 → 8 and `@vitejs/plugin-react` 4 → 6, which clears the remaining build-tool advisories (esbuild, rollup, postcss); KaTeX (used by Mermaid) pinned to 0.19 for GHSA-238p-pmpm-9mq7. `npm audit` reports no vulnerabilities
 
