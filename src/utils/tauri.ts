@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open, save } from '@tauri-apps/plugin-dialog';
 import { useStore, type FileNode } from '../store';
 
 /**
@@ -9,7 +8,26 @@ import { useStore, type FileNode } from '../store';
 export const isTauri = (): boolean => '__TAURI_INTERNALS__' in window;
 
 /**
- * Open native directory picker dialog
+ * The backend only serves folders and files the user opened (folder picker,
+ * drag & drop, "Open with"). A session saved by a version without that list
+ * is carried over once, before the first file access.
+ */
+let sessionAccess: Promise<void> | null = null;
+
+function adoptSessionAccess(): Promise<void> {
+  if (!sessionAccess) {
+    const { directories, tabs, workspaces } = useStore.getState();
+    sessionAccess = invoke<void>('adopt_session_access', {
+      directories: [...directories, ...workspaces.flatMap((w) => w.directories)],
+      files: [...tabs.map((t) => t.path), ...workspaces.flatMap((w) => w.tabs)],
+    }).catch((error) => console.error('Failed to carry over session access:', error));
+  }
+  return sessionAccess;
+}
+
+/**
+ * Open native directory picker dialog. The backend adds the chosen folder to
+ * the folders the app may read.
  * @returns Selected directory path or null if cancelled
  */
 export async function pickDirectory(): Promise<string | null> {
@@ -18,13 +36,7 @@ export async function pickDirectory(): Promise<string | null> {
     return null;
   }
 
-  const result = await open({
-    directory: true,
-    multiple: false,
-    title: 'Select Directory',
-  });
-
-  return result as string | null;
+  return invoke<string | null>('pick_directory');
 }
 
 /**
@@ -39,6 +51,7 @@ export async function scanDirectories(paths: string[]): Promise<FileNode[]> {
     return [];
   }
 
+  await adoptSessionAccess();
   return invoke<FileNode[]>('scan_directories', {
     paths,
     includeTextFiles: useStore.getState().showTextFiles,
@@ -56,6 +69,7 @@ export async function readFile(path: string): Promise<string> {
     return `# File Not Available\n\nFile reading requires the Tauri desktop app.`;
   }
 
+  await adoptSessionAccess();
   return invoke<string>('read_file', { path });
 }
 
@@ -86,18 +100,14 @@ export async function saveFile(
   }
 
   try {
-    const filePath = await save({
-      defaultPath: defaultName,
+    // Dialog and write both happen in the backend: the webview can't write
+    // to a path of its choosing, only where the user picked in the dialog
+    return await invoke<string | null>('export_file', {
+      defaultName,
+      content,
       filters: filters || [{ name: 'HTML', extensions: ['html'] }],
       title: 'Export HTML',
     });
-
-    if (filePath) {
-      await invoke('write_file', { path: filePath, content });
-      return filePath;
-    }
-
-    return null;
   } catch (error) {
     // Handle Tauri AppError structure: {code, message, details}
     const message = extractErrorMessage(error);
@@ -146,6 +156,7 @@ export async function startWatching(paths: string[]): Promise<void> {
     return;
   }
 
+  await adoptSessionAccess();
   return invoke('start_watching', { paths });
 }
 
@@ -232,6 +243,7 @@ export async function getFileInfo(path: string): Promise<PathInfo> {
     throw new Error('getFileInfo requires the Tauri desktop app');
   }
 
+  await adoptSessionAccess();
   return invoke<PathInfo>('get_file_info', { path });
 }
 
@@ -295,7 +307,8 @@ export async function onOpenPaths(handler: (paths: string[]) => void): Promise<(
 
 /**
  * Write a document back to disk. The backend keeps the file's encoding (and
- * refuses files in an unknown non-UTF-8 encoding) and leaves a .backup copy.
+ * refuses files in an unknown non-UTF-8 encoding) and replaces the file
+ * atomically, so a crash mid-save never leaves it truncated.
  */
 export async function writeFile(path: string, content: string): Promise<void> {
   if (!isTauri()) {

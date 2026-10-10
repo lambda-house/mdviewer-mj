@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { FileQuestion, AlertCircle, Save } from 'lucide-react';
 import { useStore } from '../store';
-import { renderFile, renderMermaid, highlightCodeBlocks, unescapeHtml, type RenderResult } from '../utils/markdown';
+import { renderFile, renderMermaid, highlightCodeBlocks, type RenderResult } from '../utils/markdown';
 import clsx from 'clsx';
 import TabBar from './TabBar';
 import FindBar from './FindBar';
@@ -337,11 +337,11 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       
       // Check if it's a copy button
       if (target.classList.contains('code-block-copy')) {
+        // getAttribute returns the code already decoded
         const code = target.getAttribute('data-code');
         if (code) {
           try {
-            const decoded = unescapeHtml(code);
-            await navigator.clipboard.writeText(decoded);
+            await navigator.clipboard.writeText(code);
             
             const originalText = target.textContent;
             target.textContent = 'Copied!';

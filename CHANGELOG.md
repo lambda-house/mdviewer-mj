@@ -1,5 +1,56 @@
 # MDViewer - Fixes Applied
 
+## Version 1.0.4 - Security and robustness review
+
+### Security
+
+#### File access limited to what you opened (`src-tauri/src/main.rs`, `utils/tauri.ts`, `capabilities/default.json`)
+- **Before:** a denylist of system folders, compared as strings. It never matched on Windows (`canonicalize()` returns `\\?\C:\...`), left the whole home folder writable (`write_file` could overwrite `~/.bashrc`) and blocked `/tmp`, where downloaded `.md` files often are
+- **After:** an allowlist of folders and files you opened: picked in the folder dialog, dropped on the window or passed on the command line ("Open with"). It is kept in Rust, persisted to `access.json` in the config folder, and the webview can't add to it by naming a path. Inside an opened folder only markdown/text files can be read or saved; next to an opened single file only images are served. Paths are canonicalized with symlinks resolved before the check. The folder picker and the HTML export dialog now run in Rust; the JS `fs` and `dialog` plugin permissions are gone. A session saved by an older version is carried over once
+
+#### `localfile://` image protocol (`main.rs`, `utils/markdown.ts`)
+- **Before:** served any file on disk, of any size, with `Access-Control-Allow-Origin: *`
+- **After:** only images, only inside the access list, at most 50MB, `nosniff`, no CORS header. Image URLs come from `convertFileSrc`, so local images also work on Windows (`http://localfile.localhost/...`), and Windows-absolute image paths (`C:\...`) resolve
+
+#### Content Security Policy (`tauri.conf.json`)
+- **Before:** `csp: null`
+- **After:** only the app's own scripts (plus WebAssembly for Shiki), no plugins, frames, forms or network requests besides IPC; images may still be remote. `devCsp` is off for `tauri dev` (Vite's HMR needs inline scripts and websockets)
+
+#### HTML sanitizer removed (`utils/markdown.ts`)
+- **Before:** `sanitizeHtml` ran regexes over the rendered HTML: "Let one = 1" became "Let and>", and code blocks lost parts of tags such as `</code>`, breaking the page
+- **After:** removed. markdown-it runs with `html: false`, so raw HTML is escaped, and every custom renderer escapes what it emits
+
+### Fixes
+
+#### Atomic saves (`main.rs`)
+- **Before:** `fs::write` over the original (a crash mid-save left it truncated), a silently overwritten `<name>.backup`, and writes followed symlinks anywhere
+- **After:** written to a temporary file next to the original, synced and renamed over it, keeping the file's permissions. No more `.backup` files. A symlink is resolved and its target, which must be in the access list, is replaced
+
+#### History (`main.rs`, `HistoryPanel.tsx`)
+- Paths with spaces, parentheses or brackets no longer break the markdown link (they are percent-encoded; names are escaped)
+- Capped at the newest 1000 entries, and concurrent writes no longer lose entries
+
+#### Mermaid and code blocks decoded twice (`utils/markdown.ts`, `DocumentPanel.tsx`)
+- A literal `&lt;` in a diagram, code block or copied code turned into `<`. The source is now decoded exactly once
+
+#### Local images with spaces or non-ASCII names (`utils/markdown.ts`)
+- The path was percent-encoded twice and the image failed to load
+
+#### Export as HTML (`Toolbar.tsx`)
+- The file name is escaped in `<title>`, and with the History panel open the export no longer saves the history instead of the document
+
+#### `percent_decode` panic (`main.rs`)
+- A non-ASCII character right after `%` (e.g. in an "Open with" `file://` URI) panicked
+
+### Cleanup
+
+- **Config that didn't exist:** `load_config`/`save_config` kept settings only in memory and nothing called them. Removed; the docs no longer mention `config.toml` (settings live in the app's own storage)
+- **Unused dependencies:** removed `tauri-plugin-fs`, `@tauri-apps/plugin-fs`, `@tauri-apps/plugin-dialog` (JS), `tokio`, `walkdir`, `glob`, `toml`, the unused `file_cache`, and ~500 lines of unused demo data in `utils/files.ts`
+- **Fonts:** Inter and JetBrains Mono are bundled (`@fontsource`) instead of loaded from Google Fonts, so they work offline
+- **Icons:** regenerated from a vector source (`icons/icon.svg`): `128x128@2x.png` is now 256×256, `icon.icns` covers up to 1024px, `icon.ico` has 16–256px
+- **`mdviewer.desktop`:** no hardcoded `/home/fx/` path
+- **Tests:** Rust unit tests for the access list, atomic writes, history and `percent_decode`; CI runs clippy and the tests
+
 ## Version 1.0.3 - todo/todo.md Round 2
 
 #### "Open with" did not open the file (`src-tauri/src/main.rs`, `App.tsx`, `mdviewer.desktop`)

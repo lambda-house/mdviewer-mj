@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useStore, MIN_ZOOM, MAX_ZOOM } from '../store';
 import { saveFile } from '../utils/tauri';
+import { escapeHtml } from '../utils/markdown';
 import clsx from 'clsx';
 import WorkspaceMenu from './WorkspaceMenu';
 
@@ -123,14 +124,15 @@ const EXPORT_PALETTE = {
       --selected-bg: #cce4f7;`,
 };
 
-// Generate complete HTML document for export, in the current theme
+// Generate complete HTML document for export, in the current theme.
+// `content` is serialized DOM (already HTML); `title` is a file name.
 function generateExportHtml(title: string, content: string, theme: 'dark' | 'light'): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
+  <title>${escapeHtml(title)}</title>
   <style>
     :root {${EXPORT_PALETTE[theme]}
       color-scheme: ${theme};
@@ -307,8 +309,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const handleExportHtml = useCallback(async () => {
     if (!activeTab || isExporting) return;
 
-    // Get rendered HTML from the actual DOM (includes syntax highlighting & mermaid)
-    const markdownBody = document.querySelector('.markdown-body');
+    // Get rendered HTML from the actual DOM (includes syntax highlighting & mermaid).
+    // Scoped to the document panel: the history panel is a .markdown-body too.
+    const markdownBody = document.querySelector('.document-panel .markdown-body');
     if (!markdownBody) {
       alert('No document content to export');
       return;

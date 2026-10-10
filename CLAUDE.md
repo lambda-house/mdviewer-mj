@@ -16,7 +16,7 @@ npm run build            # TypeScript check + Vite build
 npm run tauri build      # Build production desktop app
 ```
 
-No test runner or linter is currently configured.
+The frontend has no test runner or linter. The Rust backend has unit tests: `cd src-tauri && cargo test`.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ No test runner or linter is currently configured.
 - **Hooks** (`src/hooks/`): `useSmoothWheelScroll` - velocity-based wheel scrolling shared by the document, file panel and TOC
 
 - **Markdown Processing** (`src/utils/markdown.ts`):
-  - markdown-it for parsing with HTML sanitization
+  - markdown-it with `html: false` (raw HTML is escaped; every custom renderer rule must escape what it emits with `escapeHtml`)
   - Shiki for syntax highlighting (15+ languages)
   - Mermaid for diagrams with unique ID generation per render
   - HeadingIdGenerator for automatic anchor links
@@ -54,12 +54,17 @@ No test runner or linter is currently configured.
 
 Rust backend provides Tauri commands:
 - `scan_directories` - Recursive file discovery (markdown, plus other text files with `includeTextFiles`; extension lists mirrored in `utils/files.ts`)
-- `read_file` / `write_file` - File I/O with path validation; `read_file` decodes UTF-16 BOM and XML-declared encodings, `write_file` encodes back the same way (refuses unknown encodings) and keeps a `<name>.backup`
+- `read_file` / `write_file` - File I/O; `read_file` decodes UTF-16 BOM and XML-declared encodings, `write_file` encodes back the same way (refuses unknown encodings) and replaces the file atomically (temp file + rename, `atomic_write`)
+- `pick_directory` / `export_file` - Native folder picker and save dialog, opened from Rust (the JS dialog plugin isn't exposed)
 - `get_file_info` - File metadata
-- `load_config` / `save_config` - TOML config management
 - `start_watching` / `stop_watching` - File system watching (one event per change; `node_modules`/`target`/`.git` ignored). The frontend debounces rescans (300ms, no overlapping scans) and `setFiles` reuses unchanged tree nodes
+- `read_history` / `append_to_history` / `clear_history` - `history/history.md` in the config dir, capped at 1000 entries, writes serialized
+- `adopt_session_access` - One-time migration of a session saved before the access list existed
+- `localfile://` protocol - Serves images referenced by documents (`convertFileSrc(path, 'localfile')` in the frontend)
 
-Security: Path validation with forbidden directories blocklist, 10MB file size limit.
+Security: an allowlist (`Access` / `AccessState` in main.rs, persisted to `access.json` in the config dir). Paths are added only from Rust on user actions: the folder picker, drag & drop (`on_window_event`), command-line / single-instance launch paths. Every command canonicalizes its path (`dunce`, symlinks resolved) and checks it: documents need to be an opened file or a viewable file inside an opened folder, listing/watching needs an opened folder, `localfile://` serves only images. Never add a command that grants access to a path passed from the webview. 10MB limit for documents, 50MB for images. CSP in `tauri.conf.json`. Capabilities (`capabilities/default.json`) only allow `core:default`.
+
+Tests: `cargo test` in `src-tauri` (unit tests at the bottom of main.rs). CI runs clippy and the tests.
 
 ### Path Alias
 
@@ -67,9 +72,7 @@ TypeScript path alias `@/*` maps to `src/*` (configured in tsconfig.json and vit
 
 ## Configuration
 
-App config stored in TOML format:
-- Linux/macOS: `~/.config/mdviewer/config.toml`
-- Windows: `%APPDATA%\mdviewer\config.toml`
+There is no config file. UI settings, folders, tabs and workspaces live in localStorage (Zustand persist). The backend's config dir (`dirs::config_dir()/mdviewer`) holds only `access.json` and `history/history.md`.
 
 ## Key Patterns
 

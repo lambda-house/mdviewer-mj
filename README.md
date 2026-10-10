@@ -133,30 +133,25 @@ mdviewer/
 | Toggle File Panel | Ctrl+B | Cmd+B |
 | Toggle History | Ctrl+H | Cmd+H |
 
-## Configuration
+## Settings and Data
 
-Configuration is stored in TOML format:
+There is no config file to edit. Settings (theme, zoom, panel sizes, text colors), open folders, tabs and workspaces are saved by the app itself and restored on the next start. Change them in the app's Settings dialog.
 
-- **Linux/macOS**: `~/.config/mdviewer/config.toml`
-- **Windows**: `%APPDATA%\mdviewer\config.toml`
+The app keeps two files in its config folder (`~/Library/Application Support/mdviewer` on macOS, `~/.config/mdviewer` on Linux, `%APPDATA%\mdviewer` on Windows):
 
-```toml
-[directories]
-watch = [
-  "~/Documents/notes",
-  "~/Projects/*/docs",
-]
+| File | Contents |
+|------|----------|
+| `access.json` | Folders and files you opened. The app reads only these (see below) |
+| `history/history.md` | Which files you opened and when, newest 1000 entries |
 
-[appearance]
-theme = "intellij-dark"
-zoom_default = 100
-panel_width = 280
-toc_visible = true
+## Security
 
-[editor]
-font_family = "JetBrains Mono"
-font_size = 14
-```
+Documents come from anywhere, so the app treats them as untrusted:
+
+- **File access is limited to what you opened.** The backend reads, lists and saves only inside folders you picked in the folder dialog, folders and files you dropped on the window, and files the app was launched with ("Open with"). Inside an opened folder it only touches markdown and text files; inside an opened single file's folder it only serves images. The webview can't extend the list by naming a path, so a script that got into a rendered document still couldn't read `~/.ssh`. To revoke access, remove the entry from `access.json` while the app is closed.
+- **Raw HTML in markdown is escaped**, not rendered, and links with `javascript:` and similar schemes are neutralised.
+- **A Content Security Policy** blocks scripts other than the app's own, plugins, frames and network requests, as a second line of defence.
+- **Saving is atomic**: the new content is written to a temporary file next to the original and renamed over it, so a crash or power loss can't leave a truncated file. Saving a symlink updates its target.
 
 ## Theme Customization
 

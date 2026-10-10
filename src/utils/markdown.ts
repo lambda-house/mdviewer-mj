@@ -1,38 +1,17 @@
 import MarkdownIt from 'markdown-it';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { Heading } from '../store';
 import { getFileKind } from './files';
 import { fb2ToMarkdown } from './fb2';
 
 // ============================================================
-// HTML Sanitization (XSS Protection)
+// XSS Protection
 // ============================================================
-
-// Reserved for future DOMPurify-based sanitization
-// const ALLOWED_TAGS = new Set([
-//   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-//   'p', 'br', 'hr',
-//   'ul', 'ol', 'li',
-//   'blockquote', 'pre', 'code',
-//   'strong', 'em', 'b', 'i', 'u', 's', 'del', 'ins', 'mark',
-//   'a', 'img',
-//   'table', 'thead', 'tbody', 'tr', 'th', 'td',
-//   'div', 'span',
-//   'input', // for checkboxes
-//   'sup', 'sub',
-// ]);
 //
-// const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
-//   '*': new Set(['id', 'class', 'title']),
-//   'a': new Set(['href', 'target', 'rel']),
-//   'img': new Set(['src', 'alt', 'width', 'height']),
-//   'input': new Set(['type', 'checked', 'disabled']),
-//   'td': new Set(['align', 'colspan', 'rowspan']),
-//   'th': new Set(['align', 'colspan', 'rowspan']),
-//   'code': new Set(['class']), // for language-* classes
-//   'pre': new Set(['class']),
-//   'div': new Set(['class', 'data-mermaid']),
-//   'button': new Set(['class', 'data-code']),
-// };
+// No HTML is filtered after rendering: markdown-it runs with `html: false`,
+// so raw HTML in the source comes out escaped, and every custom renderer
+// below escapes what it interpolates with `escapeHtml`. Link targets are
+// additionally checked by `sanitizeUrl`.
 
 const DANGEROUS_PROTOCOLS = ['javascript:', 'vbscript:', 'data:text/html'];
 
@@ -44,28 +23,6 @@ function sanitizeUrl(url: string): string {
     }
   }
   return url;
-}
-
-function sanitizeHtml(html: string): string {
-  // Simple but effective sanitizer
-  // For production, consider using DOMPurify
-  
-  return html
-    // Remove script tags completely
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    // Remove event handlers
-    .replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/\s+on\w+\s*=\s*[^\s>]+/gi, '')
-    // Sanitize javascript: URLs
-    .replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"')
-    .replace(/src\s*=\s*["']javascript:[^"']*["']/gi, 'src=""')
-    // Remove style tags
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    // Remove iframes
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    // Remove object/embed
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
-    .replace(/<embed\b[^>]*>/gi, '');
 }
 
 // ============================================================
@@ -147,7 +104,8 @@ md.renderer.rules.fence = (tokens, idx, _options, _env, _self) => {
   const language = token.info.trim().toLowerCase();
   const content = token.content;
   
-  // Handle Mermaid diagrams
+  // Handle Mermaid diagrams. The source travels in an attribute; reading it
+  // back with getAttribute() decodes it, so it must not be unescaped again.
   if (language === 'mermaid') {
     const escaped = escapeHtml(content);
     const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -193,7 +151,7 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLinkRenderer(tokens, idx, options, env, self);
 };
 
-// Custom image renderer to resolve relative paths via Tauri asset protocol
+// Custom image renderer to resolve relative paths via the localfile protocol
 md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
   const token = tokens[idx];
   const srcIndex = token.attrIndex('src');
@@ -204,17 +162,26 @@ md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
     ? token.children.map((t) => t.content).join('')
     : (altIndex >= 0 && token.attrs ? token.attrs[altIndex][1] : '');
 
-  // Resolve relative image paths using Tauri's asset protocol
+  // Resolve relative image paths (served by the backend's localfile protocol)
   if (src && env.basePath && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
+    // markdown-it has already percent-encoded the link ("мой файл.png" ->
+    // "%D0%BC...%20..."); decode it, since convertFileSrc encodes the whole
+    // path and the localfile handler decodes exactly once.
+    let path = src;
+    try {
+      path = decodeURIComponent(src);
+    } catch {
+      // Malformed escape: use the link as written
+    }
     // Resolve relative path against document's directory
     let absolutePath: string;
-    if (src.startsWith('/')) {
-      absolutePath = src;
+    if (path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path)) {
+      absolutePath = path;
     } else {
       // Handle ./ and ../ prefixes
       const base = env.basePath.replace(/\\/g, '/');
       const parts = base.split('/');
-      const srcParts = src.replace(/\\/g, '/').split('/');
+      const srcParts = path.replace(/\\/g, '/').split('/');
       for (const part of srcParts) {
         if (part === '..') {
           parts.pop();
@@ -224,7 +191,11 @@ md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
       }
       absolutePath = parts.join('/');
     }
-    src = `localfile://localhost/${encodeURIComponent(absolutePath)}`;
+    // localfile://localhost/<path> on macOS/Linux,
+    // http://localfile.localhost/<path> on Windows
+    src = '__TAURI_INTERNALS__' in window
+      ? convertFileSrc(absolutePath, 'localfile')
+      : `localfile://localhost/${encodeURIComponent(absolutePath)}`;
   }
 
   // Build attributes
@@ -255,15 +226,6 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => escapeMap[char] || char);
 }
 
-function unescapeHtml(text: string): string {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'");
-}
-
 // ============================================================
 // Parsing Functions
 // ============================================================
@@ -273,10 +235,7 @@ export function parseMarkdown(content: string, basePath?: string, lineOffset = 0
   headingIdGenerator.reset();
 
   const env = { ...(basePath ? { basePath } : {}), lineOffset };
-  const html = md.render(content, env);
-
-  // Apply sanitization as final step
-  return sanitizeHtml(html);
+  return md.render(content, env);
 }
 
 export function extractHeadings(content: string): Heading[] {
@@ -404,15 +363,13 @@ export async function highlightCodeBlocks(
       language = languageAliases[language];
     }
 
-    // Get the escaped code from data attribute on copy button
+    // Get the code from the data attribute on the copy button
+    // (getAttribute returns it already decoded)
     const wrapper = preEl.closest('.code-block-wrapper');
     const copyBtn = wrapper?.querySelector('.code-block-copy');
-    const escapedCode = copyBtn?.getAttribute('data-code');
+    const code = copyBtn?.getAttribute('data-code');
 
-    if (!escapedCode) continue;
-
-    // Decode the code
-    const code = unescapeHtml(escapedCode);
+    if (!code) continue;
 
     try {
       const highlighted = await highlightCode(code, language);
@@ -534,11 +491,10 @@ export async function renderMermaid(container: HTMLElement, theme: ColorTheme = 
       const renderId = `mermaid-render-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
       try {
-        const decoded = unescapeHtml(code);
-        const { svg } = await mermaid.render(renderId, decoded);
+        const { svg } = await mermaid.render(renderId, code);
 
         // Wrap SVG in zoomable container
-        const escapedCode = escapeHtml(decoded);
+        const escapedCode = escapeHtml(code);
         htmlEl.innerHTML = `
           <div class="mermaid-viewport">
             <div class="mermaid-content">${svg}</div>
@@ -786,7 +742,7 @@ function setupMermaidZoomPan(container: HTMLElement): void {
     const code = copyBtn.getAttribute('data-code');
     if (code) {
       try {
-        await navigator.clipboard.writeText(unescapeHtml(code));
+        await navigator.clipboard.writeText(code);
         const originalText = copyBtn.textContent;
         copyBtn.textContent = 'Copied!';
         copyBtn.classList.add('copied');
@@ -920,5 +876,5 @@ export function renderFile(path: string, content: string, basePath?: string): Re
 }
 
 // Export utilities
-export { escapeHtml, unescapeHtml };
+export { escapeHtml };
 export default md;
