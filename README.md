@@ -76,6 +76,11 @@ npm run tauri dev
 npm run tauri build
 ```
 
+The build also produces signed update packages, so it needs the updater key (see [Updates](#updates)). Without the key, turn them off for a local build:
+```bash
+npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
 On Linux, install the WebKitGTK build dependencies first:
 `sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
 
@@ -91,6 +96,14 @@ git push origin v1.0.5
 ```
 
 `.github/workflows/release.yml` builds macOS (arm64 and x64), Windows x64 and Linux x64, and attaches the installers to a GitHub Release for that tag. Running the workflow by hand from the Actions tab builds the same installers as workflow artifacts without publishing a release.
+
+### Updates
+
+The app checks `https://github.com/lambda-house/mdviewer-mj/releases/latest/download/latest.json` a few seconds after it starts (Settings → General → Check for updates on start, or **Check now**). When a newer version is there, a bar under the toolbar offers **Install and restart**; nothing is installed without that click.
+
+Every update package is signed with the updater key, and the app refuses packages whose signature doesn't match the public key in `tauri.conf.json` (`plugins.updater.pubkey`). The release workflow signs with two repository secrets, `TAURI_SIGNING_PRIVATE_KEY` (the key file's contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and its `updater-manifest` job writes `latest.json` once all platforms are uploaded. Keep a backup of the key and its password: without them, installed copies can't be updated anymore and users would have to reinstall by hand.
+
+The updater needs the repository to be public, because the app downloads release files without logging in.
 
 ### Code signing
 
@@ -166,6 +179,8 @@ The app keeps two files in its config folder (`~/Library/Application Support/mdv
 |------|----------|
 | `access.json` | Folders and files you opened. The app reads only these (see below) |
 | `history/history.md` | Which files you opened and when, newest 1000 entries |
+
+The only network requests the app makes on its own are the update check (when enabled) and, if you allow them, remote images in documents.
 
 ## Security
 

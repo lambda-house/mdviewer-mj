@@ -96,12 +96,18 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the update packages the in-app updater downloads (README, "Updates")
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: MDViewer ${{ github.ref_name }}
           releaseBody: See CHANGELOG.md for what changed, and the README for installing.
           releaseDraft: false
           prerelease: false
+          # Written by the updater-manifest job instead: jobs updating it in
+          # parallel can drop each other's platforms
+          includeUpdaterJson: false
           args: --target ${{ matrix.target }} ${{ env.SIGNING_ARGS }}
 
       - name: Upload installers (manual runs)
@@ -117,3 +123,48 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
             src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
           if-no-files-found: ignore
+
+  # latest.json, read by the in-app updater from the latest release:
+  # each platform's update package and its signature
+  updater-manifest:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir sigs && cd sigs
+          gh release download "$TAG" --pattern '*.sig'
+          python3 - <<'EOF'
+          import datetime, json, os, urllib.parse
+
+          base = f"https://github.com/{os.environ['GH_REPO']}/releases/download/{os.environ['TAG']}/"
+
+          def package(suffix):
+              sigs = [f for f in os.listdir('.') if f.endswith(suffix + '.sig')]
+              if len(sigs) != 1:
+                  raise SystemExit(f'expected one *{suffix}.sig, found {sigs}')
+              return {
+                  'signature': open(sigs[0]).read().strip(),
+                  'url': base + urllib.parse.quote(sigs[0].removesuffix('.sig')),
+              }
+
+          manifest = {
+              'version': os.environ['TAG'].removeprefix('v'),
+              'notes': 'See CHANGELOG.md for what changed.',
+              'pub_date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+              'platforms': {
+                  'darwin-aarch64': package('_aarch64.app.tar.gz'),
+                  'darwin-x86_64': package('_x64.app.tar.gz'),
+                  'windows-x86_64': package('-setup.exe'),
+                  'linux-x86_64': package('.AppImage'),
+              },
+          }
+          json.dump(manifest, open('latest.json', 'w'), indent=2)
+          EOF
+          cat latest.json
+          gh release upload "$TAG" latest.json --clobber

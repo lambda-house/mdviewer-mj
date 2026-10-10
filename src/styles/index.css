@@ -2937,3 +2937,76 @@ a:hover {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
+
+/* ============================================================
+   Update Banner
+   ============================================================ */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.update-banner span {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-banner button {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.update-banner button:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-active);
+}
+
+.update-banner .update-banner-install {
+  background: var(--border-active);
+  border-color: var(--border-active);
+  color: #fff;
+}
+
+.update-banner .update-banner-close {
+  padding: 3px;
+  background: none;
+  border-color: transparent;
+}
+
+.settings-button {
+  flex-shrink: 0;
+  margin-right: 12px;
+  padding: 6px 12px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.settings-button:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--border-active);
+}
+
+.settings-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

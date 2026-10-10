@@ -15,6 +15,7 @@ import {
   onOpenPaths,
   openExternal,
   followLocalLink,
+  checkForUpdate,
 } from './utils/tauri';
 import { saveActiveDocument } from './utils/save';
 import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
@@ -27,6 +28,7 @@ import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
+import UpdateBanner from './components/UpdateBanner';
 
 // ============================================================
 // Main App Component
@@ -282,6 +284,17 @@ const App: React.FC = () => {
     });
   }, [openDocument]);
   
+  // Look for a new version a few seconds after start (not during startup work)
+  useEffect(() => {
+    if (!isTauri() || !useStore.getState().checkUpdatesOnStart) return;
+    const timer = setTimeout(() => {
+      checkForUpdate()
+        .then((update) => useStore.getState().setAvailableUpdate(update))
+        .catch((error) => console.warn('Update check failed:', error));
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Links in the document. The window itself never navigates (the backend
   // blocks it): anchors scroll, web/mail links open in the default browser,
   // links to local files open in a tab (or are revealed if not viewable),
@@ -736,6 +749,8 @@ const App: React.FC = () => {
         searchVisible={searchVisible}
         onToggleSearch={() => (searchVisible ? setSearchVisible(false) : openSearch())}
       />
+
+      <UpdateBanner />
 
       <div className="main-content">
         {searchVisible && <SearchPanel width={panelWidth} />}

@@ -16,6 +16,10 @@
 - **Before:** a symlink pointing outside an opened folder was listed in the tree but refused when clicked
 - **After:** followed when its target is a document (or, for images, an image), the way an editor would. A `.md` link to a non-document (`notes.md -> ~/.ssh/id_rsa`) is neither listed nor readable, `..` is never followed through a link, and a link back to a parent folder no longer repeats the tree. History records the path as listed
 
+### Updates (`main.rs`, `UpdateBanner.tsx`, `SettingsModal.tsx`, `release.yml`)
+- The app checks GitHub for a new version a few seconds after start and shows a bar with **Install and restart**; it installs only when clicked, and not while documents have unsaved changes. Settings → General has the on/off switch and **Check now**
+- Update packages are signed in CI and verified against the public key in `tauri.conf.json` before installing. A final `updater-manifest` job writes `latest.json` after all four builds
+
 ### Dependencies
 - Vite 5 → 8 and `@vitejs/plugin-react` 4 → 6, which clears the remaining build-tool advisories (esbuild, rollup, postcss); KaTeX (used by Mermaid) pinned to 0.19 for GHSA-238p-pmpm-9mq7. `npm audit` reports no vulnerabilities
 

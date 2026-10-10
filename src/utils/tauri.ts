@@ -146,6 +146,26 @@ export async function openInExplorer(path: string): Promise<void> {
   return invoke('open_in_explorer', { path });
 }
 
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes?: string | null;
+}
+
+/** Ask the release server for a newer version; null when this is the latest. */
+export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  if (!isTauri()) return null;
+  return invoke('check_for_update');
+}
+
+/**
+ * Download, verify and install the update found by checkForUpdate, then
+ * restart the app. Unsaved changes are lost, so check for them first.
+ */
+export async function installUpdate(): Promise<void> {
+  return invoke('install_update');
+}
+
 /**
  * Follow a document link to a local file. The backend shows anything that
  * isn't a document in the file manager; a target outside the opened folders
