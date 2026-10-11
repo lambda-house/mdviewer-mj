@@ -8,6 +8,7 @@ A powerful, elegant markdown document viewer built with Tauri, React, and TypeSc
 - 🎨 **Syntax highlighting** for 15+ programming languages (via Shiki)
 - 📊 **Mermaid diagram support** - flowcharts, sequence diagrams, class diagrams, and more
 - 📑 **Tabbed interface** for multi-document workflows
+- 🤖 **Agent workspace** - the instructions, memory, plans and skills of Claude Code, Codex and Gemini CLI in one panel, with what changed since you last read them
 - 📋 **Table of Contents** sidebar with scroll synchronization
 - 🖱️ **Drag & drop** markdown files or folders onto the window to open them
 - 🔍 **File search** with instant filtering
@@ -147,13 +148,28 @@ mdviewer/
 │   └── main.tsx              # Entry point
 ├── src-tauri/                # Rust backend
 │   ├── src/
-│   │   └── main.rs           # Tauri commands
+│   │   ├── main.rs           # Tauri commands, access list
+│   │   └── agent.rs          # Agent workspace: discovery, read state
 │   ├── Cargo.toml            # Rust dependencies
 │   └── tauri.conf.json       # Tauri configuration
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts
 ```
+
+## Agent Workspace
+
+The 🤖 button (Ctrl+Shift+A) opens a panel with what coding agents read and write:
+
+| Section | What's in it |
+|---|---|
+| Instructions | `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, and `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.github/copilot-instructions.md` in the folders you open (4 levels deep) |
+| Memory | Claude Code's per-project memory (`~/.claude/projects/*/memory`), grouped by project |
+| Plans | `~/.claude/plans` (newest 100) and `.claude/plans` in opened folders |
+| Skills | `SKILL.md` of user, project and plugin skills, with their descriptions |
+| Agents, Commands | Subagent definitions and slash commands (`~/.codex/prompts` too) |
+
+The first time, the panel asks to read the agents' folders. Everything that is there then counts as read. After that, a dot marks files an agent has changed since you last read them, and **Changed since you read them** collects them at the top. Opening one highlights the changed blocks, with **Next change** and **Mark as read**; leaving the document marks it read too. While the panel or an agent file is open, the list and open documents refresh every 10 seconds.
 
 ## Keyboard Shortcuts
 
@@ -168,6 +184,7 @@ mdviewer/
 | Reopen Closed Tab | Ctrl+Shift+T | Cmd+Shift+T |
 | Toggle File Panel | Ctrl+B | Cmd+B |
 | Toggle History | Ctrl+H | Cmd+H |
+| Toggle Agent Panel | Ctrl+Shift+A | Cmd+Shift+A |
 
 ## Settings and Data
 
@@ -179,6 +196,7 @@ The app keeps two files in its config folder (`~/Library/Application Support/mdv
 |------|----------|
 | `access.json` | Folders and files you opened. The app reads only these (see below) |
 | `history/history.md` | Which files you opened and when, newest 1000 entries |
+| `read-state/` | Agent workspace only: a copy of each agent file as you last read it, to show what changed |
 
 The only network requests the app makes on its own are the update check (when enabled) and, if you allow them, remote images in documents.
 
@@ -188,6 +206,7 @@ Documents come from anywhere, so the app treats them as untrusted:
 
 - **File access is limited to what you opened.** The backend reads, lists and saves only inside folders you picked in the folder dialog, folders and files you dropped on the window, and files the app was launched with ("Open with"). Inside an opened folder it only touches markdown and text files; inside an opened single file's folder it only serves images. The webview can't extend the list by naming a path, so a script that got into a rendered document still couldn't read `~/.ssh`. To revoke access, remove the entry from `access.json` while the app is closed.
 - **Links to files you didn't open ask first.** Clicking a link to a file outside the opened folders and files shows a native "Open linked file?" dialog; only if you confirm is that file added. Symlinks inside an opened folder are followed when they point to a document (or image), never to anything else.
+- **The agent workspace is opt-in.** The agent panel reads the agents' own folders (`~/.claude`, `~/.codex`, `~/.gemini`) only after you confirm a native dialog, and then only markdown in fixed places: `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, `projects/*/memory`, `plans`, `skills`, `agents`, `commands` and plugin skills. Settings, credentials and session transcripts are never read. The eye button in the panel turns it off.
 - **Remote images are not loaded until you allow it**, since loading them tells their server when you read the document. Use **Load images** above the document, or turn on Settings → General → Load remote images.
 - **Raw HTML in markdown is escaped**, not rendered, and links with `javascript:` and similar schemes are neutralised.
 - **A Content Security Policy** blocks scripts other than the app's own, plugins, frames and network requests, as a second line of defence. The window can't be navigated away from the app: web links open in your browser.

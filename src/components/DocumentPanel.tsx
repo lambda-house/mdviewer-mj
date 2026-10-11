@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { FileQuestion, AlertCircle, Save, ImageOff } from 'lucide-react';
+import { FileQuestion, AlertCircle, Save, ImageOff, FileDiff } from 'lucide-react';
 import { useStore } from '../store';
 import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from '../utils/markdown';
 import clsx from 'clsx';
@@ -12,6 +12,8 @@ const Editor = React.lazy(() => import('./Editor'));
 import { getFileKind, getFileName } from '../utils/files';
 import { saveActiveDocument } from '../utils/save';
 import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { readSnapshot } from '../utils/tauri';
+import { CHANGED_CLASS, diffContent, formatAge, markAgentFilesRead, markChangedBlocks, markLeftDocumentRead } from '../utils/agent';
 
 // ============================================================
 // Scroll Tuning Constants
@@ -282,6 +284,10 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   const [html, setHtml] = useState('');
   const [blockedImages, setBlockedImages] = useState(0);
   const [remoteImagesLoaded, setRemoteImagesLoaded] = useState(0);
+  // Agent files: what changed since the user last read the document
+  const isAgentDocument = useStore((s) => s.agentEntries.some((e) => e.path === documentPath));
+  const [changes, setChanges] = useState<{ blocks: HTMLElement[]; readAt: number } | null>(null);
+  const changeIndexRef = useRef(-1);
   // Committed together with `html`, so the DOM says which document it shows
   // (the find bar must not resolve a jump against the previous document)
   const [renderedPath, setRenderedPath] = useState('');
@@ -324,6 +330,44 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       setBlockedImages(container.querySelectorAll('span.remote-image').length);
     }
   }, [html, documentPath, alwaysLoadRemoteImages, remoteImagesLoaded]);
+
+  // Compare with the copy kept when the document was last read. Runs once the
+  // new HTML is in the DOM (`content` is what produced it).
+  useEffect(() => {
+    const container = containerRef.current;
+    setChanges(null);
+    if (!container || !html || !isAgentDocument) return;
+    let cancelled = false;
+    readSnapshot(documentPath)
+      .then((snapshot) => {
+        if (cancelled || !snapshot || snapshot.content === content) return;
+        const blocks = markChangedBlocks(container, diffContent(snapshot.content, content));
+        changeIndexRef.current = -1;
+        setChanges(blocks.length > 0 ? { blocks, readAt: snapshot.readAt } : null);
+      })
+      .catch((error) => console.error('Failed to compare with the last read:', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [html, documentPath, isAgentDocument]); // not `content`: it changes before the HTML does
+
+  // Leaving an agent file counts as having read it
+  useEffect(() => {
+    if (!isAgentDocument) return;
+    return () => markLeftDocumentRead(documentPath);
+  }, [documentPath, isAgentDocument]);
+
+  const showNextChange = useCallback(() => {
+    if (!changes) return;
+    changeIndexRef.current = (changeIndexRef.current + 1) % changes.blocks.length;
+    changes.blocks[changeIndexRef.current].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [changes]);
+
+  const markDocumentRead = useCallback(() => {
+    containerRef.current?.querySelectorAll(`.${CHANGED_CLASS}`).forEach((el) => el.classList.remove(CHANGED_CLASS));
+    setChanges(null);
+    markAgentFilesRead([documentPath]).catch((error) => console.error('Failed to save read state:', error));
+  }, [documentPath]);
 
   const loadImagesForDocument = useCallback(() => {
     remoteImageDocuments.add(documentPath);
@@ -469,6 +513,17 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   
   return (
     <>
+    {changes && (
+      <div className="remote-images-notice changes-notice" role="status">
+        <FileDiff size={14} aria-hidden="true" />
+        <span>
+          {changes.blocks.length === 1 ? '1 place' : `${changes.blocks.length} places`} changed since you
+          read it {formatAge(changes.readAt)}
+        </span>
+        <button type="button" onClick={showNextChange}>Next change</button>
+        <button type="button" onClick={markDocumentRead}>Mark as read</button>
+      </div>
+    )}
     {blockedImages > 0 && (
       <div className="remote-images-notice" role="status">
         <ImageOff size={14} aria-hidden="true" />

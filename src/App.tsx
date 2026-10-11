@@ -28,6 +28,8 @@ import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
+import AgentPanel from './components/AgentPanel';
+import { refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
 
 // ============================================================
@@ -36,6 +38,8 @@ import UpdateBanner from './components/UpdateBanner';
 
 /** Quiet time after the last file change event before the tree is rescanned. */
 const RESCAN_DEBOUNCE = 300;
+/** How often agent files are rescanned while they're shown (ms). */
+const AGENT_REFRESH_INTERVAL = 10000;
 
 /** Message of an Error or of a backend error ({ code, message }). */
 function errorText(error: unknown): string {
@@ -58,6 +62,10 @@ const App: React.FC = () => {
   const tocVisible = useStore((s) => s.tocVisible);
   const activeTabId = useStore((s) => s.activeTabId);
   const historyVisible = useStore((s) => s.historyVisible);
+  const agentVisible = useStore((s) => s.agentVisible);
+  const setAgentVisible = useStore((s) => s.setAgentVisible);
+  const toggleAgentVisible = useStore((s) => s.toggleAgentVisible);
+  const hasAgentTabs = useStore((s) => s.tabs.some((t) => s.agentEntries.some((e) => e.path === t.path)));
 
   const setPanelWidth = useStore((s) => s.setPanelWidth);
   const setTocWidth = useStore((s) => s.setTocWidth);
@@ -247,19 +255,42 @@ const App: React.FC = () => {
     }
   }, [setFiles]);
   
-  // The left slot holds the search, history or file panel. Hiding it (drag
-  // to the edge / double-click the separator) hides all of them; showing it
-  // brings back the file panel.
-  const leftPanelVisible = searchVisible || historyVisible || filePanelVisible;
+  // The left slot holds the search, history, agent or file panel. Hiding it
+  // (drag to the edge / double-click the separator) hides all of them;
+  // showing it brings back the file panel.
+  const leftPanelVisible = searchVisible || historyVisible || agentVisible || filePanelVisible;
   const setLeftPanelVisible = useCallback((visible: boolean) => {
     if (visible) {
-      if (!historyVisible && !searchVisible) setFilePanelVisible(true);
+      if (!historyVisible && !searchVisible && !agentVisible) setFilePanelVisible(true);
     } else {
       setSearchVisible(false);
       setHistoryVisible(false);
+      setAgentVisible(false);
       setFilePanelVisible(false);
     }
-  }, [historyVisible, searchVisible, setFilePanelVisible, setHistoryVisible, setSearchVisible]);
+  }, [historyVisible, searchVisible, agentVisible, setFilePanelVisible, setHistoryVisible, setSearchVisible, setAgentVisible]);
+
+  // Agent files change while agents work: rescan while the agent panel or an
+  // agent file is open, every few seconds and when the window gets focus
+  useEffect(() => {
+    if (!isTauri()) return;
+    if (!agentVisible && !hasAgentTabs) {
+      // Still learn which documents are agent files (for "what changed")
+      refreshAgentWorkspace().catch(() => {});
+      return;
+    }
+    const refresh = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAgentWorkspace().catch((error) => console.error('Failed to refresh agent files:', error));
+      }
+    };
+    const timer = setInterval(refresh, AGENT_REFRESH_INTERVAL);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [agentVisible, hasAgentTabs]);
   
   // Rescan when the "show text files" setting changes (not on startup - the
   // directories are scanned once above)
@@ -595,6 +626,12 @@ const App: React.FC = () => {
         return;
       }
 
+      // Ctrl/Cmd + Shift + A: Toggle agent panel
+      if (isMod && isShift && e.key.toLowerCase() === 'a') {
+        toggleAgentVisible();
+        return;
+      }
+
       // Ctrl/Cmd + H: Toggle history panel
       if (isMod && !isShift && e.key.toLowerCase() === 'h') {
         handleToggleHistory();
@@ -657,6 +694,7 @@ const App: React.FC = () => {
     resetZoom,
     handleToggleFilePanel,
     handleToggleHistory,
+    toggleAgentVisible,
     handleReopenClosedTab,
     openFind,
     openSearch,
@@ -746,6 +784,8 @@ const App: React.FC = () => {
         onToggleFilePanel={handleToggleFilePanel}
         historyVisible={historyVisible}
         onToggleHistory={handleToggleHistory}
+        agentVisible={agentVisible}
+        onToggleAgent={toggleAgentVisible}
         searchVisible={searchVisible}
         onToggleSearch={() => (searchVisible ? setSearchVisible(false) : openSearch())}
       />
@@ -757,7 +797,9 @@ const App: React.FC = () => {
 
         {historyVisible && !searchVisible && <HistoryPanel width={panelWidth} />}
 
-        {filePanelVisible && !historyVisible && !searchVisible && (
+        {agentVisible && !historyVisible && !searchVisible && <AgentPanel width={panelWidth} />}
+
+        {filePanelVisible && !historyVisible && !searchVisible && !agentVisible && (
           <FilePanel
             width={panelWidth}
             onAddDirectory={handleAddDirectory}
@@ -771,7 +813,7 @@ const App: React.FC = () => {
           visible={leftPanelVisible}
           onWidthChange={setPanelWidth}
           onVisibleChange={setLeftPanelVisible}
-          label={searchVisible ? 'search panel' : historyVisible ? 'history panel' : 'file panel'}
+          label={searchVisible ? 'search panel' : historyVisible ? 'history panel' : agentVisible ? 'agent panel' : 'file panel'}
         />
 
         <DocumentPanel onHeadingsChange={handleHeadingsChange} />

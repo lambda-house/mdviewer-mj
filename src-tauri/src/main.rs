@@ -20,6 +20,8 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
+mod agent;
+
 // ============================================================
 // Types
 // ============================================================
@@ -103,6 +105,10 @@ pub struct Access {
     /// Opened single files: the file itself, plus images next to/below it.
     #[serde(default)]
     files: Vec<PathBuf>,
+    /// Agent workspace turned on: markdown in the agents' own folders
+    /// (`agent::is_agent_document`) counts as opened.
+    #[serde(default)]
+    agent_workspace: bool,
 }
 
 impl Access {
@@ -139,11 +145,14 @@ impl Access {
     fn can_open(&self, path: &Path) -> bool {
         self.files.iter().any(|file| file == path)
             || (self.in_tree(path) && is_viewable_file(path, true))
+            || (self.agent_workspace && agent::is_agent_document(path))
     }
 
     /// Metadata and "reveal in file manager".
     fn can_stat(&self, path: &Path) -> bool {
-        self.in_tree(path) || self.files.iter().any(|file| file == path)
+        self.in_tree(path)
+            || self.files.iter().any(|file| file == path)
+            || (self.agent_workspace && agent::is_agent_document(path))
     }
 
     /// Images referenced by documents (the `localfile://` protocol).
@@ -250,6 +259,22 @@ impl AccessState {
         if changed {
             self.save(&access);
         }
+    }
+
+    /// Turn the agent workspace on or off and save the list.
+    fn set_agent_workspace(&self, enabled: bool) {
+        let Ok(mut access) = self.access.lock() else { return };
+        if access.agent_workspace != enabled {
+            access.agent_workspace = enabled;
+            self.save(&access);
+        }
+    }
+
+    /// Whether the agent workspace is on, and the opened folders.
+    fn agent_scope(&self) -> (bool, Vec<PathBuf>) {
+        self.access.lock()
+            .map(|access| (access.agent_workspace, access.directories.clone()))
+            .unwrap_or_default()
     }
 
     fn save(&self, access: &Access) {
@@ -1163,6 +1188,93 @@ async fn open_external(url: String, app: AppHandle) -> Result<(), AppError> {
 }
 
 // ============================================================
+// Agent workspace
+// ============================================================
+
+/// The agent files (instructions, memory, plans, skills) with their read
+/// state. Empty while the workspace is off.
+#[tauri::command]
+async fn agent_workspace(access: State<'_, AccessState>) -> Result<agent::AgentWorkspace, AppError> {
+    let (enabled, directories) = access.agent_scope();
+    if !enabled {
+        return Ok(agent::AgentWorkspace { enabled, entries: Vec::new() });
+    }
+    static PRUNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    let prune = !PRUNED.swap(true, std::sync::atomic::Ordering::Relaxed);
+    let entries = tauri::async_runtime::spawn_blocking(move || {
+        let entries = agent::scan(&directories);
+        // Once per run: drop read state of files that are gone
+        if prune {
+            agent::prune_read_state(&entries);
+        }
+        entries
+    })
+        .await
+        .map_err(|e| AppError::with_details("SCAN_ERROR", "Failed to list agent files", &e.to_string()))?;
+    Ok(agent::AgentWorkspace { enabled, entries })
+}
+
+/// Turn the agent workspace on after the user confirms it in a native dialog
+/// (the webview can't answer it). Returns whether it is on.
+#[tauri::command]
+async fn enable_agent_workspace(app: AppHandle, access: State<'_, AccessState>) -> Result<bool, AppError> {
+    let locations = agent::found_locations();
+    let found = if locations.is_empty() {
+        "No agent folders were found yet. Agent files in the folders you open are still listed.".to_string()
+    } else {
+        format!("MDViewer will read the markdown files coding agents keep in:\n\n{}", locations.join("\n"))
+    };
+    let mut dialog = app.dialog()
+        .message(format!(
+            "{}\n\nThat is instructions (CLAUDE.md, AGENTS.md), memory, plans, skills, agents and commands. Settings, keys and session transcripts are not read.",
+            found
+        ))
+        .title("Show agent files?")
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom("Show agent files".to_string(), "Cancel".to_string()));
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.parent(&window);
+    }
+    if !dialog.blocking_show() {
+        return Ok(false);
+    }
+    access.set_agent_workspace(true);
+    let (_, directories) = access.agent_scope();
+    // Everything there now counts as read: only later changes are highlighted
+    tauri::async_runtime::spawn_blocking(move || agent::mark_all_read(&agent::scan(&directories)));
+    Ok(true)
+}
+
+#[tauri::command]
+fn disable_agent_workspace(access: State<'_, AccessState>) {
+    access.set_agent_workspace(false);
+}
+
+/// The copy of a document kept when it was last read, for "what changed".
+#[tauri::command]
+fn read_snapshot(path: String, access: State<'_, AccessState>) -> Result<Option<agent::Snapshot>, AppError> {
+    let target = expand_target(&path)?;
+    access.check(&target, Use::Open)?;
+    Ok(agent::load_snapshot(&path))
+}
+
+/// Remember documents as read, as they are now.
+#[tauri::command]
+async fn mark_read(paths: Vec<String>, access: State<'_, AccessState>) -> Result<(), AppError> {
+    let mut allowed = Vec::new();
+    for path in paths {
+        let target = expand_target(&path)?;
+        access.check(&target, Use::Open)?;
+        allowed.push(path);
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        allowed.iter().try_for_each(|path| agent::mark_read(path))
+    })
+    .await
+    .map_err(|e| AppError::with_details("WRITE_ERROR", "Failed to save read state", &e.to_string()))?
+}
+
+// ============================================================
 // Updates
 // ============================================================
 
@@ -1444,6 +1556,11 @@ fn main() {
             append_to_history,
             clear_history,
             take_launch_paths,
+            agent_workspace,
+            enable_agent_workspace,
+            disable_agent_workspace,
+            read_snapshot,
+            mark_read,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

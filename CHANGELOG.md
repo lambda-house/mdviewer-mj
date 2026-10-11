@@ -1,5 +1,17 @@
 # MDViewer - Fixes Applied
 
+## Unreleased
+
+### Agent workspace (`agent.rs`, `AgentPanel.tsx`, `utils/agent.ts`, `DocumentPanel.tsx`)
+- A new left panel (🤖, Ctrl+Shift+A) lists the instructions, memory, plans, skills, subagents and commands of Claude Code, Codex and Gemini CLI, plus agent files in the opened folders. Skills, memory and commands show their frontmatter descriptions, and a filter searches titles, descriptions and paths
+- Turning it on asks in a native dialog. It adds no folders to the access list: while it's on, markdown in fixed places inside `~/.claude`, `~/.codex` and `~/.gemini` counts as opened (`agent::is_agent_document`); settings, credentials and transcripts stay unreadable
+- **What changed since you read it:** a copy of each agent file is kept when you read it (`read-state/` in the config dir). Changed files get a dot and a "Changed since you read them" section; opening one highlights the changed blocks, with **Next change** and **Mark as read**
+- Open agent files reload when an agent changes them (rescanned every 10 s while shown)
+
+### Scrolling (`useSmoothWheelScroll.ts`)
+- **Before:** trackpad and Magic Mouse scrolling was animated a second time on top of the system's momentum, and stretched up to 2.5× because their events come fast, so the page overshot and kept gliding
+- **After:** only mouse wheel notches are animated; trackpads scroll natively
+
 ## Version 1.0.5
 
 ### Privacy and access

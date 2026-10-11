@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from '../utils/search';
 import type { ColorTheme } from '../utils/markdown';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
-import type { UpdateInfo } from '../utils/tauri';
+import type { AgentEntry, UpdateInfo } from '../utils/tauri';
 
 // ============================================================
 // Constants
@@ -200,6 +200,11 @@ interface AppState {
   historyVisible: boolean;
   historyContent: string;
 
+  // Agent workspace (shares the left slot with search and history)
+  agentVisible: boolean;
+  /** Agent files from the last scan; empty while the workspace is off. */
+  agentEntries: AgentEntry[];
+
   // Workspaces
   workspaces: Workspace[];
   /** Name of the workspace the current folders/tabs belong to. */
@@ -304,6 +309,14 @@ interface AppState {
   // History
   setHistoryVisible: (visible: boolean) => void;
   toggleHistoryVisible: () => void;
+  setAgentVisible: (visible: boolean) => void;
+  toggleAgentVisible: () => void;
+  setAgentEntries: (entries: AgentEntry[]) => void;
+  /**
+   * Show what is on disk now in an open document, unless it has unsaved
+   * edits. Returns whether the document was updated.
+   */
+  reloadDocument: (path: string, content: string) => boolean;
 
   // Workspaces
   /** Save the current folders and tabs under `name` (replacing one of that name). */
@@ -548,6 +561,8 @@ export const useStore = create<AppState>()(
 
       // History
       historyVisible: false,
+      agentVisible: false,
+      agentEntries: [],
       workspaces: [],
       activeWorkspace: null,
       searchOptions: DEFAULT_SEARCH_OPTIONS,
@@ -1002,13 +1017,39 @@ export const useStore = create<AppState>()(
       setLanguageAliases: (aliases) => set({ languageAliases: aliases }),
 
       // History
-      setHistoryVisible: (visible) => set({ historyVisible: visible }),
+      setHistoryVisible: (visible) => set((state) => ({
+        historyVisible: visible,
+        agentVisible: visible ? false : state.agentVisible,
+      })),
 
       toggleHistoryVisible: () => set((state) => ({
         historyVisible: !state.historyVisible,
-        // History and search share the left slot
+        // History, search and the agent workspace share the left slot
         searchVisible: state.historyVisible ? state.searchVisible : false,
+        agentVisible: state.historyVisible ? state.agentVisible : false,
       })),
+
+      setAgentVisible: (visible) => set((state) => ({
+        agentVisible: visible,
+        historyVisible: visible ? false : state.historyVisible,
+        searchVisible: visible ? false : state.searchVisible,
+      })),
+
+      toggleAgentVisible: () => get().setAgentVisible(!get().agentVisible),
+
+      setAgentEntries: (entries) => set({ agentEntries: entries }),
+
+      reloadDocument: (path, content) => {
+        const doc = get().documents[path];
+        if (!doc || doc.isDirty || doc.content === content) return false;
+        set((state) => ({
+          documents: {
+            ...state.documents,
+            [path]: { ...doc, content, originalContent: content, lastModified: Date.now() },
+          },
+        }));
+        return true;
+      },
 
       // Workspaces
       saveWorkspace: (rawName) => {
@@ -1094,11 +1135,13 @@ export const useStore = create<AppState>()(
       setSearchVisible: (visible) => set((state) => ({
         searchVisible: visible,
         historyVisible: visible ? false : state.historyVisible,
+        agentVisible: visible ? false : state.agentVisible,
       })),
 
       openSearch: (query) => set((state) => ({
         searchVisible: true,
         historyVisible: false,
+        agentVisible: false,
         searchQuery: query ?? state.searchQuery,
         searchFocusNonce: state.searchFocusNonce + 1,
       })),
@@ -1119,6 +1162,7 @@ export const useStore = create<AppState>()(
         expandedPaths: state.expandedPaths,
         panelWidth: state.panelWidth,
         filePanelVisible: state.filePanelVisible,
+        agentVisible: state.agentVisible,
         tocWidth: state.tocWidth,
         tocVisible: state.tocVisible,
         zoom: state.zoom,

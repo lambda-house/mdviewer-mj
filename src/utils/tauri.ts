@@ -372,3 +372,63 @@ export async function writeFile(path: string, content: string): Promise<void> {
     throw new Error(extractErrorMessage(error));
   }
 }
+
+// ============================================================
+// Agent workspace
+// ============================================================
+
+export type AgentKind = 'instructions' | 'memory' | 'plan' | 'skill' | 'agent' | 'command';
+
+/** A markdown file a coding agent reads or writes (see src-tauri/src/agent.rs). */
+export interface AgentEntry {
+  path: string;
+  kind: AgentKind;
+  title: string;
+  description: string | null;
+  /** What it belongs to: an agent ("Claude Code"), a project folder or a plugin. */
+  group: string;
+  scope: 'user' | 'project' | 'plugin';
+  /** Last change, ms since the epoch. */
+  modified: number;
+  /** Changed since the user last read it. */
+  unread: boolean;
+  /** Never read. */
+  isNew: boolean;
+}
+
+export interface AgentWorkspace {
+  enabled: boolean;
+  entries: AgentEntry[];
+}
+
+/** The copy of a document kept when it was last read. */
+export interface ReadSnapshot {
+  path: string;
+  content: string;
+  readAt: number;
+}
+
+export async function getAgentWorkspace(): Promise<AgentWorkspace> {
+  if (!isTauri()) return { enabled: false, entries: [] };
+  return invoke('agent_workspace');
+}
+
+/** Asks the user in a native dialog; resolves to whether it is on. */
+export async function enableAgentWorkspace(): Promise<boolean> {
+  return invoke('enable_agent_workspace');
+}
+
+export async function disableAgentWorkspace(): Promise<void> {
+  return invoke('disable_agent_workspace');
+}
+
+export async function readSnapshot(path: string): Promise<ReadSnapshot | null> {
+  if (!isTauri()) return null;
+  return invoke('read_snapshot', { path });
+}
+
+/** Remember documents as read, as they are on disk now. */
+export async function markRead(paths: string[]): Promise<void> {
+  if (!isTauri() || paths.length === 0) return;
+  return invoke('mark_read', { paths });
+}

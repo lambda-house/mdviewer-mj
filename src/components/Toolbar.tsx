@@ -13,6 +13,7 @@ import {
   Sun,
   Settings,
   History,
+  Bot,
   FileSearch,
 } from 'lucide-react';
 import { useStore, MIN_ZOOM, MAX_ZOOM } from '../store';
@@ -96,6 +97,8 @@ interface ToolbarProps {
   onToggleFilePanel?: () => void;
   historyVisible?: boolean;
   onToggleHistory?: () => void;
+  agentVisible?: boolean;
+  onToggleAgent?: () => void;
   searchVisible?: boolean;
   onToggleSearch?: () => void;
 }
@@ -278,6 +281,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onToggleFilePanel,
   historyVisible,
   onToggleHistory,
+  agentVisible,
+  onToggleAgent,
   searchVisible,
   onToggleSearch,
 }) => {
@@ -423,6 +428,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
           title="Toggle History"
         >
           <History size={16} />
+        </button>
+        <button
+          className={clsx('toolbar-button', agentVisible && 'active')}
+          onClick={onToggleAgent}
+          title="Agent files: instructions, memory, skills (Ctrl+Shift+A)"
+        >
+          <Bot size={16} />
         </button>
       </div>
       

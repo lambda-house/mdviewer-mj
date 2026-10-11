@@ -66,6 +66,8 @@ The central design decision: **the webview is untrusted.** It renders documents 
   | `Stat` (metadata, reveal in file manager) | an opened file, or anything inside an opened folder |
   | `Image` (`localfile://`) | an image inside an opened folder, or in or below the folder of an opened file |
 
+  With the agent workspace on, `Open` and `Stat` also allow markdown in fixed places inside the agents' folders (see [Agent workspace](#agent-workspace)).
+
   A symlink inside an opened folder passes when its real target fits the use (`Use::fits_target`): a `.md` link to a binary is neither listed nor readable. Paths containing `..` count only as their real location.
 - **Rendering.** markdown-it runs with `html: false`, so raw HTML in documents is escaped, and every custom renderer rule escapes what it emits. Mermaid runs with `securityLevel: 'strict'`.
 - **CSP** (`tauri.conf.json`): scripts only from the app (`'wasm-unsafe-eval'` for Shiki's regex engine), no frames, no objects, no forms, and `connect-src` limited to Tauri IPC. Documents can't phone home with `fetch`.
@@ -100,7 +102,7 @@ The dialog is native, so script in the webview can't answer it.
 
 ## Backend (Rust)
 
-All backend code lives in `src-tauri/src/main.rs`, with unit tests at the bottom (`cargo test`).
+Backend code lives in `src-tauri/src/main.rs`, with the agent workspace in `agent.rs`; unit tests are at the bottom of each (`cargo test`).
 
 | Area | Commands / pieces |
 |---|---|
@@ -110,6 +112,7 @@ All backend code lives in `src-tauri/src/main.rs`, with unit tests at the bottom
 | Links and shell | `follow_local_link`, `open_external`, `open_in_explorer` |
 | History | `read_history`, `append_to_history`, `clear_history`, `get_history_path` |
 | Session | `take_launch_paths`, `adopt_session_access` (one-time migration from before the access list) |
+| Agent workspace | `agent_workspace`, `enable_agent_workspace`, `disable_agent_workspace`, `read_snapshot`, `mark_read` (`agent.rs`) |
 | Updates | `check_for_update`, `install_update` |
 | Protocol | `localfile://` serves images for `<img>` tags |
 
@@ -121,7 +124,17 @@ Notable behaviour:
 - **Single instance.** Launching MDViewer again with a path forwards that path to the running window (`tauri-plugin-single-instance`).
 - **Errors.** Commands return `Result<_, AppError>`, which the frontend sees as a rejected promise with a message.
 
-The config dir (`dirs::config_dir()/mdviewer`) holds only `access.json` and `history/history.md`. History is capped at 1000 entries, and its writes are serialized.
+The config dir (`dirs::config_dir()/mdviewer`) holds only `access.json`, `history/history.md` and the agent workspace's `read-state/`. History is capped at 1000 entries, and its writes are serialized.
+
+## Agent workspace
+
+The agent panel shows what coding agents read and write: instructions, memory, plans, skills, subagents and commands of Claude Code, Codex and Gemini CLI, and agent files in the opened folders. Discovery runs in Rust (`src-tauri/src/agent.rs`), so the webview never names the paths it gets.
+
+- **Turning it on** is a native dialog (`enable_agent_workspace`). It sets `agent_workspace` in `access.json` instead of adding folders: granting `~/.claude` would expose settings and credentials, and `~/.claude/projects` holds session transcripts. While it's on, `agent::is_agent_document` allows only markdown at fixed paths (`CLAUDE.md`, `projects/*/memory/**`, `plans`, `skills`, `agents`, `commands`, plugin skills; `AGENTS.md` and `prompts` for Codex; `GEMINI.md`). Paths are checked as named and as resolved, so a skill folder symlinked into a repo still works.
+- **Read state.** `mark_read` stores a copy of the file in `read-state/` in the config dir. A scan marks a file unread when it changed after its copy and the text differs. Turning the workspace on marks everything read, so only later changes show.
+- **What changed.** Opening an agent file fetches its copy (`read_snapshot`), diffs the lines (`diffContent` in `utils/agent.ts`, blank lines ignored), and marks the rendered blocks whose `data-line` range holds a changed line. Leaving the document marks it read.
+- **Refresh.** While the panel or an agent file is open, the app rescans every 10 s and on window focus. Open agent files without unsaved edits reload when they change on disk.
+- **Project names.** Claude Code names `~/.claude/projects/<dir>` after the project path with every non-alphanumeric character replaced by `-`. `decode_project_dir` walks the file system matching encoded folder names to recover the real path for the group label.
 
 ## Frontend (React)
 
@@ -129,7 +142,7 @@ The config dir (`dirs::config_dir()/mdviewer`) holds only `access.json` and `his
 flowchart TB
   App[App.tsx<br/>shortcuts, link routing, watcher events, update check]
   App --> Toolbar & TabBar & FilePanel & DocumentPanel & TocSidebar & StatusBar
-  App --> UpdateBanner & SettingsModal & SearchPanel & FindBar
+  App --> UpdateBanner & SettingsModal & SearchPanel & FindBar & AgentPanel
   DocumentPanel --> Viewer[MarkdownViewer]
   DocumentPanel --> Editor[Editor, CodeMirror 6]
   FilePanel & TabBar & DocumentPanel & TocSidebar --> Store[(Zustand store)]
