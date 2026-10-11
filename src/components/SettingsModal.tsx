@@ -196,7 +196,7 @@ const SettingsModal: React.FC = () => {
                   <div className="settings-option-info">
                     <span className="settings-option-label">Smooth scrolling</span>
                     <span className="settings-option-description">
-                      Animate mouse wheel scrolling instead of jumping line by line
+                      Animate mouse wheel scrolling instead of jumping line by line (trackpads always scroll natively)
                     </span>
                   </div>
                   <label className="settings-toggle">

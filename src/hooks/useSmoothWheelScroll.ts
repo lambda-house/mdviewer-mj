@@ -33,6 +33,19 @@ function normalizeWheelDelta(event: WheelEvent, viewportHeight: number): number 
   return event.deltaY;
 }
 
+/**
+ * A notch of a mouse wheel, as opposed to a trackpad or Magic Mouse. Those
+ * report precise pixel deltas and already scroll with the system's momentum;
+ * animating them again overshoots and keeps the page gliding after the
+ * fingers stop. WebKit and Chromium report a notch as a multiple of 120 in
+ * the legacy `wheelDeltaY`.
+ */
+function isWheelNotch(event: WheelEvent): boolean {
+  if (event.deltaMode !== 0) return true;
+  const legacy = (event as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+  return typeof legacy === 'number' && legacy !== 0 && legacy % 120 === 0;
+}
+
 /** True when a nested scroller between `node` and `stop` can absorb the delta. */
 function hasScrollableAncestor(node: Element | null, stop: Element, deltaY: number): boolean {
   let current: Element | null = node;
@@ -56,7 +69,8 @@ function hasScrollableAncestor(node: Element | null, stop: Element, deltaY: numb
 }
 
 /**
- * Animated wheel scrolling with speed that follows the wheel.
+ * Animated wheel scrolling with speed that follows the wheel. Only mouse
+ * wheel notches are animated (`isWheelNotch`); trackpads scroll natively.
  *
  * Every notch adds its distance to a pending budget, so the total distance
  * stays what the wheel asked for. The time between notches sets the target
@@ -140,6 +154,15 @@ export function useSmoothWheelScroll(
       if (event.deltaY === 0) return;
       if (el.scrollHeight - el.clientHeight <= 0) return;
       if (hasScrollableAncestor(event.target as Element | null, el, event.deltaY)) return;
+
+      // Trackpads scroll natively; one taking over ends a running animation
+      if (!isWheelNotch(event)) {
+        if (frame) {
+          stop();
+          position = el.scrollTop;
+        }
+        return;
+      }
 
       event.preventDefault();
 
