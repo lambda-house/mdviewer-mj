@@ -20,11 +20,11 @@ import {
 import { getFileName } from '../utils/files';
 
 // ============================================================
-// Agent Panel: instructions, memory, plans and skills of coding agents
+// Agent Panel: instructions, rules, memory, plans and skills of coding agents
 // ============================================================
 
 /** Kinds whose entries show their description (a skill is what it says it does). */
-const DESCRIBED: AgentKind[] = ['memory', 'skill', 'agent', 'command'];
+const DESCRIBED: AgentKind[] = ['rule', 'memory', 'skill', 'agent', 'command'];
 
 interface AgentPanelProps {
   width: number;
@@ -199,10 +199,11 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
           <Bot size={32} aria-hidden="true" />
           <p>
             See what your coding agents read and write: <code>CLAUDE.md</code> and <code>AGENTS.md</code>,
-            memory, plans, skills and commands, with what changed since you last looked.
+            rules, memory, plans, skills and commands, with what changed since you last looked.
           </p>
           <p className="agent-panel-intro-detail">
-            Covers Claude Code, Codex and Gemini CLI, and agent files in the folders you open.
+            Covers Claude Code, Codex and Gemini CLI, and agent files in the folders you open
+            (Cursor rules too).
             Settings, keys and transcripts are never read.
           </p>
           <button type="button" className="agent-panel-enable" onClick={handleEnable}>

@@ -80,6 +80,8 @@ impl AppError {
 pub struct AppState {
     pub watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
     pub watched_paths: Arc<Mutex<HashSet<PathBuf>>>,
+    /// Agent files watcher, while the agent workspace is on.
+    pub agent_watch: Arc<Mutex<Option<agent::Watch>>>,
 }
 
 // ============================================================
@@ -383,11 +385,16 @@ fn generate_id(path: &str) -> String {
     format!("{:x}", hasher.finish())
 }
 
+/// Markdown: `.md`, `.markdown`, Cursor's `.mdc` rules and the legacy
+/// `.cursorrules`. Same as `isMarkdownFile` in src/utils/files.ts.
 fn is_markdown_file(path: &Path) -> bool {
+    if path.file_name().is_some_and(|n| n.eq_ignore_ascii_case(".cursorrules")) {
+        return true;
+    }
     path.extension()
         .map(|ext| {
             let ext = ext.to_string_lossy().to_lowercase();
-            ext == "md" || ext == "markdown"
+            ext == "md" || ext == "markdown" || ext == "mdc"
         })
         .unwrap_or(false)
 }
@@ -1194,24 +1201,40 @@ async fn open_external(url: String, app: AppHandle) -> Result<(), AppError> {
 /// The agent files (instructions, memory, plans, skills) with their read
 /// state. Empty while the workspace is off.
 #[tauri::command]
-async fn agent_workspace(access: State<'_, AccessState>) -> Result<agent::AgentWorkspace, AppError> {
+async fn agent_workspace(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    access: State<'_, AccessState>,
+) -> Result<agent::AgentWorkspace, AppError> {
     let (enabled, directories) = access.agent_scope();
     if !enabled {
-        return Ok(agent::AgentWorkspace { enabled, entries: Vec::new() });
+        return Ok(agent::AgentWorkspace { enabled, entries: Vec::new(), watching: false });
     }
     static PRUNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let prune = !PRUNED.swap(true, std::sync::atomic::Ordering::Relaxed);
-    let entries = tauri::async_runtime::spawn_blocking(move || {
+    let agent_watch = Arc::clone(&state.agent_watch);
+    let (entries, watching) = tauri::async_runtime::spawn_blocking(move || {
+        // Every scan: watch folders opened or created since the last one
+        let watching = agent_watch.lock().map(|mut slot| {
+            if slot.is_none() {
+                *slot = agent::Watch::new(move || {
+                    let _ = app.emit("agent-files-changed", ());
+                })
+                .map_err(|e| eprintln!("Failed to watch agent files: {}", e))
+                .ok();
+            }
+            slot.as_mut().map(|watch| watch.update(&directories)).is_some()
+        }).unwrap_or(false);
         let entries = agent::scan(&directories);
         // Once per run: drop read state of files that are gone
         if prune {
             agent::prune_read_state(&entries);
         }
-        entries
+        (entries, watching)
     })
         .await
         .map_err(|e| AppError::with_details("SCAN_ERROR", "Failed to list agent files", &e.to_string()))?;
-    Ok(agent::AgentWorkspace { enabled, entries })
+    Ok(agent::AgentWorkspace { enabled, entries, watching })
 }
 
 /// Turn the agent workspace on after the user confirms it in a native dialog
@@ -1226,7 +1249,7 @@ async fn enable_agent_workspace(app: AppHandle, access: State<'_, AccessState>) 
     };
     let mut dialog = app.dialog()
         .message(format!(
-            "{}\n\nThat is instructions (CLAUDE.md, AGENTS.md), memory, plans, skills, agents and commands. Settings, keys and session transcripts are not read.",
+            "{}\n\nThat is instructions (CLAUDE.md, AGENTS.md), rules, memory, plans, skills, agents and commands. Settings, keys and session transcripts are not read.",
             found
         ))
         .title("Show agent files?")
@@ -1246,8 +1269,11 @@ async fn enable_agent_workspace(app: AppHandle, access: State<'_, AccessState>) 
 }
 
 #[tauri::command]
-fn disable_agent_workspace(access: State<'_, AccessState>) {
+fn disable_agent_workspace(state: State<'_, AppState>, access: State<'_, AccessState>) {
     access.set_agent_workspace(false);
+    if let Ok(mut watch) = state.agent_watch.lock() {
+        *watch = None;
+    }
 }
 
 /// The copy of a document kept when it was last read, for "what changed".

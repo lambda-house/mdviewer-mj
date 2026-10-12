@@ -16,6 +16,7 @@ import {
   openExternal,
   followLocalLink,
   checkForUpdate,
+  onAgentFilesChanged,
 } from './utils/tauri';
 import { saveActiveDocument } from './utils/save';
 import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
@@ -29,7 +30,7 @@ import SettingsModal from './components/SettingsModal';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
 import AgentPanel from './components/AgentPanel';
-import { refreshAgentWorkspace } from './utils/agent';
+import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
 
 // ============================================================
@@ -38,8 +39,10 @@ import UpdateBanner from './components/UpdateBanner';
 
 /** Quiet time after the last file change event before the tree is rescanned. */
 const RESCAN_DEBOUNCE = 300;
-/** How often agent files are rescanned while they're shown (ms). */
-const AGENT_REFRESH_INTERVAL = 10000;
+/** Quiet time after the last agent file change before agent files are rescanned. */
+const AGENT_CHANGE_DEBOUNCE = 500;
+/** How often agent files are rescanned when they can't be watched (ms). */
+const AGENT_POLL_INTERVAL = 10000;
 
 /** Message of an Error or of a backend error ({ code, message }). */
 function errorText(error: unknown): string {
@@ -66,6 +69,7 @@ const App: React.FC = () => {
   const setAgentVisible = useStore((s) => s.setAgentVisible);
   const toggleAgentVisible = useStore((s) => s.toggleAgentVisible);
   const hasAgentTabs = useStore((s) => s.tabs.some((t) => s.agentEntries.some((e) => e.path === t.path)));
+  const openedDirectories = useStore((s) => s.directories);
 
   const setPanelWidth = useStore((s) => s.setPanelWidth);
   const setTocWidth = useStore((s) => s.setTocWidth);
@@ -271,7 +275,8 @@ const App: React.FC = () => {
   }, [historyVisible, searchVisible, agentVisible, setFilePanelVisible, setHistoryVisible, setSearchVisible, setAgentVisible]);
 
   // Agent files change while agents work: rescan while the agent panel or an
-  // agent file is open, every few seconds and when the window gets focus
+  // agent file is open, when the backend reports a change and when the window
+  // gets focus. Each scan also makes the backend watch newly opened folders.
   useEffect(() => {
     if (!isTauri()) return;
     if (!agentVisible && !hasAgentTabs) {
@@ -284,13 +289,26 @@ const App: React.FC = () => {
         refreshAgentWorkspace().catch((error) => console.error('Failed to refresh agent files:', error));
       }
     };
-    const timer = setInterval(refresh, AGENT_REFRESH_INTERVAL);
+    refresh();
+    // An agent writes several files in a row: rescan once they pause
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefresh = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(refresh, AGENT_CHANGE_DEBOUNCE);
+    };
+    const unlisten = onAgentFilesChanged(scheduleRefresh);
+    // The watcher couldn't start: poll instead
+    const poll = setInterval(() => {
+      if (!agentFilesWatched()) refresh();
+    }, AGENT_POLL_INTERVAL);
     window.addEventListener('focus', refresh);
     return () => {
-      clearInterval(timer);
+      clearTimeout(debounce);
+      clearInterval(poll);
+      unlisten.then((fn) => fn()).catch(() => {});
       window.removeEventListener('focus', refresh);
     };
-  }, [agentVisible, hasAgentTabs]);
+  }, [agentVisible, hasAgentTabs, openedDirectories]);
   
   // Rescan when the "show text files" setting changes (not on startup - the
   // directories are scanned once above)

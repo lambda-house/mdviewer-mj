@@ -377,7 +377,7 @@ export async function writeFile(path: string, content: string): Promise<void> {
 // Agent workspace
 // ============================================================
 
-export type AgentKind = 'instructions' | 'memory' | 'plan' | 'skill' | 'agent' | 'command';
+export type AgentKind = 'instructions' | 'rule' | 'memory' | 'plan' | 'skill' | 'agent' | 'command';
 
 /** A markdown file a coding agent reads or writes (see src-tauri/src/agent.rs). */
 export interface AgentEntry {
@@ -399,6 +399,8 @@ export interface AgentEntry {
 export interface AgentWorkspace {
   enabled: boolean;
   entries: AgentEntry[];
+  /** Changes arrive as `agent-files-changed` events; otherwise poll. */
+  watching: boolean;
 }
 
 /** The copy of a document kept when it was last read. */
@@ -409,8 +411,19 @@ export interface ReadSnapshot {
 }
 
 export async function getAgentWorkspace(): Promise<AgentWorkspace> {
-  if (!isTauri()) return { enabled: false, entries: [] };
+  if (!isTauri()) return { enabled: false, entries: [], watching: false };
   return invoke('agent_workspace');
+}
+
+/**
+ * Listen for changes to agent files (sent while the workspace is on; they come
+ * in bursts, one per file event).
+ * @returns unlisten function (no-op outside Tauri)
+ */
+export async function onAgentFilesChanged(handler: () => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen('agent-files-changed', () => handler());
 }
 
 /** Asks the user in a native dialog; resolves to whether it is on. */

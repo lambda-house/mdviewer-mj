@@ -1,5 +1,5 @@
-// Agent workspace: the instructions, memory, plans and skills that coding
-// agents (Claude Code, Codex, Gemini CLI) keep as markdown files.
+// Agent workspace: the instructions, rules, memory, plans and skills that
+// coding agents (Claude Code, Codex, Gemini CLI, Cursor) keep as markdown files.
 //
 // The user turns it on once, in a native dialog. After that, markdown files in
 // the agents' own folders (`~/.claude/skills`, `~/.claude/projects/*/memory`,
@@ -11,10 +11,13 @@
 // "Read" state: when the user has read a file, a copy of it is kept in the
 // config dir (`read-state/`), so the app can say what changed since then.
 
+use notify::event::ModifyKind;
+use notify::{Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{atomic_write, canonicalize, decode_text, generate_id, get_config_dir, is_markdown_file, AppError};
@@ -37,6 +40,7 @@ const SKIPPED_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "vend
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
     Instructions,
+    Rule,
     Memory,
     Plan,
     Skill,
@@ -95,6 +99,9 @@ pub struct AgentEntry {
 pub struct AgentWorkspace {
     pub enabled: bool,
     pub entries: Vec<AgentEntry>,
+    /// Changes are reported as they happen (`agent-files-changed`); without
+    /// a watcher the frontend polls.
+    pub watching: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -143,6 +150,7 @@ fn classify_rel(tool: Tool, parts: &[String]) -> Option<Kind> {
     let rest = &parts[1..];
     match (tool, first) {
         (Tool::Claude, "CLAUDE.md") if rest.is_empty() => Some(Kind::Instructions),
+        (Tool::Claude, "rules") if !rest.is_empty() => Some(Kind::Rule),
         // projects/<project>/memory/...
         (Tool::Claude, "projects") if rest.len() >= 3 && rest[1] == "memory" => Some(Kind::Memory),
         (Tool::Claude, "plans") if !rest.is_empty() => Some(Kind::Plan),
@@ -250,6 +258,10 @@ struct Header {
     name: Option<String>,
     description: Option<String>,
     heading: Option<String>,
+    /// Files a rule applies to: Cursor's `globs`, Claude Code's `paths`.
+    globs: Vec<String>,
+    /// Cursor's `alwaysApply: true`.
+    always_apply: bool,
 }
 
 fn unquote(value: &str) -> String {
@@ -278,6 +290,19 @@ fn parse_header(text: &str) -> Header {
             let indented = line.starts_with([' ', '\t']);
             if let Some((k, v)) = line.split_once(':').filter(|_| !indented) {
                 key = Some(k.trim());
+                match k.trim() {
+                    // `globs: src/**/*.ts, *.md` or a list on the next lines
+                    "globs" | "paths" => {
+                        let list = v.trim().trim_start_matches('[').trim_end_matches(']');
+                        header.globs.extend(list.split(',').map(unquote).filter(|g| !g.is_empty()));
+                        continue;
+                    }
+                    "alwaysApply" => {
+                        header.always_apply = v.trim() == "true";
+                        continue;
+                    }
+                    _ => {}
+                }
                 let target = match k.trim() {
                     "name" => &mut header.name,
                     "description" => &mut header.description,
@@ -288,6 +313,8 @@ fn parse_header(text: &str) -> Header {
                 if !matches!(value, "" | ">" | "|" | ">-" | "|-") {
                     *target = Some(unquote(value));
                 }
+            } else if let Some(item) = line.trim().strip_prefix("- ").filter(|_| matches!(key, Some("globs" | "paths"))) {
+                header.globs.push(unquote(item));
             } else if indented && key == Some("description") {
                 let more = line.trim();
                 header.description = Some(match header.description.take() {
@@ -336,11 +363,20 @@ fn make_entry(path: &Path, kind: Kind, group: String, scope: &'static str) -> Ag
         Kind::Instructions => fallback,
         _ => header.name.clone().filter(|n| !n.is_empty()).unwrap_or(fallback),
     };
+    let mut description = header.description.map(|d| plain_text(&d)).filter(|d| !d.is_empty());
+    // A rule without a description: say when it applies
+    if kind == Kind::Rule && description.is_none() {
+        if header.always_apply {
+            description = Some("Always applied".to_string());
+        } else if !header.globs.is_empty() {
+            description = Some(format!("Applies to {}", header.globs.join(", ")));
+        }
+    }
     AgentEntry {
         path: path.to_string_lossy().into_owned(),
         kind,
         title,
-        description: header.description.map(|d| plain_text(&d)).filter(|d| !d.is_empty()),
+        description,
         group,
         scope,
         modified: modified_ms(path),
@@ -398,8 +434,8 @@ fn decode_project_dir(name: &str) -> Option<PathBuf> {
 }
 
 /// Agent files under a folder the user opened: `CLAUDE.md`, `AGENTS.md`,
-/// `GEMINI.md` and `.claude/{skills,agents,commands,plans}` at any level down to
-/// `MAX_PROJECT_DEPTH`.
+/// `GEMINI.md`, `.claude/{skills,agents,commands,plans,rules}` and Cursor's
+/// `.cursor/rules` and `.cursorrules` at any level down to `MAX_PROJECT_DEPTH`.
 fn scan_project(root: &Path, out: &mut Vec<AgentEntry>, visited: &mut HashSet<PathBuf>, budget: &mut usize) {
     fn walk(dir: &Path, depth: usize, out: &mut Vec<AgentEntry>, visited: &mut HashSet<PathBuf>, budget: &mut usize) {
         if *budget == 0 || out.len() >= MAX_ENTRIES {
@@ -421,11 +457,25 @@ fn scan_project(root: &Path, out: &mut Vec<AgentEntry>, visited: &mut HashSet<Pa
         if copilot.is_file() {
             out.push(make_entry(&copilot, Kind::Instructions, group.clone(), "project"));
         }
+        let cursorrules = dir.join(".cursorrules");
+        if cursorrules.is_file() {
+            out.push(make_entry(&cursorrules, Kind::Rule, group.clone(), "project"));
+        }
+        let mut cursor_rules = Vec::new();
+        markdown_files(&dir.join(".cursor").join("rules"), 2, &mut cursor_rules);
+        for file in cursor_rules {
+            out.push(make_entry(&file, Kind::Rule, group.clone(), "project"));
+        }
         let claude = dir.join(".claude");
         for file in skill_files(&claude.join("skills")) {
             out.push(make_entry(&file, Kind::Skill, group.clone(), "project"));
         }
-        for (sub, kind) in [("agents", Kind::Agent), ("commands", Kind::Command), ("plans", Kind::Plan)] {
+        for (sub, kind) in [
+            ("rules", Kind::Rule),
+            ("agents", Kind::Agent),
+            ("commands", Kind::Command),
+            ("plans", Kind::Plan),
+        ] {
             let mut files = Vec::new();
             markdown_files(&claude.join(sub), 2, &mut files);
             for file in files {
@@ -482,7 +532,7 @@ fn scan_user(out: &mut Vec<AgentEntry>) {
         for file in skill_files(&claude.join("skills")) {
             out.push(make_entry(&file, Kind::Skill, group.clone(), "user"));
         }
-        for (sub, kind) in [("agents", Kind::Agent), ("commands", Kind::Command)] {
+        for (sub, kind) in [("rules", Kind::Rule), ("agents", Kind::Agent), ("commands", Kind::Command)] {
             let mut files = Vec::new();
             markdown_files(&claude.join(sub), 2, &mut files);
             for file in files {
@@ -673,6 +723,123 @@ pub fn prune_read_state(entries: &[AgentEntry]) {
     }
 }
 
+// ============================================================
+// Watching
+// ============================================================
+
+/// Instructions files looked for in every folder of an opened project.
+const PROJECT_INSTRUCTIONS: &[&str] = &["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "GEMINI.md", ".cursorrules"];
+
+/// Whether a path below an opened folder is one `scan_project` lists.
+fn is_project_agent_file(rel: &Path) -> bool {
+    let Some(parts) = components(rel) else { return false };
+    let Some(name) = parts.last() else { return false };
+    if parts.iter().any(|p| p == ".git" || SKIPPED_DIRS.contains(&p.as_str())) {
+        return false;
+    }
+    if PROJECT_INSTRUCTIONS.contains(&name.as_str()) {
+        return true;
+    }
+    is_markdown_file(rel)
+        && parts.windows(2).any(|w| {
+            matches!(
+                (w[0].as_str(), w[1].as_str()),
+                (".claude", "skills" | "agents" | "commands" | "plans" | "rules")
+                    | (".cursor", "rules")
+                    | (".github", "copilot-instructions.md")
+            )
+        })
+}
+
+/// Folders to watch: the agents' homes themselves (not recursively: they also
+/// hold transcripts and caches that change all the time), the folders inside
+/// them that hold agent files, and the opened folders.
+fn watch_roots(opened_dirs: &[PathBuf]) -> Vec<(PathBuf, RecursiveMode)> {
+    let Some(home) = dirs::home_dir() else { return Vec::new() };
+    let mut roots = Vec::new();
+    for tool in Tool::ALL {
+        let dir = home.join(tool.dir_name());
+        let Ok(dir) = canonicalize(&dir) else { continue };
+        let subs: &[&str] = match tool {
+            Tool::Claude => &["projects", "plans", "skills", "agents", "commands", "rules", "plugins"],
+            Tool::Codex => &["prompts", "skills"],
+            Tool::Gemini => &[],
+        };
+        for sub in subs {
+            roots.push((dir.join(sub), RecursiveMode::Recursive));
+        }
+        roots.push((dir, RecursiveMode::NonRecursive));
+    }
+    roots.extend(opened_dirs.iter().map(|d| (d.clone(), RecursiveMode::Recursive)));
+    roots.retain(|(dir, _)| dir.is_dir());
+    roots
+}
+
+/// Reports changes to agent files. The watched folders follow the opened
+/// folders and pick up agent folders created later: `update` runs on every
+/// scan.
+pub struct Watch {
+    watcher: RecommendedWatcher,
+    watched: HashMap<PathBuf, RecursiveMode>,
+    opened: Arc<Mutex<Vec<PathBuf>>>,
+}
+
+impl Watch {
+    pub fn new(on_change: impl Fn() + Send + 'static) -> notify::Result<Self> {
+        let homes = tool_homes();
+        let opened: Arc<Mutex<Vec<PathBuf>>> = Arc::default();
+        let opened_dirs = Arc::clone(&opened);
+        let watcher = RecommendedWatcher::new(
+            move |res: notify::Result<Event>| {
+                let Ok(event) = res else { return };
+                // Not `Access` (our own scan opens the files) or metadata
+                let content_changed = match event.kind {
+                    EventKind::Create(_) | EventKind::Remove(_) => true,
+                    EventKind::Modify(ModifyKind::Metadata(_)) => false,
+                    EventKind::Modify(_) => true,
+                    _ => false,
+                };
+                if !content_changed {
+                    return;
+                }
+                let opened = opened_dirs.lock().map(|d| d.clone()).unwrap_or_default();
+                let relevant = event.paths.iter().any(|path| {
+                    classify_in(&homes, path).is_some()
+                        // A folder created in an agent's home (`~/.claude/skills`): watch it too
+                        || (path.is_dir() && homes.iter().any(|(_, home)| path.parent() == Some(home.as_path())))
+                        || opened.iter().any(|dir| path.strip_prefix(dir).is_ok_and(is_project_agent_file))
+                });
+                if relevant {
+                    on_change();
+                }
+            },
+            NotifyConfig::default(),
+        )?;
+        Ok(Self { watcher, watched: HashMap::new(), opened })
+    }
+
+    /// Watch the agent folders and `opened_dirs`, and stop watching folders
+    /// no longer among them.
+    pub fn update(&mut self, opened_dirs: &[PathBuf]) {
+        if let Ok(mut opened) = self.opened.lock() {
+            *opened = opened_dirs.to_vec();
+        }
+        let roots: HashMap<PathBuf, RecursiveMode> = watch_roots(opened_dirs).into_iter().collect();
+        self.watched.retain(|dir, mode| {
+            let keep = roots.get(dir) == Some(mode) && dir.is_dir();
+            if !keep {
+                let _ = self.watcher.unwatch(dir);
+            }
+            keep
+        });
+        for (dir, mode) in roots {
+            if !self.watched.contains_key(&dir) && self.watcher.watch(&dir, mode).is_ok() {
+                self.watched.insert(dir, mode);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -690,6 +857,7 @@ mod tests {
         assert_eq!(claude("skills/review/SKILL.md"), Some(Kind::Skill));
         assert_eq!(claude("skills/review/references/api.md"), Some(Kind::Skill));
         assert_eq!(claude("plans/quick-plan.md"), Some(Kind::Plan));
+        assert_eq!(claude("rules/testing.md"), Some(Kind::Rule));
         assert_eq!(claude("plugins/cache/mk/plug/1.0.0/skills/x/SKILL.md"), Some(Kind::Skill));
         // Transcripts, settings, other project files and plugin repos stay out
         assert_eq!(claude("projects/-Users-me-work/session.md"), None);
@@ -710,6 +878,23 @@ mod tests {
     }
 
     #[test]
+    fn project_agent_files_are_recognized_for_watching() {
+        let yes = |p: &str| is_project_agent_file(Path::new(p));
+        assert!(yes("CLAUDE.md"));
+        assert!(yes("apps/web/AGENTS.md"));
+        assert!(yes(".cursorrules"));
+        assert!(yes(".cursor/rules/style.mdc"));
+        assert!(yes(".claude/skills/review/SKILL.md"));
+        assert!(yes(".claude/rules/api.md"));
+        assert!(yes(".github/copilot-instructions.md"));
+        assert!(!yes("README.md"));
+        assert!(!yes("docs/rules/style.md"));
+        assert!(!yes(".claude/settings.json"));
+        assert!(!yes(".cursor/rules/run.sh"));
+        assert!(!yes("node_modules/pkg/CLAUDE.md"));
+    }
+
+    #[test]
     fn header_reads_frontmatter_and_heading() {
         let h = parse_header("---\nname: pdf\ndescription: \"Read PDFs\"\nmetadata:\n  type: x\n---\n\n# Title\n");
         assert_eq!(h.name.as_deref(), Some("pdf"));
@@ -718,6 +903,14 @@ mod tests {
 
         let folded = parse_header("---\nname: a\ndescription: >\n  first line\n  second line\n---\n");
         assert_eq!(folded.description.as_deref(), Some("first line second line"));
+
+        let cursor = parse_header("---\ndescription:\nglobs: src/**/*.ts, \"*.md\"\nalwaysApply: false\n---\n");
+        assert_eq!(cursor.description, None);
+        assert_eq!(cursor.globs, vec!["src/**/*.ts", "*.md"]);
+        assert!(!cursor.always_apply);
+        let listed = parse_header("---\npaths:\n  - \"src/api/**\"\n  - lib/**\nalwaysApply: true\n---\n");
+        assert_eq!(listed.globs, vec!["src/api/**", "lib/**"]);
+        assert!(listed.always_apply);
 
         let plain = parse_header("Intro\n\n# Plan: ship it\n");
         assert_eq!(plain.name, None);

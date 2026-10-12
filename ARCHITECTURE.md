@@ -128,12 +128,12 @@ The config dir (`dirs::config_dir()/mdviewer`) holds only `access.json`, `histor
 
 ## Agent workspace
 
-The agent panel shows what coding agents read and write: instructions, memory, plans, skills, subagents and commands of Claude Code, Codex and Gemini CLI, and agent files in the opened folders. Discovery runs in Rust (`src-tauri/src/agent.rs`), so the webview never names the paths it gets.
+The agent panel shows what coding agents read and write: instructions, rules, memory, plans, skills, subagents and commands of Claude Code, Codex and Gemini CLI, and agent files in the opened folders (Cursor's `.cursor/rules/*.mdc` and `.cursorrules` among them). Discovery runs in Rust (`src-tauri/src/agent.rs`), so the webview never names the paths it gets.
 
-- **Turning it on** is a native dialog (`enable_agent_workspace`). It sets `agent_workspace` in `access.json` instead of adding folders: granting `~/.claude` would expose settings and credentials, and `~/.claude/projects` holds session transcripts. While it's on, `agent::is_agent_document` allows only markdown at fixed paths (`CLAUDE.md`, `projects/*/memory/**`, `plans`, `skills`, `agents`, `commands`, plugin skills; `AGENTS.md` and `prompts` for Codex; `GEMINI.md`). Paths are checked as named and as resolved, so a skill folder symlinked into a repo still works.
+- **Turning it on** is a native dialog (`enable_agent_workspace`). It sets `agent_workspace` in `access.json` instead of adding folders: granting `~/.claude` would expose settings and credentials, and `~/.claude/projects` holds session transcripts. While it's on, `agent::is_agent_document` allows only markdown at fixed paths (`CLAUDE.md`, `projects/*/memory/**`, `plans`, `skills`, `rules`, `agents`, `commands`, plugin skills; `AGENTS.md` and `prompts` for Codex; `GEMINI.md`). Paths are checked as named and as resolved, so a skill folder symlinked into a repo still works.
 - **Read state.** `mark_read` stores a copy of the file in `read-state/` in the config dir. A scan marks a file unread when it changed after its copy and the text differs. Turning the workspace on marks everything read, so only later changes show.
 - **What changed.** Opening an agent file fetches its copy (`read_snapshot`), diffs the lines (`diffContent` in `utils/agent.ts`, blank lines ignored), and marks the rendered blocks whose `data-line` range holds a changed line. Leaving the document marks it read.
-- **Refresh.** While the panel or an agent file is open, the app rescans every 10 s and on window focus. Open agent files without unsaved edits reload when they change on disk.
+- **Refresh.** `agent::Watch` watches the agents' homes (not recursively: they also hold transcripts), their agent subfolders and the opened folders, and emits `agent-files-changed` when an agent file changes (content events only; our own reads raise `Access` events). Each `agent_workspace` scan re-arms it, so newly opened or created folders are covered. While the panel or an agent file is open, the frontend rescans 500 ms after the last event and on window focus; if the watcher couldn't start, it polls every 10 s. Open agent files without unsaved edits reload when they change on disk.
 - **Project names.** Claude Code names `~/.claude/projects/<dir>` after the project path with every non-alphanumeric character replaced by `-`. `decode_project_dir` walks the file system matching encoded folder names to recover the real path for the group label.
 
 ## Frontend (React)
@@ -197,7 +197,7 @@ The updater is used only from Rust; the webview just gets the version and notes.
 
 ## Build and release
 
-- **CI** (`ci.yml`, on push and pull request): TypeScript build, `cargo clippy`, `cargo test`.
+- **CI** (`ci.yml`, on push and pull request): TypeScript build, Vitest (`npm test`), `cargo clippy`, `cargo test`.
 - **Release** (`release.yml`, on `v*` tags or manual run): a matrix builds macOS arm64 and x64, Windows x64 and Linux x64 with `tauri-action`, and attaches dmg, app.tar.gz, msi, NSIS exe, deb, rpm and AppImage to a GitHub release.
   - Update packages are signed with `TAURI_SIGNING_PRIVATE_KEY` (required, because `bundle.createUpdaterArtifacts` is on).
   - macOS code signing and notarization, and Windows signing via Azure Trusted Signing, switch on only when their secrets exist. Without them the builds are unsigned.

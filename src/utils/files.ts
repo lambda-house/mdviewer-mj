@@ -15,9 +15,14 @@ export function getFileExtension(path: string): string {
   return dotIndex > 0 ? name.substring(dotIndex + 1) : '';
 }
 
+/**
+ * `.md`, `.markdown`, Cursor's `.mdc` rules and the legacy `.cursorrules`.
+ * Same as `is_markdown_file` in src-tauri/src/main.rs.
+ */
 export function isMarkdownFile(path: string): boolean {
+  if (getFileName(path).toLowerCase() === '.cursorrules') return true;
   const ext = getFileExtension(path).toLowerCase();
-  return ext === 'md' || ext === 'markdown';
+  return ext === 'md' || ext === 'markdown' || ext === 'mdc';
 }
 
 /**

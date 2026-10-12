@@ -7,6 +7,7 @@ import { getAgentWorkspace, markRead, readFile, type AgentEntry, type AgentKind 
 
 export const AGENT_SECTIONS: { kind: AgentKind; label: string }[] = [
   { kind: 'instructions', label: 'Instructions' },
+  { kind: 'rule', label: 'Rules' },
   { kind: 'memory', label: 'Memory' },
   { kind: 'plan', label: 'Plans' },
   { kind: 'skill', label: 'Skills' },
@@ -15,6 +16,12 @@ export const AGENT_SECTIONS: { kind: AgentKind; label: string }[] = [
 ];
 
 let refreshing: Promise<boolean> | null = null;
+let watching = false;
+
+/** Whether the backend reports changes as they happen (else poll). */
+export function agentFilesWatched(): boolean {
+  return watching;
+}
 
 /**
  * Scan the agent files again. Open documents that changed on disk (and have
@@ -26,6 +33,7 @@ export function refreshAgentWorkspace(): Promise<boolean> {
     refreshing = (async () => {
       const { agentEntries: previous, documents, reloadDocument, setAgentEntries } = useStore.getState();
       const workspace = await getAgentWorkspace();
+      watching = workspace.watching;
       const before = new Map(previous.map((e) => [e.path, e.modified]));
       setAgentEntries(workspace.entries);
       const changedOpen = workspace.entries.filter(
