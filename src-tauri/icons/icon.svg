@@ -1,59 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!--
-    MDViewer app icon - source of truth for every file in this folder.
-    Regenerate the set with:
-      rsvg-convert -w 1024 -h 1024 src-tauri/icons/icon.svg -o /tmp/icon.png
-      npx tauri icon /tmp/icon.png -o src-tauri/icons
-    The artwork is drawn in a 128x128 grid and placed in a macOS-style
-    rounded square inset by ~10% (824px, corner radius ~22%).
-  -->
-  <defs>
-    <clipPath id="tile">
-      <rect width="128" height="128" rx="28.6"/>
-    </clipPath>
-    <clipPath id="blob">
-      <path d="M66 40C70 28 92 24 108 28C122 32 130 46 130 60C130 76 116 82 96 81C78 80 64 72 63 56C62 50 63 45 66 40Z"/>
-    </clipPath>
-    <radialGradient id="glow" cx="126" cy="70" r="13" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FBC23A"/>
-      <stop offset="1" stop-color="#FBC23A" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="128" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2A4AA6"/>
-      <stop offset="1" stop-color="#1D3483"/>
-    </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
-      <feOffset dy="10" result="blur"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.3"/>
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
 
-  <g filter="url(#shadow)">
-    <g transform="translate(100 100) scale(6.4375)">
-      <rect width="128" height="128" rx="28.6" fill="url(#shade)"/>
-      <g clip-path="url(#tile)" fill="#F5EE36">
-        <!-- crescent sweeping down from the top-left corner -->
-        <path d="M-4 -4L24 -4C25 30 33 58 47 82C30 78 10 66 -4 54Z"/>
-        <!-- round head with an orange glow on its right -->
-        <path d="M66 40C70 28 92 24 108 28C122 32 130 46 130 60C130 76 116 82 96 81C78 80 64 72 63 56C62 50 63 45 66 40Z"/>
-        <ellipse cx="126" cy="70" rx="13" ry="13" fill="url(#glow)" clip-path="url(#blob)"/>
-        <!-- small tick above the head -->
-        <path d="M115 23C119 19 124 16 132 13L132 19C125 20 120 22 115 23Z"/>
-        <!-- slanted "0/0/" along the bottom -->
-        <g fill="none" stroke="#F5EE36" stroke-width="7.5" stroke-linecap="round">
-          <ellipse cx="17" cy="107" rx="7" ry="19" transform="rotate(38 17 107)"/>
-          <path d="M67 93L44 127"/>
-          <ellipse cx="81" cy="119" rx="7" ry="19" transform="rotate(38 81 119)"/>
-          <path d="M137 104L116 136"/>
-        </g>
-      </g>
-    </g>
+<svg
+   width="256"
+   height="256"
+   viewBox="0 0 67.733332 67.733333"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   sodipodi:docname="mdviewer.svg"
+   inkscape:export-filename="512.png"
+   inkscape:export-xdpi="192"
+   inkscape:export-ydpi="192"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     inkscape:zoom="2.8044052"
+     inkscape:cx="129.08263"
+     inkscape:cy="120.70296"
+     inkscape:window-width="1920"
+     inkscape:window-height="1025"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="rect1"
+       style="fill:#333333;stroke:none;stroke-width:0.264583"
+       d="M 0,0 H 67.73333 V 67.733329 H 0 Z" />
+    <path
+       d="M 17.393696,47.720264 8.2743807,23.427959 H 8.1191583 q 0.1164168,1.202974 0.194028,3.259671 0.077611,2.017891 0.077611,4.22981 V 47.720264 H 5.1699327 V 20.013067 h 5.1611443 l 8.537232,22.701275 h 0.155223 l 8.692454,-22.701275 h 5.122339 V 47.720264 H 29.384627 V 30.684606 q 0,-2.017891 0.07761,-3.996976 0.116417,-1.979086 0.194028,-3.220865 H 29.501043 L 20.265311,47.720264 Z M 62.563398,33.595026 q 0,7.023814 -3.841754,10.593929 -3.802949,3.531309 -10.632734,3.531309 H 40.366596 V 20.013067 h 8.537231 q 4.191005,0 7.256647,1.552224 3.065643,1.552224 4.734284,4.57906 1.66864,2.988031 1.66864,7.450675 z m -3.686532,0.116417 q 0,-5.549201 -2.755197,-8.11037 -2.716392,-2.599975 -7.722314,-2.599975 H 43.8591 v 21.731135 h 3.764143 q 11.253623,0 11.253623,-11.02079 z"
+       id="text1"
+       style="font-size:38.8056px;text-align:center;text-anchor:middle;fill:#cccccc;stroke-width:0.264583"
+       aria-label="MD" />
   </g>
 </svg>
