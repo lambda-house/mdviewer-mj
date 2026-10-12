@@ -108,7 +108,7 @@ The updater needs the repository to be public, because the app downloads release
 
 ### Code signing
 
-The release workflow signs as soon as the secrets below exist (repository Settings → Secrets and variables → Actions); without them it builds unsigned installers.
+The release workflow signs as soon as the secrets below exist (repository Settings → Secrets and variables → Actions); without them it builds unsigned installers. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
 
 **macOS** needs an Apple Developer Program membership and a "Developer ID Application" certificate:
 
