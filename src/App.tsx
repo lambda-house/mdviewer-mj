@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { Upload } from 'lucide-react';
 import { useStore, PANEL_MIN_WIDTH, TOC_MIN_WIDTH, type Heading, type RestoredDocument } from './store';
 import {
@@ -8,6 +8,7 @@ import {
   startWatching,
   stopWatching,
   pickDirectory,
+  pickFiles,
   appendToHistory,
   getFileInfo,
   onFileDrop,
@@ -18,7 +19,7 @@ import {
   checkForUpdate,
   onAgentFilesChanged,
 } from './utils/tauri';
-import { saveActiveDocument } from './utils/save';
+import { buildMenu, menuCommands, commandForKey } from './utils/commands';
 import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
 import Toolbar from './components/Toolbar';
 import FilePanel from './components/FilePanel';
@@ -27,6 +28,7 @@ import TocSidebar from './components/TocSidebar';
 import Resizer from './components/Resizer';
 import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
+import SaveAllDialog from './components/SaveAllDialog';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
 import AgentPanel from './components/AgentPanel';
@@ -51,19 +53,12 @@ function errorText(error: unknown): string {
   return String(error);
 }
 
-/** Single-line selected text, to seed find/search (undefined keeps the old query). */
-function getSelectedText(): string | undefined {
-  const text = window.getSelection()?.toString().trim();
-  return text && !text.includes('\n') && text.length <= 200 ? text : undefined;
-}
-
 const App: React.FC = () => {
   // Subscribe field by field so that high frequency updates (scroll offsets,
   // active heading) do not re-render the whole application.
   const panelWidth = useStore((s) => s.panelWidth);
   const tocWidth = useStore((s) => s.tocWidth);
   const tocVisible = useStore((s) => s.tocVisible);
-  const activeTabId = useStore((s) => s.activeTabId);
   const historyVisible = useStore((s) => s.historyVisible);
   const agentVisible = useStore((s) => s.agentVisible);
   const setAgentVisible = useStore((s) => s.setAgentVisible);
@@ -76,16 +71,11 @@ const App: React.FC = () => {
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const toggleHistoryVisible = useStore((s) => s.toggleHistoryVisible);
   const setFiles = useStore((s) => s.setFiles);
-  const closeDocument = useStore((s) => s.closeDocument);
-  const activateNextTab = useStore((s) => s.activateNextTab);
-  const activatePrevTab = useStore((s) => s.activatePrevTab);
   const activateTabByIndex = useStore((s) => s.activateTabByIndex);
-  const closeAllTabs = useStore((s) => s.closeAllTabs);
   const navigateBack = useStore((s) => s.navigateBack);
   const navigateForward = useStore((s) => s.navigateForward);
   const zoomIn = useStore((s) => s.zoomIn);
   const zoomOut = useStore((s) => s.zoomOut);
-  const resetZoom = useStore((s) => s.resetZoom);
   const zoomPanel = useStore((s) => s.zoomPanel);
   const reopenClosedTab = useStore((s) => s.reopenClosedTab);
   const openDocument = useStore((s) => s.openDocument);
@@ -100,10 +90,8 @@ const App: React.FC = () => {
   const setTocVisible = useStore((s) => s.setTocVisible);
   const searchVisible = useStore((s) => s.searchVisible);
   const setSearchVisible = useStore((s) => s.setSearchVisible);
-  const openFind = useStore((s) => s.openFind);
   const openSearch = useStore((s) => s.openSearch);
   const revealPath = useStore((s) => s.revealPath);
-  const toggleEditMode = useStore((s) => s.toggleEditMode);
   const showTextFiles = useStore((s) => s.showTextFiles);
   const [isDropTarget, setIsDropTarget] = useState(false);
   
@@ -459,6 +447,19 @@ const App: React.FC = () => {
       alert(`Could not open:\n${errors.join('\n')}`);
     }
   }, [openPath, addDirectories]);
+
+  // Handle open file - opens native picker; the chosen files open like dropped ones
+  const handleOpenFile = useCallback(async () => {
+    try {
+      const paths = await pickFiles();
+      if (paths.length > 0) {
+        await handleDroppedPaths(paths);
+      }
+    } catch (error) {
+      console.error('Failed to pick files:', error);
+      alert(`Could not open the file dialog:\n${errorText(error)}`);
+    }
+  }, [handleDroppedPaths]);
   
   useEffect(() => {
     if (!isTauri()) return;
@@ -551,7 +552,20 @@ const App: React.FC = () => {
   // Keyboard Shortcuts
   // ============================================================
   
+  // The commands, with their shortcuts, are defined in utils/commands.ts;
+  // the toolbar's menu shows the same list
+  const menu = useMemo(
+    () => buildMenu({
+      openFile: handleOpenFile,
+      openFolder: handleAddDirectory,
+      reopenClosedTab: handleReopenClosedTab,
+    }),
+    [handleOpenFile, handleAddDirectory, handleReopenClosedTab]
+  );
+
   useEffect(() => {
+    const commands = menuCommands(menu);
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Already handled - e.g. by the editor (its own Ctrl+F search, Ctrl+S,
       // Alt+Left/Right word moves)
@@ -572,56 +586,10 @@ const App: React.FC = () => {
         e.preventDefault();
       }
       
-      // Ctrl/Cmd + W: Close current tab
-      if (isMod && !isShift && e.key.toLowerCase() === 'w') {
-        if (activeTabId) {
-          closeDocument(activeTabId);
-        }
-        return;
-      }
-      
-      // Ctrl/Cmd + Shift + W: Close all tabs (unsaved ones are kept)
-      if (isMod && isShift && e.key.toLowerCase() === 'w') {
-        const result = closeAllTabs();
-        if (!result.success && result.error) alert(result.error);
-        return;
-      }
-
-      // Alt + Left/Right: Back/forward between tabs
-      if (e.altKey && !isMod && !isShift && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const command = commandForKey(commands, e);
+      if (command) {
         e.preventDefault();
-        if (e.key === 'ArrowLeft') navigateBack();
-        else navigateForward();
-        return;
-      }
-      
-      // Ctrl/Cmd + E: Toggle edit mode
-      if (isMod && !isShift && e.key.toLowerCase() === 'e') {
-        toggleEditMode();
-        return;
-      }
-
-      // Ctrl/Cmd + S: Save the active document
-      if (isMod && !isShift && e.key.toLowerCase() === 's') {
-        saveActiveDocument();
-        return;
-      }
-
-      // Ctrl/Cmd + Shift + T: Reopen closed tab
-      if (isMod && isShift && e.key.toLowerCase() === 't') {
-        handleReopenClosedTab();
-        return;
-      }
-      
-      // Ctrl/Cmd + Tab: Next tab
-      if (isMod && !isShift && e.key === 'Tab') {
-        activateNextTab();
-        return;
-      }
-      
-      // Ctrl/Cmd + Shift + Tab: Previous tab
-      if (isMod && isShift && e.key === 'Tab') {
-        activatePrevTab();
+        command.run();
         return;
       }
       
@@ -631,93 +599,11 @@ const App: React.FC = () => {
         activateTabByIndex(index);
         return;
       }
-      
-      // Ctrl/Cmd + Shift + O: Toggle TOC
-      if (isMod && isShift && e.key.toLowerCase() === 'o') {
-        toggleTocVisible();
-        return;
-      }
-      
-      // Ctrl/Cmd + B: Toggle file panel
-      if (isMod && !isShift && e.key.toLowerCase() === 'b') {
-        handleToggleFilePanel();
-        return;
-      }
-
-      // Ctrl/Cmd + Shift + A: Toggle agent panel
-      if (isMod && isShift && e.key.toLowerCase() === 'a') {
-        toggleAgentVisible();
-        return;
-      }
-
-      // Ctrl/Cmd + H: Toggle history panel
-      if (isMod && !isShift && e.key.toLowerCase() === 'h') {
-        handleToggleHistory();
-        return;
-      }
-      
-      // Ctrl/Cmd + Plus/=: Zoom in
-      if (isMod && (e.key === '+' || e.key === '=')) {
-        zoomIn();
-        return;
-      }
-      
-      // Ctrl/Cmd + Minus: Zoom out
-      if (isMod && e.key === '-') {
-        zoomOut();
-        return;
-      }
-      
-      // Ctrl/Cmd + 0: Reset zoom
-      if (isMod && e.key === '0') {
-        resetZoom();
-        return;
-      }
-      
-      // Ctrl/Cmd + P: Quick open (placeholder)
-      if (isMod && !isShift && e.key.toLowerCase() === 'p') {
-        // Focus search input
-        const searchInput = document.querySelector('.toolbar-search input') as HTMLInputElement;
-        searchInput?.focus();
-        return;
-      }
-      
-      // Ctrl/Cmd + F: Find in document (seeded with the selected text)
-      if (isMod && !isShift && e.key.toLowerCase() === 'f') {
-        openFind(getSelectedText());
-        return;
-      }
-      
-      // Ctrl/Cmd + Shift + F: Search in open tabs / folders
-      if (isMod && isShift && e.key.toLowerCase() === 'f') {
-        openSearch(getSelectedText());
-        return;
-      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    activeTabId,
-    closeDocument,
-    closeAllTabs,
-    navigateBack,
-    navigateForward,
-    activateNextTab,
-    activatePrevTab,
-    activateTabByIndex,
-    toggleTocVisible,
-    zoomIn,
-    zoomOut,
-    resetZoom,
-    handleToggleFilePanel,
-    handleToggleHistory,
-    toggleAgentVisible,
-    handleReopenClosedTab,
-    openFind,
-    openSearch,
-    toggleEditMode,
-  ]);
+  }, [menu, activateTabByIndex]);
   
   // ============================================================
   // Closing the window with unsaved edits asks first
@@ -797,6 +683,7 @@ const App: React.FC = () => {
   return (
     <div className="app-container">
       <Toolbar
+        menu={menu}
         onAddDirectory={handleAddDirectory}
         filePanelVisible={filePanelVisible}
         onToggleFilePanel={handleToggleFilePanel}
@@ -858,6 +745,7 @@ const App: React.FC = () => {
 
       <StatusBar />
       <SettingsModal />
+      <SaveAllDialog />
 
       {isDropTarget && (
         <div className="drop-overlay" aria-hidden="true">

@@ -91,10 +91,10 @@ pub struct AppState {
 const MAX_SCAN_DEPTH: usize = 10;
 const MAX_FILES_PER_DIRECTORY: usize = 10000;
 
-/// Folders and files the user opened: picked in the folder dialog, dropped on
-/// the window, or passed on the command line ("Open with"). Every file command
-/// checks its path against this list, and the list is persisted so a restored
-/// session keeps working.
+/// Folders and files the user opened: picked in the folder or file dialog,
+/// dropped on the window, or passed on the command line ("Open with"). Every
+/// file command checks its path against this list, and the list is persisted
+/// so a restored session keeps working.
 ///
 /// Paths are only ever added from Rust, as a result of a user action. The
 /// webview can't add a path by naming it, so a script injected into a document
@@ -385,6 +385,8 @@ fn generate_id(path: &str) -> String {
     format!("{:x}", hasher.finish())
 }
 
+const MARKDOWN_EXTENSIONS: &[&str] = &["md", "markdown", "mdc"];
+
 /// Markdown: `.md`, `.markdown`, Cursor's `.mdc` rules and the legacy
 /// `.cursorrules`. Same as `isMarkdownFile` in src/utils/files.ts.
 fn is_markdown_file(path: &Path) -> bool {
@@ -392,10 +394,7 @@ fn is_markdown_file(path: &Path) -> bool {
         return true;
     }
     path.extension()
-        .map(|ext| {
-            let ext = ext.to_string_lossy().to_lowercase();
-            ext == "md" || ext == "markdown" || ext == "mdc"
-        })
+        .map(|ext| MARKDOWN_EXTENSIONS.contains(&ext.to_string_lossy().to_lowercase().as_str()))
         .unwrap_or(false)
 }
 
@@ -903,6 +902,36 @@ async fn pick_directory(app: AppHandle, access: State<'_, AccessState>) -> Resul
         .map_err(|e| AppError::with_details("PATH_ERROR", "Invalid folder", &e.to_string()))?;
     access.grant([&canonical]);
     Ok(Some(canonical.to_string_lossy().to_string()))
+}
+
+/// Native file picker for documents; several can be chosen. The chosen files
+/// are added to the access list. Empty when cancelled.
+///
+/// The dialog filters by extension, so text files without one (README,
+/// Makefile) can't be picked here: they open from a folder or by drag & drop.
+#[tauri::command]
+async fn pick_files(app: AppHandle, access: State<'_, AccessState>) -> Result<Vec<String>, AppError> {
+    let documents: Vec<&str> = MARKDOWN_EXTENSIONS.iter().chain(TEXT_FILE_EXTENSIONS).copied().collect();
+    let dialog = app.dialog().file()
+        .set_title("Open File")
+        .add_filter("Markdown and text files", &documents)
+        .add_filter("Markdown", MARKDOWN_EXTENSIONS);
+    // Modal to the window where the dialog plugin's own `open` does that too
+    #[cfg(any(windows, target_os = "macos"))]
+    let dialog = match app.get_webview_window("main") {
+        Some(window) => dialog.set_parent(&window),
+        None => dialog,
+    };
+
+    let Some(picked) = dialog.blocking_pick_files() else {
+        return Ok(Vec::new());
+    };
+    let paths: Vec<PathBuf> = picked.into_iter()
+        .filter_map(|file| file.into_path().ok())
+        .filter_map(|path| canonicalize(&path).ok())
+        .collect();
+    access.grant(&paths);
+    Ok(paths.iter().map(|path| path.to_string_lossy().to_string()).collect())
 }
 
 /// Native save dialog, then write `content` (UTF-8) where the user chose.
@@ -1567,6 +1596,7 @@ fn main() {
             read_file,
             write_file,
             pick_directory,
+            pick_files,
             export_file,
             adopt_session_access,
             get_file_info,

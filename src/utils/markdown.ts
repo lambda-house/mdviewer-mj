@@ -886,6 +886,13 @@ function fenceFor(text: string): string {
   return '`'.repeat(Math.max(3, longest + 1));
 }
 
+/** `content` as one fenced code block. */
+function fencedBlock(content: string, language: string): string {
+  const fence = fenceFor(content);
+  const body = content.endsWith('\n') ? content : `${content}\n`;
+  return `${fence}${language}\n${body}${fence}\n`;
+}
+
 function renderPlainText(content: string): RenderResult {
   return {
     html: `<pre class="plain-text-document">${escapeHtml(content)}</pre>`,
@@ -917,14 +924,29 @@ export function renderFile(path: string, content: string, basePath?: string): Re
 
     case 'code': {
       if (content.length > MAX_HIGHLIGHT_SIZE) return renderPlainText(content);
-      const fence = fenceFor(content);
-      const body = content.endsWith('\n') ? content : `${content}\n`;
-      const html = parseMarkdown(`${fence}${fileKind.language}\n${body}${fence}\n`, basePath);
+      const html = parseMarkdown(fencedBlock(content, fileKind.language), basePath);
       return { html, headings: [], frontmatter: null };
     }
 
     default:
       return renderPlainText(content);
+  }
+}
+
+/**
+ * A file as markdown, for export: markdown and plain text as they are, fb2
+ * books converted, code as one fenced block.
+ */
+export function fileToMarkdown(path: string, content: string): string {
+  const fileKind = getFileKind(path);
+
+  switch (fileKind.kind) {
+    case 'fb2':
+      return fb2ToMarkdown(content) ?? fencedBlock(content, 'xml');
+    case 'code':
+      return fencedBlock(content, fileKind.language);
+    default:
+      return content;
   }
 }
 

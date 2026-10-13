@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Main menu (`MainMenu.tsx`, `utils/commands.ts`, `App.tsx`, `main.rs`)
+- **Before:** the menu button in the top left corner did nothing
+- **After:** it opens a menu of every command with its shortcut: Open File, Open Folder, Save File, Export As (Markdown, HTML), Save All, the View, Edit, Search and Tabs groups, and Settings. Items are greyed out when they don't apply (Save File without changes), toggles show a check mark, and the menu works from the keyboard (arrows, Enter, Escape)
+- **Open File** (Ctrl+O / Cmd+O) is new: a native file picker, several files at once (`pick_files`). The picked files are added to the access list, like a picked folder
+- **Save All** (Ctrl+Shift+S) asks first and lists the modified files. The dialog's buttons are in the platform's order: Save All then Cancel on Windows, Cancel then Save All on macOS and Linux; Enter saves, Escape cancels
+- **Export As → Markdown** is new: markdown as it is (with unsaved edits), fb2 books converted, code as a fenced block
+- Settings opens with Ctrl+, / Cmd+,
+- Commands are defined once in `utils/commands.ts`; the menu and the key handler both read that list. Shortcuts now work on Cyrillic and other non-Latin keyboard layouts, and AltGr combinations no longer trigger them
+
 ### Agent workspace (`agent.rs`, `AgentPanel.tsx`, `utils/agent.ts`, `DocumentPanel.tsx`)
 - A new left panel (🤖, Ctrl+Shift+A) lists the instructions, memory, plans, skills, subagents and commands of Claude Code, Codex and Gemini CLI, plus agent files in the opened folders. Skills, memory and commands show their frontmatter descriptions, and a filter searches titles, descriptions and paths
 - Turning it on asks in a native dialog. It adds no folders to the access list: while it's on, markdown in fixed places inside `~/.claude`, `~/.codex` and `~/.gemini` counts as opened (`agent::is_agent_document`); settings, credentials and transcripts stay unreadable

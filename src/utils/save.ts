@@ -34,3 +34,28 @@ export async function saveActiveDocument(): Promise<void> {
     alert(`Could not save ${path}:\n${result.error}`);
   }
 }
+
+/** Ask whether to save every modified document (SaveAllDialog does the asking). */
+export function requestSaveAll(): void {
+  flushEditorChanges();
+
+  const state = useStore.getState();
+  if (state.tabs.some((t) => t.isDirty)) state.setSaveAllPromptOpen(true);
+}
+
+/** Save every modified document; the ones that failed are shown to the user. */
+export async function saveAllDocuments(): Promise<void> {
+  flushEditorChanges();
+
+  const errors: string[] = [];
+  for (const tab of useStore.getState().tabs.filter((t) => t.isDirty)) {
+    // Closed while the others were being written
+    if (!useStore.getState().documents[tab.path]) continue;
+    const result = await saveDocumentToDisk(tab.path);
+    if (!result.success) errors.push(`${tab.path}: ${result.error}`);
+  }
+
+  if (errors.length > 0) {
+    alert(`Could not save:\n${errors.join('\n')}`);
+  }
+}

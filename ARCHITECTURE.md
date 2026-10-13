@@ -56,7 +56,7 @@ flowchart LR
 The central design decision: **the webview is untrusted.** It renders documents written by other people, so anything in it may be hostile. Everything that touches the system goes through Rust, and Rust decides on its own whether a request is allowed.
 
 - **Capabilities.** `capabilities/default.json` grants only `core:default` (plus window destroy). The JS file system, dialog, shell and opener plugins aren't exposed. Dialogs, the folder picker and opening links happen in Rust.
-- **Access list.** Rust keeps a list of the files and folders the user opened (`Access` / `AccessState`, persisted to `access.json` in the config dir). Paths are added only by user actions that Rust observes itself: the folder picker, drag and drop (`on_window_event`), command-line and single-instance launch paths, and a confirmed `follow_local_link` dialog. No command adds a path just because the webview passed it.
+- **Access list.** Rust keeps a list of the files and folders the user opened (`Access` / `AccessState`, persisted to `access.json` in the config dir). Paths are added only by user actions that Rust observes itself: the folder and file pickers, drag and drop (`on_window_event`), command-line and single-instance launch paths, and a confirmed `follow_local_link` dialog. No command adds a path just because the webview passed it.
 - **Checks.** Every command turns its path argument into a `Target` (`named`, the path as given, and `real`, canonicalized with `dunce`) and calls `AccessState::check(target, Use)`. The `Use` says what the path is for:
 
   | Use | Allowed when |
@@ -108,7 +108,7 @@ Backend code lives in `src-tauri/src/main.rs`, with the agent workspace in `agen
 |---|---|
 | Files | `scan_directories`, `read_file`, `write_file`, `get_file_info` |
 | Watching | `start_watching`, `stop_watching` (`notify`, one event per change, `node_modules`/`target`/`.git` ignored) |
-| Dialogs | `pick_directory`, `export_file` |
+| Dialogs | `pick_directory`, `pick_files`, `export_file` |
 | Links and shell | `follow_local_link`, `open_external`, `open_in_explorer` |
 | History | `read_history`, `append_to_history`, `clear_history`, `get_history_path` |
 | Session | `take_launch_paths`, `adopt_session_access` (one-time migration from before the access list) |
@@ -151,8 +151,9 @@ flowchart TB
 
 - **One store.** `src/store/index.ts` holds everything: folders and file tree, open documents and tabs, navigation history, panel sizes, zoom, theme and settings. `persist` saves UI state, folders, tabs and workspaces to localStorage; document contents are re-read from disk on start. Actions that can fail return `{ success, error? }` instead of throwing.
 - **Thin IPC layer.** `src/utils/tauri.ts` wraps every `invoke` with types. Components never call `invoke` directly.
+- **One list of commands.** `buildMenu` in `src/utils/commands.ts` defines every command once: label, shortcut, when it is enabled or checked, and what it runs. The toolbar's menu (`MainMenu`) renders the list and the key handler in `App.tsx` matches key presses against it, so the menu can't show a shortcut that does something else. Shortcuts are written per platform (`Ctrl+Shift+S`, `⇧⌘S`), and on a keyboard layout without Latin letters the physical key decides.
 - **Watching.** With auto-refresh on (the default), watcher events trigger a debounced rescan of the file tree (300 ms, never overlapping), and `setFiles` keeps unchanged tree nodes so React doesn't re-render the whole tree.
-- **Editing.** `Ctrl+E` swaps the viewer for a CodeMirror editor. Editor state per document lives in `utils/editorRegistry.ts`, and `utils/save.ts` saves through `write_file`. Closing a tab with unsaved changes asks first, and installing an update is blocked while any tab has them.
+- **Editing.** `Ctrl+E` swaps the viewer for a CodeMirror editor. Editor state per document lives in `utils/editorRegistry.ts`, and `utils/save.ts` saves through `write_file`. Closing a tab with unsaved changes asks first, and installing an update is blocked while any tab has them. Save All asks too (`SaveAllDialog`); its buttons follow the platform: the action first on Windows, Cancel first on macOS and Linux.
 - **Workspaces** save a set of folders, expanded paths and tabs under a name (`WorkspaceMenu`).
 - **Theming.** CSS custom properties, dark by default with light overrides under `:root[data-theme='light']`. Shiki emits both themes at once, and Mermaid is re-initialized with matching theme variables.
 

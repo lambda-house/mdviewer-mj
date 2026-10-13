@@ -1747,6 +1747,34 @@ a:hover {
   background: var(--danger-hover-bg);
 }
 
+/* The default button of a dialog */
+.modal-btn-primary {
+  background: var(--border-active);
+  border: 1px solid var(--border-active);
+  color: #ffffff;
+}
+
+.modal-btn-primary:hover {
+  filter: brightness(1.15);
+}
+
+/* Files a dialog is about, right under the sentence that introduces them */
+.modal-file-list {
+  max-height: 160px;
+  margin: -16px 0 24px;
+  overflow-y: auto;
+  list-style: none;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+}
+
+.modal-file-list li {
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ============================================================
    Error States
    ============================================================ */
@@ -2819,6 +2847,80 @@ a:hover {
   color: var(--text-primary);
 }
 
+
+/* ============================================================
+   Main Menu
+   ============================================================ */
+
+.main-menu {
+  position: relative;
+}
+
+.main-menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+}
+
+.main-menu-submenu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Beside its row, the first item level with it */
+.main-menu-subpanel {
+  top: -5px;
+  left: 100%;
+}
+
+/* Highlighted from the script, not on :hover: the keyboard moves it too */
+.main-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.main-menu-item.highlighted {
+  background: var(--selected-bg);
+}
+
+.main-menu-item.disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.main-menu-check {
+  width: 12px;
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-accent);
+}
+
+.main-menu-label {
+  flex: 1;
+}
+
+.main-menu-shortcut {
+  margin-left: 24px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.main-menu-item.disabled .main-menu-shortcut {
+  color: var(--text-disabled);
+}
+
+.main-menu-arrow {
+  margin-left: 24px;
+  color: var(--text-secondary);
+}
 
 /* ============================================================
    Workspaces

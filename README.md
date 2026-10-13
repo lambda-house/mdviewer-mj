@@ -174,14 +174,20 @@ The first time, the panel asks to read the agents' folders. Everything that is t
 
 ## Keyboard Shortcuts
 
+The menu button (☰, top left) lists every command with its shortcut.
+
 | Action | Windows/Linux | macOS |
 |--------|---------------|-------|
+| Open File | Ctrl+O | Cmd+O |
+| Save File | Ctrl+S | Cmd+S |
+| Save All | Ctrl+Shift+S | Cmd+Shift+S |
+| Settings | Ctrl+, | Cmd+, |
 | Toggle TOC | Ctrl+Shift+O | Cmd+Shift+O |
 | Close Tab | Ctrl+W | Cmd+W |
 | Zoom In | Ctrl+Plus | Cmd+Plus |
 | Zoom Out | Ctrl+Minus | Cmd+Minus |
 | Reset Zoom | Ctrl+0 | Cmd+0 |
-| Next / Previous Tab | Ctrl+Tab / Ctrl+Shift+Tab | Cmd+Tab / Cmd+Shift+Tab |
+| Next / Previous Tab | Ctrl+Tab / Ctrl+Shift+Tab | Ctrl+Tab / Ctrl+Shift+Tab |
 | Reopen Closed Tab | Ctrl+Shift+T | Cmd+Shift+T |
 | Toggle File Panel | Ctrl+B | Cmd+B |
 | Toggle History | Ctrl+H | Cmd+H |
@@ -205,7 +211,7 @@ The only network requests the app makes on its own are the update check (when en
 
 Documents come from anywhere, so the app treats them as untrusted:
 
-- **File access is limited to what you opened.** The backend reads, lists and saves only inside folders you picked in the folder dialog, folders and files you dropped on the window, and files the app was launched with ("Open with"). Inside an opened folder it only touches markdown and text files; inside an opened single file's folder it only serves images. The webview can't extend the list by naming a path, so a script that got into a rendered document still couldn't read `~/.ssh`. To revoke access, remove the entry from `access.json` while the app is closed.
+- **File access is limited to what you opened.** The backend reads, lists and saves only inside folders you picked in the folder dialog, files you picked with Open File, folders and files you dropped on the window, and files the app was launched with ("Open with"). Inside an opened folder it only touches markdown and text files; inside an opened single file's folder it only serves images. The webview can't extend the list by naming a path, so a script that got into a rendered document still couldn't read `~/.ssh`. To revoke access, remove the entry from `access.json` while the app is closed.
 - **Links to files you didn't open ask first.** Clicking a link to a file outside the opened folders and files shows a native "Open linked file?" dialog; only if you confirm is that file added. Symlinks inside an opened folder are followed when they point to a document (or image), never to anything else.
 - **The agent workspace is opt-in.** The agent panel reads the agents' own folders (`~/.claude`, `~/.codex`, `~/.gemini`) only after you confirm a native dialog, and then only markdown in fixed places: `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, `projects/*/memory`, `plans`, `skills`, `agents`, `commands` and plugin skills. Settings, credentials and session transcripts are never read. The eye button in the panel turns it off.
 - **Remote images are not loaded until you allow it**, since loading them tells their server when you read the document. Use **Load images** above the document, or turn on Settings → General → Load remote images.

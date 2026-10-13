@@ -40,6 +40,20 @@ export async function pickDirectory(): Promise<string | null> {
 }
 
 /**
+ * Open the native file picker for documents (several can be chosen). The
+ * backend adds the chosen files to the files the app may read.
+ * @returns Selected file paths, empty if cancelled
+ */
+export async function pickFiles(): Promise<string[]> {
+  if (!isTauri()) {
+    console.warn('pickFiles called outside Tauri environment');
+    return [];
+  }
+
+  return invoke<string[]>('pick_files');
+}
+
+/**
  * Scan directories for files using Tauri backend. Lists markdown files, plus
  * other text files when the "show text files" setting is on.
  * @param paths Array of directory paths to scan
@@ -78,16 +92,19 @@ export async function readFile(path: string): Promise<string> {
  * @param defaultName Default file name
  * @param content File content to save
  * @param filters File type filters
+ * @param title Title of the save dialog
  * @returns Saved file path or null if cancelled
  */
 export async function saveFile(
   defaultName: string,
   content: string,
-  filters?: { name: string; extensions: string[] }[]
+  filters?: { name: string; extensions: string[] }[],
+  title = 'Export HTML'
 ): Promise<string | null> {
   if (!isTauri()) {
     // Fallback for browser: use download link
-    const blob = new Blob([content], { type: 'text/html' });
+    const type = /\.html?$/i.test(defaultName) ? 'text/html' : 'text/markdown';
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -106,7 +123,7 @@ export async function saveFile(
       defaultName,
       content,
       filters: filters || [{ name: 'HTML', extensions: ['html'] }],
-      title: 'Export HTML',
+      title,
     });
   } catch (error) {
     // Handle Tauri AppError structure: {code, message, details}

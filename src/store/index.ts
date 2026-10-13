@@ -133,7 +133,7 @@ export interface RestoredDocument {
 // Store Interface
 // ============================================================
 
-interface AppState {
+export interface AppState {
   // File Panel (use arrays for serialization)
   directories: string[];
   files: FileNode[];
@@ -195,6 +195,8 @@ interface AppState {
   showUnsavedModal: boolean;
   pendingCloseTabId: string | null;
   settingsOpen: boolean;
+  /** The "Save All Files?" dialog is showing. */
+  saveAllPromptOpen: boolean;
 
   // History
   historyVisible: boolean;
@@ -288,6 +290,7 @@ interface AppState {
   setStatusBarPinned: (pinned: boolean) => void;
   setActiveHeadingId: (id: string | null) => void;
   setSettingsOpen: (open: boolean) => void;
+  setSaveAllPromptOpen: (open: boolean) => void;
   setAutoRefresh: (enabled: boolean) => void;
   setShowTextFiles: (enabled: boolean) => void;
   setSmoothScroll: (enabled: boolean) => void;
@@ -558,6 +561,7 @@ export const useStore = create<AppState>()(
       showUnsavedModal: false,
       pendingCloseTabId: null,
       settingsOpen: false,
+      saveAllPromptOpen: false,
 
       // History
       historyVisible: false,
@@ -978,6 +982,8 @@ export const useStore = create<AppState>()(
       )),
 
       setSettingsOpen: (open) => set({ settingsOpen: open }),
+
+      setSaveAllPromptOpen: (open) => set({ saveAllPromptOpen: open }),
 
       setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
 
