@@ -13,6 +13,7 @@ import { getFileKind, getFileName } from '../utils/files';
 import { saveActiveDocument } from '../utils/save';
 import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
 import { holdScroll } from '../utils/scrollHold';
+import { applyScrollPosition, captureScrollPosition } from '../utils/scrollAnchor';
 import { readSnapshot } from '../utils/tauri';
 import { CHANGED_CLASS, diffContent, formatAge, markAgentFilesRead, markChangedBlocks, markLeftDocumentRead } from '../utils/agent';
 
@@ -22,8 +23,9 @@ import { CHANGED_CLASS, diffContent, formatAge, markAgentFilesRead, markChangedB
 
 /** Debounce before a scroll offset is written to the (persisted) store. */
 const SCROLL_SAVE_DELAY = 250;
-/** How long a restore keeps re-applying the offset while content settles. */
-const SCROLL_RESTORE_WINDOW = 1500;
+/** Longest a restore keeps the saved text in place while late output (Mermaid,
+ *  highlighting, images) changes the layout; any scroll, click or key ends it. */
+const SCROLL_RESTORE_WINDOW = 10000;
 
 // ============================================================
 // Error Boundary Component
@@ -104,11 +106,12 @@ function debounce<T extends (...args: unknown[]) => void>(
 // ============================================================
 
 /**
- * Remembers the scroll offset of every document.
+ * Remembers the scroll position of every document, anchored to the text at
+ * the top of the view (`utils/scrollAnchor.ts`).
  *
  * The scroll container is a single DOM node reused by all tabs, so switching
- * tabs has to explicitly stash the outgoing offset and re-apply the incoming
- * one. Offsets are keyed by path in the persisted store, which is what makes
+ * tabs has to explicitly stash the outgoing position and re-apply the incoming
+ * one. Positions are keyed by path in the persisted store, which is what makes
  * them survive a restart as well.
  */
 function useDocumentScroll(
@@ -118,6 +121,7 @@ function useDocumentScroll(
 ): void {
   const restoringRef = useRef(false);
   const pathRef = useRef<string | null>(null);
+  /** Pixel offset of an unsaved scroll; the anchor is taken when saving. */
   const pendingRef = useRef<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRestoreRef = useRef<(() => void) | null>(null);
@@ -127,12 +131,17 @@ function useDocumentScroll(
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    const el = scrollRef.current;
     const currentPath = pathRef.current;
     if (currentPath && pendingRef.current !== null) {
-      useStore.getState().setScrollPosition(currentPath, pendingRef.current);
+      // An unmounting container can't be measured any more: keep the offset
+      useStore.getState().setScrollPosition(
+        currentPath,
+        el?.isConnected ? captureScrollPosition(el) : pendingRef.current
+      );
     }
     pendingRef.current = null;
-  }, []);
+  }, [scrollRef]);
 
   // Record the offset while scrolling (debounced: each write hits localStorage)
   useEffect(() => {
@@ -158,8 +167,9 @@ function useDocumentScroll(
     const handleUnload = () => {
       const el = scrollRef.current;
       const currentPath = pathRef.current;
-      if (el && currentPath && !restoringRef.current) {
-        useStore.getState().setScrollPosition(currentPath, el.scrollTop);
+      if (el?.isConnected && currentPath && !restoringRef.current) {
+        useStore.getState().setScrollPosition(currentPath, captureScrollPosition(el));
+        pendingRef.current = null;
       }
       flushSave();
     };
@@ -183,7 +193,7 @@ function useDocumentScroll(
       }
       pendingRef.current = null;
       // The container still holds the previous document at this point
-      useStore.getState().setScrollPosition(previousPath, el.scrollTop);
+      useStore.getState().setScrollPosition(previousPath, captureScrollPosition(el));
     }
     pathRef.current = path;
 
@@ -197,17 +207,21 @@ function useDocumentScroll(
 
     restoringRef.current = true;
 
+    // Until the new document has rendered, the container still shows the
+    // previous one, which has blocks with the same line numbers
     const applyTarget = () => {
-      const max = Math.max(0, el.scrollHeight - el.clientHeight);
-      const next = Math.min(target, max);
-      if (Math.abs(el.scrollTop - next) > 0.5) {
-        el.scrollTop = next;
-      }
+      if (el.querySelector('.markdown-body')?.getAttribute('data-rendered-path') !== path) return;
+      applyScrollPosition(el, target);
     };
+    // Its arrival need not change the height, so watch for it as well
+    const renderObserver = new MutationObserver(applyTarget);
+    renderObserver.observe(el, { subtree: true, attributes: true, attributeFilter: ['data-rendered-path'] });
 
-    // Keep re-applying until the layout settles, the user acts or a find jump
-    // takes over
+    // Keep the saved text in place while the layout changes (re-applied on
+    // every resize, before it is painted) until the user acts, a find jump
+    // takes over or the window ends
     const stop = holdScroll(el, inner, applyTarget, SCROLL_RESTORE_WINDOW, () => {
+      renderObserver.disconnect();
       restoringRef.current = false;
     });
     stopRestoreRef.current = stop;

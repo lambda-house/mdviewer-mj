@@ -218,6 +218,8 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const rangesRef = useRef<Range[]>([]);
+  /** The ranges in the "all matches" highlight; Next/Previous leave it alone. */
+  const paintedRangesRef = useRef<Range[] | null>(null);
   const [count, setCount] = useState(0);
   const [current, setCurrent] = useState(-1);
   const [error, setError] = useState<string | undefined>();
@@ -326,7 +328,10 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
     const currentRange = current >= 0 ? ranges[current] : undefined;
 
     if (highlights) {
-      setHighlightRanges(highlights.all, ranges);
+      if (paintedRangesRef.current !== ranges) {
+        setHighlightRanges(highlights.all, ranges);
+        paintedRangesRef.current = ranges;
+      }
       setHighlightRanges(highlights.current, currentRange ? [currentRange] : []);
     } else if (currentRange) {
       // No highlight API: at least select the current match
@@ -374,6 +379,7 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
       const highlights = getFindHighlights();
       highlights?.all.clear();
       highlights?.current.clear();
+      paintedRangesRef.current = null;
     };
     if (!findOpen) clear();
     return clear;

@@ -4,6 +4,7 @@ import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from '../utils/search';
 import type { ColorTheme } from '../utils/markdown';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
 import type { AgentEntry, UpdateInfo } from '../utils/tauri';
+import { sameScrollPosition, type ScrollPosition } from '../utils/scrollAnchor';
 
 // ============================================================
 // Constants
@@ -147,10 +148,11 @@ export interface AppState {
   activeTabId: string | null;
   recentlyClosed: ClosedTab[];
   /**
-   * Scroll offset per document path. Kept out of `tabs` on purpose: it changes
-   * while scrolling and must not invalidate anything that renders tabs.
+   * Scroll position per document path (see `utils/scrollAnchor.ts`). Kept out
+   * of `tabs` on purpose: it changes while scrolling and must not invalidate
+   * anything that renders tabs.
    */
-  scrollPositions: Record<string, number>;
+  scrollPositions: Record<string, ScrollPosition>;
   /** True once the previous session's tabs have been reloaded (or found empty). */
   sessionRestored: boolean;
   /** Tab ids in activation order, for back/forward. Not persisted. */
@@ -271,8 +273,8 @@ export interface AppState {
   saveDocument: (path: string, savedContent?: string) => void;
   reopenClosedTab: () => ClosedTab | null;
   restoreSession: (documents: RestoredDocument[]) => void;
-  setScrollPosition: (path: string, position: number) => void;
-  getScrollPosition: (path: string) => number;
+  setScrollPosition: (path: string, position: ScrollPosition) => void;
+  getScrollPosition: (path: string) => ScrollPosition;
   
   // Actions - UI
   setPanelWidth: (width: number) => void;
@@ -368,11 +370,11 @@ function getFileName(path: string): string {
 
 /** Keep only the scroll offsets that still belong to a known document. */
 function pruneScrollPositions(
-  positions: Record<string, number>,
+  positions: Record<string, ScrollPosition>,
   keep: Iterable<string>
-): Record<string, number> {
+): Record<string, ScrollPosition> {
   const allowed = new Set(keep);
-  const next: Record<string, number> = {};
+  const next: Record<string, ScrollPosition> = {};
   for (const [path, offset] of Object.entries(positions)) {
     if (allowed.has(path)) next[path] = offset;
   }
@@ -926,10 +928,10 @@ export const useStore = create<AppState>()(
 
       setScrollPosition: (path, position) => set((state) => {
         if (!path) return state;
-        const rounded = Math.max(0, Math.round(position));
-        if (state.scrollPositions[path] === rounded) return state;
+        const next = typeof position === 'number' ? Math.max(0, Math.round(position)) : position;
+        if (sameScrollPosition(state.scrollPositions[path], next)) return state;
         return {
-          scrollPositions: { ...state.scrollPositions, [path]: rounded },
+          scrollPositions: { ...state.scrollPositions, [path]: next },
         };
       }),
 

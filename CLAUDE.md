@@ -31,7 +31,7 @@ Frontend unit tests are Vitest files next to the code (`src/utils/*.test.ts`; DO
   - `App.tsx` - Main shell; its key handler runs the commands of `utils/commands.ts`
   - `MainMenu.tsx` - Toolbar menu (top left): every command, grouped, with its shortcut
   - `FilePanel.tsx` - Left sidebar file tree browser
-  - `DocumentPanel.tsx` - Center markdown renderer with ErrorBoundary
+  - `DocumentPanel.tsx` - Center markdown renderer with ErrorBoundary. Scroll positions per document are anchored to the block at the top of the view (`utils/scrollAnchor.ts`), so late Mermaid output doesn't move the restored text
   - `TabBar.tsx` - Tab strip: preview tab, context menu, back/forward, overflow scrolling
   - `TocSidebar.tsx` - Right sidebar table of contents
   - `AgentPanel.tsx` - Agent workspace panel (shares the left slot with search and history)
