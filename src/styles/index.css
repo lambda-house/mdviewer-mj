@@ -2716,6 +2716,29 @@ a:hover {
   text-align: center;
 }
 
+/* Next/Previous wrapped around the document: a short pulse, then the text stays accented */
+.find-status-wrapped {
+  color: var(--text-accent);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  animation: find-wrap-pulse 400ms ease-out;
+}
+
+@keyframes find-wrap-pulse {
+  from {
+    background: var(--active-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .find-status-wrapped {
+    animation: none;
+  }
+}
+
 ::highlight(find-match) {
   background-color: rgba(234, 179, 8, 0.35);
 }

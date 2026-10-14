@@ -35,7 +35,7 @@ Frontend unit tests are Vitest files next to the code (`src/utils/*.test.ts`; DO
   - `TabBar.tsx` - Tab strip: preview tab, context menu, back/forward, overflow scrolling
   - `TocSidebar.tsx` - Right sidebar table of contents
   - `AgentPanel.tsx` - Agent workspace panel (shares the left slot with search and history)
-  - `FindBar.tsx` - Ctrl+F find in document (CSS Custom Highlight API)
+  - `FindBar.tsx` - Ctrl+F find in document (CSS Custom Highlight API; highlights are changed in place, WebKitGTK doesn't repaint replaced ones). A jump and the scroll restore both use `utils/scrollHold.ts` to keep their offset while late output changes the layout
   - `SearchPanel.tsx` - Ctrl+Shift+F text search in open tabs / folders
   - `Editor.tsx` - CodeMirror 6 source editor (Ctrl+E), lazy-loaded; per-document state lives in `utils/editorRegistry.ts`, saving in `utils/save.ts`
   - `WorkspaceMenu.tsx` - Saved workspaces (folders + tabs)

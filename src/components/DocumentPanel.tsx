@@ -12,6 +12,7 @@ const Editor = React.lazy(() => import('./Editor'));
 import { getFileKind, getFileName } from '../utils/files';
 import { saveActiveDocument } from '../utils/save';
 import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { holdScroll } from '../utils/scrollHold';
 import { readSnapshot } from '../utils/tauri';
 import { CHANGED_CLASS, diffContent, formatAge, markAgentFilesRead, markChangedBlocks, markLeftDocumentRead } from '../utils/agent';
 
@@ -204,29 +205,11 @@ function useDocumentScroll(
       }
     };
 
-    // Syntax highlighting, Mermaid and images all change the height after the
-    // first paint - keep re-applying until the layout settles or the user acts.
-    const observer = typeof ResizeObserver !== 'undefined' && inner
-      ? new ResizeObserver(applyTarget)
-      : null;
-
-    const userEvents = ['wheel', 'keydown', 'mousedown', 'touchstart'] as const;
-    let stopped = false;
-
-    const stop = () => {
-      if (stopped) return;
-      stopped = true;
-      clearTimeout(timer);
-      observer?.disconnect();
-      userEvents.forEach((name) => window.removeEventListener(name, stop));
+    // Keep re-applying until the layout settles, the user acts or a find jump
+    // takes over
+    const stop = holdScroll(el, inner, applyTarget, SCROLL_RESTORE_WINDOW, () => {
       restoringRef.current = false;
-    };
-
-    const timer = setTimeout(stop, SCROLL_RESTORE_WINDOW);
-    userEvents.forEach((name) => window.addEventListener(name, stop, { passive: true }));
-
-    applyTarget();
-    if (inner) observer?.observe(inner);
+    });
     stopRestoreRef.current = stop;
 
     return () => {

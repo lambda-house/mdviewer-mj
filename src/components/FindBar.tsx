@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from 'lucide-react';
 import { useStore } from '../store';
 import { buildSearchRegex, iterateMatches } from '../utils/search';
+import { holdScroll } from '../utils/scrollHold';
 import clsx from 'clsx';
 
 // ============================================================
@@ -12,7 +13,13 @@ import clsx from 'clsx';
 const MAX_MATCHES = 5000;
 /** Batch DOM changes (Shiki, Mermaid, file reloads) before re-searching. */
 const RESEARCH_DELAY = 150;
+/** How long a jump keeps its match in place while late output changes the layout. */
+const SCROLL_HOLD_MS = 3000;
+/** How long "Wrapped to top/bottom" stays in the status. */
+const WRAP_NOTICE_MS = 2000;
 
+/** Bars drawn over the document's edges. */
+const OVERLAY_SELECTOR = '.find-bar, .status-bar.visible:not(.pinned)';
 /** Rendered text that is not document content. */
 const SKIP_SELECTOR = 'svg, button, script, style, .mermaid-hint, .mermaid-controls';
 /** Elements whose text must not run into the neighbouring block's text. */
@@ -35,10 +42,22 @@ function findRanges(root: Element, regex: RegExp): Range[] {
   let text = '';
   let lastBlock: Element | null = null;
 
+  // Text that is not displayed (e.g. a Mermaid diagram's hidden source) would
+  // count as a match that can't be shown or scrolled to
+  const hidden = new Map<Element, boolean>();
+  const isHidden = (el: Element) => {
+    let result = hidden.get(el);
+    if (result === undefined) {
+      result = typeof el.checkVisibility === 'function' ? !el.checkVisibility() : el.getClientRects().length === 0;
+      hidden.set(el, result);
+    }
+    return result;
+  };
+
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
       const parent = node.parentElement;
-      if (!parent || parent.closest(SKIP_SELECTOR)) return NodeFilter.FILTER_REJECT;
+      if (!parent || parent.closest(SKIP_SELECTOR) || isHidden(parent)) return NodeFilter.FILTER_REJECT;
       return node.nodeValue ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
     },
   });
@@ -122,12 +141,24 @@ function resolveSourceMatch(
   return Math.max(0, Math.min(ranges.length - 1, first + before));
 }
 
+/** Whether `rect` is inside the container's viewport (without scrollbars) and not under a bar. */
+function isRectVisible(container: HTMLElement, rect: DOMRect): boolean {
+  const box = container.getBoundingClientRect();
+  const top = box.top + container.clientTop;
+  const bottom = top + container.clientHeight;
+  if (rect.top < top + 8 || rect.bottom > bottom - 8) return false;
+  return !Array.from(document.querySelectorAll(OVERLAY_SELECTOR)).some((bar) => {
+    const r = bar.getBoundingClientRect();
+    return rect.top < r.bottom && rect.bottom > r.top && rect.left < r.right && rect.right > r.left;
+  });
+}
+
 /** Scroll the container so the range sits in its upper third, if not visible. */
 function scrollRangeIntoView(container: HTMLElement, range: Range): void {
   const rect = range.getBoundingClientRect();
+  if (isRectVisible(container, rect)) return;
   const box = container.getBoundingClientRect();
-  if (rect.top >= box.top + 8 && rect.bottom <= box.bottom - 8) return;
-  container.scrollTop += rect.top - box.top - box.height / 3;
+  container.scrollTop += rect.top - box.top - container.clientHeight / 3;
 }
 
 interface FindHighlights {
@@ -196,6 +227,12 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
   /** Scroll to the current match only after navigation or a new search - a
    *  background DOM refresh must not yank the view back to it. */
   const scrollPendingRef = useRef(false);
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  /** Keeps the current match in place after a jump; see `holdScroll`. */
+  const holdRef = useRef<{ stop: () => void; apply: () => void } | null>(null);
+  /** Set when Next/Previous wrapped around the document; `id` restarts the pulse. */
+  const [wrapped, setWrapped] = useState<{ to: 'top' | 'bottom'; id: number } | null>(null);
 
   const { regex, error: regexError } = buildSearchRegex(query, options);
 
@@ -213,11 +250,16 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
     if (!findOpen || !container) return;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((records) => {
+      // Style changes matter only when they show or hide text (Mermaid's source
+      // toggle); pan and zoom of diagrams change styles all the time
+      const relevant = records.some((r) => r.type !== 'attributes' || r.attributeName !== 'style'
+        || (r.target as Element).classList.contains('mermaid-raw'));
+      if (!relevant) return;
       clearTimeout(timer);
       timer = setTimeout(() => setDomVersion((v) => v + 1), RESEARCH_DELAY);
     });
-    observer.observe(container, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-rendered-path'] });
+    observer.observe(container, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-rendered-path', 'style'] });
 
     return () => {
       clearTimeout(timer);
@@ -250,7 +292,10 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
     setCount(ranges.length);
     setError(undefined);
     setSearchVersion((v) => v + 1);
-    if (isNewSearch) scrollPendingRef.current = true;
+    if (isNewSearch) {
+      scrollPendingRef.current = true;
+      setWrapped(null);
+    }
 
     // Jump requested by the search panel - once this document is rendered
     if (findRequest && findRequest.path === activePath && renderedPath === activePath) {
@@ -290,11 +335,38 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
       selection?.addRange(currentRange);
     }
 
-    if (currentRange && scrollRef.current && scrollPendingRef.current) {
-      scrollRangeIntoView(scrollRef.current, currentRange);
+    const container = scrollRef.current;
+    if (currentRange && container && scrollPendingRef.current) {
+      holdRef.current?.stop();
+      scrollRangeIntoView(container, currentRange);
+      // Late Shiki/Mermaid/image output above the match would push it out of
+      // view (and a scroll restore of a just-opened document would undo the
+      // jump): keep the match where it is now until the layout settles. Ranges
+      // are re-read because a DOM refresh replaces them.
+      const box = container.getBoundingClientRect();
+      const offset = currentRange.getBoundingClientRect().top - box.top;
+      const apply = () => {
+        const range = rangesRef.current[currentRef.current];
+        const rect = range?.getBoundingClientRect();
+        if (!rect || (rect.width === 0 && rect.height === 0)) return; // detached by a refresh
+        const delta = rect.top - container.getBoundingClientRect().top - offset;
+        if (Math.abs(delta) > 0.5) container.scrollTop += delta;
+      };
+      const hold = {
+        apply,
+        stop: holdScroll(container, container.querySelector('.markdown-body'), apply, SCROLL_HOLD_MS, () => {
+          if (holdRef.current === hold) holdRef.current = null;
+        }),
+      };
+      holdRef.current = hold;
+    } else {
+      holdRef.current?.apply(); // a DOM refresh during the hold
     }
     scrollPendingRef.current = false;
   }, [current, searchVersion, scrollRef]);
+
+  // A hold ends with the bar, or when the document changes
+  useEffect(() => () => holdRef.current?.stop(), [findOpen, activePath]);
 
   // Clear highlights when the bar closes (or the component goes away)
   useEffect(() => {
@@ -310,10 +382,21 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
   const step = useCallback((direction: 1 | -1) => {
     const total = rangesRef.current.length;
     if (total === 0) return;
+    const prev = currentRef.current;
+    const next = (prev + direction + total) % total;
+    // A single match "wraps" on every step; its "1 of 1" already says enough
+    const wrapsAround = total > 1 && prev >= 0 && (direction === 1 ? next < prev : next > prev);
+    setWrapped((w) => (wrapsAround ? { to: direction === 1 ? 'top' : 'bottom', id: (w?.id ?? 0) + 1 } : null));
     scrollPendingRef.current = true;
-    setCurrent((prev) => (prev + direction + total) % total);
+    setCurrent(next);
     setSearchVersion((v) => v + 1); // repaint/scroll even when current is unchanged
   }, []);
+
+  useEffect(() => {
+    if (!wrapped) return;
+    const timer = setTimeout(() => setWrapped(null), WRAP_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [wrapped]);
 
   // F3 / Shift+F3 work wherever the focus is
   useEffect(() => {
@@ -346,7 +429,7 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
       ? ''
       : count === 0
         ? 'No results'
-        : `${current + 1} of ${count}${count >= MAX_MATCHES ? '+' : ''}`;
+        : `${wrapped ? `↻ Wrapped to ${wrapped.to} · ` : ''}${current + 1} of ${count}${count >= MAX_MATCHES ? '+' : ''}`;
 
   return (
     <div className="find-bar" role="search">
@@ -364,7 +447,10 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
         />
         <SearchOptionToggles options={options} onChange={setSearchOptions} />
       </div>
-      <span className="find-status" aria-live="polite">{status}</span>
+      <span className="find-status" aria-live="polite">
+        {/* keyed so the pulse restarts on every wrap; the live region itself stays */}
+        <span key={wrapped?.id} className={clsx(wrapped && 'find-status-wrapped')}>{status}</span>
+      </span>
       <button className="find-button" onClick={() => step(-1)} disabled={count === 0} title="Previous match (Shift+Enter)" type="button">
         <ChevronUp size={14} />
       </button>
