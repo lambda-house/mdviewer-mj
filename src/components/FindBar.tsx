@@ -130,10 +130,35 @@ function scrollRangeIntoView(container: HTMLElement, range: Range): void {
   container.scrollTop += rect.top - box.top - box.height / 3;
 }
 
-function getHighlightRegistry(): HighlightRegistry | null {
-  return typeof CSS !== 'undefined' && 'highlights' in CSS && typeof Highlight !== 'undefined'
-    ? CSS.highlights
-    : null;
+interface FindHighlights {
+  all: Highlight;
+  current: Highlight;
+}
+
+/**
+ * The two highlights, registered once and then only changed in place:
+ * WebKitGTK does not repaint the old ranges when a registered highlight is
+ * replaced (`set`) or removed (`delete`), so they stay painted until the next
+ * scroll. `clear()` and `add()` on a registered highlight do repaint.
+ */
+function getFindHighlights(): FindHighlights | null {
+  if (typeof CSS === 'undefined' || !('highlights' in CSS) || typeof Highlight === 'undefined') return null;
+  const registry = CSS.highlights;
+  let all = registry.get(HIGHLIGHT_ALL);
+  let current = registry.get(HIGHLIGHT_CURRENT);
+  if (!all || !current) {
+    all = new Highlight();
+    current = new Highlight();
+    current.priority = 1; // paint over the match highlight it is part of
+    registry.set(HIGHLIGHT_ALL, all);
+    registry.set(HIGHLIGHT_CURRENT, current);
+  }
+  return { all, current };
+}
+
+function setHighlightRanges(highlight: Highlight, ranges: Range[]): void {
+  highlight.clear();
+  for (const range of ranges) highlight.add(range);
 }
 
 // ============================================================
@@ -216,6 +241,7 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
       setCount(0);
       setCurrent(-1);
       setError(findOpen ? regexError : undefined);
+      setSearchVersion((v) => v + 1); // repaint even when current was already -1
       return;
     }
 
@@ -250,14 +276,13 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
 
   // Paint highlights and bring the current match into view
   useEffect(() => {
-    const registry = getHighlightRegistry();
+    const highlights = getFindHighlights();
     const ranges = rangesRef.current;
     const currentRange = current >= 0 ? ranges[current] : undefined;
 
-    if (registry) {
-      registry.set(HIGHLIGHT_ALL, new Highlight(...ranges));
-      if (currentRange) registry.set(HIGHLIGHT_CURRENT, new Highlight(currentRange));
-      else registry.delete(HIGHLIGHT_CURRENT);
+    if (highlights) {
+      setHighlightRanges(highlights.all, ranges);
+      setHighlightRanges(highlights.current, currentRange ? [currentRange] : []);
     } else if (currentRange) {
       // No highlight API: at least select the current match
       const selection = window.getSelection();
@@ -271,12 +296,15 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
     scrollPendingRef.current = false;
   }, [current, searchVersion, scrollRef]);
 
-  // Clear highlights when the bar closes
+  // Clear highlights when the bar closes (or the component goes away)
   useEffect(() => {
-    if (findOpen) return;
-    const registry = getHighlightRegistry();
-    registry?.delete(HIGHLIGHT_ALL);
-    registry?.delete(HIGHLIGHT_CURRENT);
+    const clear = () => {
+      const highlights = getFindHighlights();
+      highlights?.all.clear();
+      highlights?.current.clear();
+    };
+    if (!findOpen) clear();
+    return clear;
   }, [findOpen]);
 
   const step = useCallback((direction: 1 | -1) => {
