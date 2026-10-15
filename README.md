@@ -163,7 +163,7 @@ mdviewer/
 
 In the Files panel, select **Agents** to show agent documents inside the folders you opened, including hidden `.claude` and `.cursor` folders. The normal **Files** filter shows only folders containing Markdown documents; the **Show text files** setting can also show other text files inside those folders.
 
-The 🤖 button (Ctrl+Shift+A) opens the separate **Global agents** panel for files in the agents' own folders:
+**Global agent files** appears as a separate root below the opened folders in the same left column. Click the root to expand or collapse it. Hide it with the × on that row and show it again with the 🤖 button (Ctrl+Shift+A). It contains files in the agents' own folders:
 
 | Section | What's in it |
 |---|---|
@@ -174,7 +174,7 @@ The 🤖 button (Ctrl+Shift+A) opens the separate **Global agents** panel for fi
 | Skills | `SKILL.md` of user and plugin skills, with their descriptions |
 | Agents, Commands | Subagent definitions and slash commands (`~/.codex/prompts` too) |
 
-The first time, the panel asks to read the agents' folders. Everything that is there then counts as read. After that, a dot marks files an agent has changed since you last read them, and **Changed since you read them** collects them at the top. Opening one highlights the changed blocks, with **Next change** and **Mark as read**; leaving the document marks it read too. While the panel or an agent file is open, the list and open documents update as soon as an agent writes a file.
+The first time you expand the root, select **Show agent files** to confirm access in a native dialog. Everything that is there then counts as read. After that, a dot marks files an agent has changed since you last read them, and **Changed since you read them** collects them at the top. Opening one highlights the changed blocks, with **Next change** and **Mark as read**; leaving the document marks it read too. While the root or an agent file is open, the list and open documents update as soon as an agent writes a file.
 
 ## Keyboard Shortcuts
 
@@ -217,7 +217,7 @@ Documents come from anywhere, so the app treats them as untrusted:
 
 - **File access is limited to what you opened.** The backend reads, lists and saves only inside folders you picked in the folder dialog, files you picked with Open File, folders and files you dropped on the window, and files the app was launched with ("Open with"). Inside an opened folder it only touches markdown and text files; inside an opened single file's folder it only serves images. The webview can't extend the list by naming a path, so a script that got into a rendered document still couldn't read `~/.ssh`. To revoke access, remove the entry from `access.json` while the app is closed.
 - **Links to files you didn't open ask first.** Clicking a link to a file outside the opened folders and files shows a native "Open linked file?" dialog; only if you confirm is that file added. Symlinks inside an opened folder are followed when they point to a document (or image), never to anything else.
-- **The agent workspace is opt-in.** The agent panel reads the agents' own folders (`~/.claude`, `~/.codex`, `~/.gemini`) only after you confirm a native dialog, and then only markdown in fixed places: `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, `projects/*/memory`, `plans`, `skills`, `agents`, `commands` and plugin skills. Settings, credentials and session transcripts are never read. The eye button in the panel turns it off.
+- **The agent workspace is opt-in.** The Global agent files root reads the agents' own folders (`~/.claude`, `~/.codex`, `~/.gemini`) only after you confirm a native dialog, and then only markdown in fixed places: `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, `projects/*/memory`, `plans`, `skills`, `agents`, `commands` and plugin skills. Settings, credentials and session transcripts are never read. The eye button on the expanded root turns access off; × hides the root.
 - **Remote images are not loaded until you allow it**, since loading them tells their server when you read the document. Use **Load images** above the document, or turn on Settings → General → Load remote images.
 - **Raw HTML in markdown is escaped**, not rendered, and links with `javascript:` and similar schemes are neutralised.
 - **A Content Security Policy** blocks scripts other than the app's own, plugins, frames and network requests, as a second line of defence. The window can't be navigated away from the app: web links open in your browser.

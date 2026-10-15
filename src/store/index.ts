@@ -204,7 +204,7 @@ export interface AppState {
   historyVisible: boolean;
   historyContent: string;
 
-  // Agent workspace (shares the left slot with search and history)
+  // Whether the global agent files root is shown in the Files panel.
   agentVisible: boolean;
   /** Agent files from the last scan; empty while the workspace is off. */
   agentEntries: AgentEntry[];
@@ -567,7 +567,7 @@ export const useStore = create<AppState>()(
 
       // History
       historyVisible: false,
-      agentVisible: false,
+      agentVisible: true,
       agentEntries: [],
       workspaces: [],
       activeWorkspace: null,
@@ -945,7 +945,11 @@ export const useStore = create<AppState>()(
         panelWidth: Math.round(Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, width))) 
       }),
 
-      setFilePanelVisible: (visible) => set({ filePanelVisible: visible }),
+      setFilePanelVisible: (visible) => set((state) => ({
+        filePanelVisible: visible,
+        historyVisible: visible ? false : state.historyVisible,
+        searchVisible: visible ? false : state.searchVisible,
+      })),
       
       setTocWidth: (width) => set({ 
         tocWidth: Math.round(Math.max(TOC_MIN_WIDTH, Math.min(TOC_MAX_WIDTH, width))) 
@@ -1027,23 +1031,28 @@ export const useStore = create<AppState>()(
       // History
       setHistoryVisible: (visible) => set((state) => ({
         historyVisible: visible,
-        agentVisible: visible ? false : state.agentVisible,
+        searchVisible: visible ? false : state.searchVisible,
       })),
 
       toggleHistoryVisible: () => set((state) => ({
         historyVisible: !state.historyVisible,
-        // History, search and the agent workspace share the left slot
+        // History and search share the left slot with Files
         searchVisible: state.historyVisible ? state.searchVisible : false,
-        agentVisible: state.historyVisible ? state.agentVisible : false,
       })),
 
       setAgentVisible: (visible) => set((state) => ({
         agentVisible: visible,
+        filePanelVisible: visible ? true : state.filePanelVisible,
         historyVisible: visible ? false : state.historyVisible,
         searchVisible: visible ? false : state.searchVisible,
       })),
 
-      toggleAgentVisible: () => get().setAgentVisible(!get().agentVisible),
+      toggleAgentVisible: () => {
+        const state = get();
+        // From Search, History or a hidden left column, the shortcut reveals
+        // the root instead of hiding an entry the user cannot see.
+        get().setAgentVisible(!state.agentVisible || !state.filePanelVisible || state.searchVisible || state.historyVisible);
+      },
 
       setAgentEntries: (entries) => set({ agentEntries: entries }),
 
@@ -1143,13 +1152,11 @@ export const useStore = create<AppState>()(
       setSearchVisible: (visible) => set((state) => ({
         searchVisible: visible,
         historyVisible: visible ? false : state.historyVisible,
-        agentVisible: visible ? false : state.agentVisible,
       })),
 
       openSearch: (query) => set((state) => ({
         searchVisible: true,
         historyVisible: false,
-        agentVisible: false,
         searchQuery: query ?? state.searchQuery,
         searchFocusNonce: state.searchFocusNonce + 1,
       })),
@@ -1162,7 +1169,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'mdviewer-storage',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         // Only persist these fields
@@ -1211,6 +1218,9 @@ export const useStore = create<AppState>()(
         if (version < 3 && persisted.markdownTextColor?.toLowerCase() === LEGACY_MARKDOWN_TEXT_COLOR) {
           persisted.markdownTextColor = DEFAULT_MARKDOWN_TEXT_COLOR;
         }
+        // The old flag meant "open the separate agent panel". The new root
+        // starts visible (collapsed) for existing users too.
+        if (version < 4) persisted.agentVisible = true;
         return persisted;
       },
       merge: (persistedState, currentState) => {

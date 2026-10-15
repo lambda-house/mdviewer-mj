@@ -32,7 +32,6 @@ import SettingsModal from './components/SettingsModal';
 import SaveAllDialog from './components/SaveAllDialog';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
-import AgentPanel from './components/AgentPanel';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
 
@@ -62,7 +61,6 @@ const App: React.FC = () => {
   const tocVisible = useStore((s) => s.tocVisible);
   const historyVisible = useStore((s) => s.historyVisible);
   const agentVisible = useStore((s) => s.agentVisible);
-  const setAgentVisible = useStore((s) => s.setAgentVisible);
   const toggleAgentVisible = useStore((s) => s.toggleAgentVisible);
   const hasAgentTabs = useStore((s) => s.tabs.some((t) => s.agentEntries.some((e) => e.path === t.path)));
   const openedDirectories = useStore((s) => s.directories);
@@ -248,22 +246,20 @@ const App: React.FC = () => {
     }
   }, [setFiles]);
   
-  // The left slot holds the search, history, agent or file panel. Hiding it
-  // (drag to the edge / double-click the separator) hides all of them;
-  // showing it brings back the file panel.
-  const leftPanelVisible = searchVisible || historyVisible || agentVisible || filePanelVisible;
+  // Search and history temporarily replace the Files panel. Global agent files
+  // are a root inside Files and keep their own visibility when the panel hides.
+  const leftPanelVisible = searchVisible || historyVisible || filePanelVisible;
   const setLeftPanelVisible = useCallback((visible: boolean) => {
     if (visible) {
-      if (!historyVisible && !searchVisible && !agentVisible) setFilePanelVisible(true);
+      if (!historyVisible && !searchVisible) setFilePanelVisible(true);
     } else {
       setSearchVisible(false);
       setHistoryVisible(false);
-      setAgentVisible(false);
       setFilePanelVisible(false);
     }
-  }, [historyVisible, searchVisible, agentVisible, setFilePanelVisible, setHistoryVisible, setSearchVisible, setAgentVisible]);
+  }, [historyVisible, searchVisible, setFilePanelVisible, setHistoryVisible, setSearchVisible]);
 
-  // Agent files change while agents work: rescan while the agent panel or an
+  // Agent files change while agents work: rescan while the global root or an
   // agent file is open, when the backend reports a change and when the window
   // gets focus. Each scan also makes the backend watch newly opened folders.
   useEffect(() => {
@@ -396,7 +392,6 @@ const App: React.FC = () => {
     // Always bring the requested folder into view after the picker closes.
     setSearchVisible(false);
     setHistoryVisible(false);
-    setAgentVisible(false);
     setFilePanelVisible(true);
     useStore.getState().setFilterQuery('');
     revealPath(normalizeDirPath(dirs[dirs.length - 1]));
@@ -415,7 +410,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Failed to open first markdown file:', error);
     }
-  }, [addDirectory, setFiles, setSearchVisible, setHistoryVisible, setAgentVisible, setFilePanelVisible, revealPath, openPath]);
+  }, [addDirectory, setFiles, setSearchVisible, setHistoryVisible, setFilePanelVisible, revealPath, openPath]);
 
   // Handle add directory - opens native picker
   const handleAddDirectory = useCallback(async () => {
@@ -536,7 +531,8 @@ const App: React.FC = () => {
   
   // Toggle file panel
   const handleToggleFilePanel = useCallback(() => {
-    setFilePanelVisible(!useStore.getState().filePanelVisible);
+    const state = useStore.getState();
+    setFilePanelVisible(state.searchVisible || state.historyVisible || !state.filePanelVisible);
   }, [setFilePanelVisible]);
 
   // Toggle history panel
@@ -708,7 +704,7 @@ const App: React.FC = () => {
       <Toolbar
         menu={menu}
         onAddDirectory={handleAddDirectory}
-        filePanelVisible={filePanelVisible}
+        filePanelVisible={filePanelVisible && !searchVisible && !historyVisible}
         onToggleFilePanel={handleToggleFilePanel}
         historyVisible={historyVisible}
         onToggleHistory={handleToggleHistory}
@@ -725,9 +721,7 @@ const App: React.FC = () => {
 
         {historyVisible && !searchVisible && <HistoryPanel width={panelWidth} />}
 
-        {agentVisible && !historyVisible && !searchVisible && <AgentPanel width={panelWidth} />}
-
-        {filePanelVisible && !historyVisible && !searchVisible && !agentVisible && (
+        {filePanelVisible && !historyVisible && !searchVisible && (
           <FilePanel
             width={panelWidth}
             onAddDirectory={handleAddDirectory}
@@ -741,7 +735,7 @@ const App: React.FC = () => {
           visible={leftPanelVisible}
           onWidthChange={setPanelWidth}
           onVisibleChange={setLeftPanelVisible}
-          label={searchVisible ? 'search panel' : historyVisible ? 'history panel' : agentVisible ? 'agent panel' : 'file panel'}
+          label={searchVisible ? 'search panel' : historyVisible ? 'history panel' : 'file panel'}
         />
 
         <DocumentPanel onHeadingsChange={handleHeadingsChange} />

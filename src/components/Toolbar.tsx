@@ -220,9 +220,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <History size={16} />
         </button>
         <button
-          className={clsx('toolbar-button', agentVisible && 'active')}
+          className={clsx('toolbar-button', agentVisible && filePanelVisible && !searchVisible && !historyVisible && 'active')}
           onClick={onToggleAgent}
-          title="Global agent files (Ctrl+Shift+A)"
+          title={agentVisible && filePanelVisible && !searchVisible && !historyVisible
+            ? 'Hide global agent files (Ctrl+Shift+A)' : 'Show global agent files (Ctrl+Shift+A)'}
         >
           <Bot size={16} />
         </button>

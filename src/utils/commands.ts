@@ -177,7 +177,7 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
         },
         {
           id: 'view.agentFiles',
-          label: 'Global Agent Files',
+          label: 'Show Global Agent Files',
           shortcut: { mod: true, shift: true, key: 'a' },
           checked: (s) => s.agentVisible,
           run: () => state().toggleAgentVisible(),

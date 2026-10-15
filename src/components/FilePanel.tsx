@@ -17,6 +17,7 @@ import { readFile, scanDirectories, scanProjectAgentFiles, isTauri, openInExplor
 import clsx from 'clsx';
 import PanelZoomBadge from './PanelZoomBadge';
 import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import AgentPanel from './AgentPanel';
 
 // ============================================================
 // Tree Node Component
@@ -324,6 +325,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   // large) filtered tree renders in the background, interruptibly
   const filterQuery = useDeferredValue(useStore((s) => s.filterQuery));
   const directories = useStore((s) => s.directories);
+  const globalAgentsVisible = useStore((s) => s.agentVisible);
   const setFiles = useStore((s) => s.setFiles);
   const zoom = useStore((s) => s.panelZoom.files);
   const smoothScroll = useStore((s) => s.smoothScroll);
@@ -334,7 +336,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   const treeRef = useRef<HTMLElement>(null);
 
   const isEmpty = directories.length === 0;
-  useSmoothWheelScroll(treeRef, smoothScroll, !isEmpty);
+  useSmoothWheelScroll(treeRef, smoothScroll, !isEmpty || globalAgentsVisible);
 
   // Create a map of directory path to its root FileNode
   const dirToFileNode = useMemo(() => {
@@ -416,7 +418,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
       )}
       {agentFilter && agentError && <p className="directory-section-empty">Could not list agent files. Try Refresh.</p>}
 
-      {isEmpty ? (
+      {isEmpty && !globalAgentsVisible ? (
         <EmptyState onAddDirectory={handleAddDirectory} />
       ) : (
         <nav ref={treeRef} className="file-tree" role="tree" aria-label="File navigation">
@@ -430,6 +432,8 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
                 agentFilter={agentFilter}
               />
             ))}
+            {globalAgentsVisible && <AgentPanel />}
+            {isEmpty && <EmptyState onAddDirectory={handleAddDirectory} />}
           </div>
         </nav>
       )}

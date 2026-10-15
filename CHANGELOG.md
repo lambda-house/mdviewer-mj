@@ -5,6 +5,7 @@
 Users on v1.0.4 need to install this version manually once. In-app updates start with v1.1.0.
 
 ### Opening files and folders
+- Global agent files now appear as a collapsible top-level root alongside opened folders in the Files column. The root can be hidden and restored with the toolbar button.
 - Files now filters out subfolders without Markdown. The Files panel has an Agents filter for agent documents inside opened folders, including hidden agent directories; the toolbar 🤖 view is for global agent files.
 - Opening a folder brings its location into the Files panel, even if the panel was hidden or the folder was already open; picker errors are shown instead of disappearing into the console
 - The native File menu now offers Open File, Open Folder, Save and Export actions; Help links to the documentation and issue tracker

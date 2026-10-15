@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bot, CheckCheck, ChevronDown, ChevronRight, EyeOff, RefreshCw, Search } from 'lucide-react';
+import { Bot, CheckCheck, ChevronDown, ChevronRight, EyeOff, RefreshCw, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '../store';
 import {
@@ -25,10 +25,6 @@ import { getFileName } from '../utils/files';
 
 /** Kinds whose entries show their description (a skill is what it says it does). */
 const DESCRIBED: AgentKind[] = ['rule', 'memory', 'skill', 'agent', 'command'];
-
-interface AgentPanelProps {
-  width: number;
-}
 
 const AgentItem: React.FC<{ entry: AgentEntry; active: boolean; showGroup?: boolean }> = ({
   entry,
@@ -85,11 +81,13 @@ const AgentItem: React.FC<{ entry: AgentEntry; active: boolean; showGroup?: bool
   );
 };
 
-const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
+const AgentPanel: React.FC = () => {
   const entries = useStore((s) => s.agentEntries);
   const setAgentEntries = useStore((s) => s.setAgentEntries);
+  const setAgentVisible = useStore((s) => s.setAgentVisible);
   const activePath = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.path ?? null);
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [rootCollapsed, setRootCollapsed] = useState(true);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ plan: true, command: true });
@@ -106,8 +104,8 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!rootCollapsed) refresh();
+  }, [rootCollapsed, refresh]);
 
   const handleEnable = useCallback(async () => {
     try {
@@ -167,10 +165,18 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
   };
 
   return (
-    <aside className="agent-panel" style={{ width }}>
-      <div className="agent-panel-header">
-        <span className="agent-panel-title">Global agents</span>
-        {enabled && (
+    <section className="directory-section global-agent-section" aria-label="Global agent files">
+      <div className="directory-section-header">
+        <button type="button" className="global-agent-root-toggle" aria-expanded={!rootCollapsed}
+          onClick={() => setRootCollapsed((value) => !value)}>
+          <span className={clsx('directory-section-expand', !rootCollapsed && 'expanded')}>
+            <ChevronRight size={14} />
+          </span>
+          <Bot size={14} className="directory-section-icon" />
+          <span className="global-agent-root-title">Global agent files</span>
+          {globalEntries.some((e) => e.unread) && <span className="agent-section-count">Changed</span>}
+        </button>
+        {!rootCollapsed && enabled && (
           <div className="agent-panel-actions">
             <button
               className="agent-panel-action"
@@ -188,14 +194,19 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
             >
               <RefreshCw size={14} />
             </button>
-            <button className="agent-panel-action" onClick={handleDisable} title="Stop showing agent files">
+            <button className="agent-panel-action" onClick={handleDisable} title="Turn off global agent access">
               <EyeOff size={14} />
             </button>
           </div>
         )}
+        <button type="button" className="directory-section-action" onClick={() => setAgentVisible(false)}
+          title="Hide global agent files (show again with the toolbar button)" aria-label="Hide global agent files">
+          <X size={14} />
+        </button>
       </div>
 
-      {enabled === false && (
+      {!rootCollapsed && enabled === null && <p className="agent-panel-empty">Loading agent files…</p>}
+      {!rootCollapsed && enabled === false && (
         <div className="agent-panel-intro">
           <Bot size={32} aria-hidden="true" />
           <p>
@@ -212,7 +223,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
         </div>
       )}
 
-      {enabled && (
+      {!rootCollapsed && enabled && (
         <>
           <div className="agent-panel-filter">
             <Search size={13} className="agent-panel-filter-icon" aria-hidden="true" />
@@ -236,7 +247,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
           </div>
         </>
       )}
-    </aside>
+    </section>
   );
 };
 
