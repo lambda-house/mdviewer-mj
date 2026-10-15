@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Vesica Markdown icon</title>
+  <desc id="description">Two intersecting circles frame a Markdown heading mark.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#252526"/>
+  <rect x="9" y="9" width="238" height="238" rx="47" fill="none" stroke="#3c3c3c" stroke-width="2"/>
+  <circle cx="101" cy="128" r="76" fill="none" stroke="#4fc1ff" stroke-width="7"/>
+  <circle cx="155" cy="128" r="76" fill="none" stroke="#4fc1ff" stroke-width="7"/>
+  <path d="M128 56c-29 18-49 43-49 72s20 54 49 72c29-18 49-43 49-72s-20-54-49-72Z" fill="#007acc" fill-opacity=".17"/>
+  <path d="M112 93l-10 70m44-70-10 70M96 117h65m-69 24h65" fill="none" stroke="#f4f6f8" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

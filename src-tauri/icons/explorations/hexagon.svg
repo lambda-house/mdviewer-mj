@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Hexagonal document icon</title>
+  <desc id="description">A Markdown document at the center of two nested hexagons.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#252526"/>
+  <rect x="9" y="9" width="238" height="238" rx="47" fill="none" stroke="#3c3c3c" stroke-width="2"/>
+  <path d="M128 37 207 82v92l-79 45-79-45V82Z" fill="none" stroke="#4fc1ff" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M128 57 190 93v70l-62 36-62-36V93Z" fill="none" stroke="#007acc" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M96 77h48l21 21v74c0 5-4 9-9 9H96c-5 0-9-4-9-9V86c0-5 4-9 9-9Z" fill="#f4f6f8"/>
+  <path d="M144 77v16c0 3 2 5 5 5h16Z" fill="#4fc1ff"/>
+  <path d="M107 115h37M107 136h37M107 157h26" fill="none" stroke="#007acc" stroke-width="8" stroke-linecap="round"/>
+</svg>
