@@ -114,6 +114,42 @@ export function filterFiles(files: FileNode[], query: string): FileNode[] {
   return files.map(filterNode).filter((n): n is FileNode => n !== null);
 }
 
+/** Turn project agent document paths into the same tree used by the Files panel. */
+export function agentFilesToTree(root: string, paths: string[]): FileNode {
+  const children: FileNode[] = [];
+  const base = normalizeDirPath(root);
+  for (const path of paths) {
+    if (!isPathInside(path, base)) continue;
+    const parts = path.slice(base.length).replace(/^[/\\]/, '').split(/[/\\]/);
+    let level = children;
+    let current = base;
+    for (let i = 0; i < parts.length; i++) {
+      const name = parts[i];
+      const separator = root.includes('\\') && !root.includes('/') ? '\\' : '/';
+      current += `${current.endsWith(separator) ? '' : separator}${name}`;
+      let node = level.find((n) => n.path === current);
+      if (!node) {
+        node = {
+          id: current,
+          name,
+          path: current,
+          displayPath: name,
+          type: i === parts.length - 1 ? 'file' : 'directory',
+          ...(i === parts.length - 1 ? {} : { children: [] }),
+        };
+        level.push(node);
+      }
+      level = node.children ?? [];
+    }
+  }
+  const sort = (nodes: FileNode[]) => {
+    nodes.sort((a, b) => a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1);
+    nodes.forEach((n) => n.children && sort(n.children));
+  };
+  sort(children);
+  return { id: base, name: getFileName(base), path: base, displayPath: base, type: 'directory', children };
+}
+
 export function flattenFiles(files: FileNode[]): FileNode[] {
   const result: FileNode[] = [];
   

@@ -618,6 +618,20 @@ pub fn scan(opened_dirs: &[PathBuf]) -> Vec<AgentEntry> {
     out
 }
 
+/// Agent documents only in folders the user explicitly opened.
+pub fn scan_projects(opened_dirs: &[PathBuf]) -> Vec<AgentEntry> {
+    let mut out = Vec::new();
+    let mut visited = HashSet::new();
+    let mut budget = MAX_PROJECT_DIRS;
+    for dir in opened_dirs {
+        scan_project(dir, &mut out, &mut visited, &mut budget);
+    }
+    let mut seen = HashSet::new();
+    out.retain(|e| seen.insert(canonicalize(Path::new(&e.path)).unwrap_or_else(|_| PathBuf::from(&e.path))));
+    out.truncate(MAX_ENTRIES);
+    out
+}
+
 /// Where the agents keep their files, for the "turn on" dialog.
 pub fn found_locations() -> Vec<String> {
     let Some(home) = dirs::home_dir() else { return Vec::new() };

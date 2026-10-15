@@ -222,7 +222,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={clsx('toolbar-button', agentVisible && 'active')}
           onClick={onToggleAgent}
-          title="Agent files: instructions, memory, skills (Ctrl+Shift+A)"
+          title="Global agent files (Ctrl+Shift+A)"
         >
           <Bot size={16} />
         </button>

@@ -161,15 +161,17 @@ mdviewer/
 
 ## Agent Workspace
 
-The 🤖 button (Ctrl+Shift+A) opens a panel with what coding agents read and write:
+In the Files panel, select **Agents** to show agent documents inside the folders you opened, including hidden `.claude` and `.cursor` folders. The normal **Files** filter shows only folders containing Markdown documents; the **Show text files** setting can also show other text files inside those folders.
+
+The 🤖 button (Ctrl+Shift+A) opens the separate **Global agents** panel for files in the agents' own folders:
 
 | Section | What's in it |
 |---|---|
-| Instructions | `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, and `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.github/copilot-instructions.md` in the folders you open (4 levels deep) |
-| Rules | Cursor rules (`.cursor/rules/*.mdc`, `.cursorrules`) and Claude Code rules (`~/.claude/rules`, `.claude/rules`), with what each applies to |
+| Instructions | `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md` |
+| Rules | Claude Code rules in `~/.claude/rules`, with what each applies to |
 | Memory | Claude Code's per-project memory (`~/.claude/projects/*/memory`), grouped by project |
-| Plans | `~/.claude/plans` (newest 100) and `.claude/plans` in opened folders |
-| Skills | `SKILL.md` of user, project and plugin skills, with their descriptions |
+| Plans | `~/.claude/plans` (newest 100) |
+| Skills | `SKILL.md` of user and plugin skills, with their descriptions |
 | Agents, Commands | Subagent definitions and slash commands (`~/.codex/prompts` too) |
 
 The first time, the panel asks to read the agents' folders. Everything that is there then counts as read. After that, a dot marks files an agent has changed since you last read them, and **Changed since you read them** collects them at the top. Opening one highlights the changed blocks, with **Next change** and **Mark as read**; leaving the document marks it read too. While the panel or an agent file is open, the list and open documents update as soon as an agent writes a file.

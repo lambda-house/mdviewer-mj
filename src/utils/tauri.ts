@@ -72,6 +72,13 @@ export async function scanDirectories(paths: string[]): Promise<FileNode[]> {
   });
 }
 
+/** List agent documents inside folders the user opened, without enabling global agent access. */
+export async function scanProjectAgentFiles(paths: string[]): Promise<AgentEntry[]> {
+  if (!isTauri() || paths.length === 0) return [];
+  await adoptSessionAccess();
+  return invoke<AgentEntry[]>('scan_project_agent_files', { paths });
+}
+
 /**
  * Read file contents using Tauri backend
  * @param path File path to read

@@ -123,14 +123,15 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
     setEnabled(false);
   }, [setAgentEntries]);
 
-  const visible = useMemo(() => entries.filter((e) => agentEntryMatches(e, query)), [entries, query]);
+  const globalEntries = useMemo(() => entries.filter((e) => e.scope !== 'project'), [entries]);
+  const visible = useMemo(() => globalEntries.filter((e) => agentEntryMatches(e, query)), [globalEntries, query]);
   const changed = useMemo(() => visible.filter((e) => e.unread && !e.isNew), [visible]);
 
   const handleMarkAllRead = useCallback(() => {
-    markAgentFilesRead(entries.filter((e) => e.unread).map((e) => e.path)).catch((error) => {
+    markAgentFilesRead(globalEntries.filter((e) => e.unread).map((e) => e.path)).catch((error) => {
       console.error('Failed to save read state:', error);
     });
-  }, [entries]);
+  }, [globalEntries]);
 
   const toggleSection = (key: string) => setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
@@ -168,14 +169,14 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
   return (
     <aside className="agent-panel" style={{ width }}>
       <div className="agent-panel-header">
-        <span className="agent-panel-title">Agents</span>
+        <span className="agent-panel-title">Global agents</span>
         {enabled && (
           <div className="agent-panel-actions">
             <button
               className="agent-panel-action"
               onClick={handleMarkAllRead}
               title="Mark everything as read"
-              disabled={!entries.some((e) => e.unread)}
+              disabled={!globalEntries.some((e) => e.unread)}
             >
               <CheckCheck size={14} />
             </button>
@@ -199,11 +200,10 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
           <Bot size={32} aria-hidden="true" />
           <p>
             See what your coding agents read and write: <code>CLAUDE.md</code> and <code>AGENTS.md</code>,
-            rules, memory, plans, skills and commands, with what changed since you last looked.
+            rules, memory, plans, skills and commands from your agent folders, with what changed since you last looked.
           </p>
           <p className="agent-panel-intro-detail">
-            Covers Claude Code, Codex and Gemini CLI, and agent files in the folders you open
-            (Cursor rules too).
+            Covers Claude Code, Codex and Gemini CLI. Use Files → Agents for agent files in folders you open.
             Settings, keys and transcripts are never read.
           </p>
           <button type="button" className="agent-panel-enable" onClick={handleEnable}>
@@ -230,7 +230,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ width }) => {
               renderSection(kind, label, visible.filter((e) => e.kind === kind)))}
             {visible.length === 0 && (
               <p className="agent-panel-empty">
-                {entries.length === 0 ? 'No agent files found yet.' : 'Nothing matches the filter.'}
+                {globalEntries.length === 0 ? 'No global agent files found yet.' : 'Nothing matches the filter.'}
               </p>
             )}
           </div>

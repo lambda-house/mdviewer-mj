@@ -12,8 +12,8 @@ import {
   X,
 } from 'lucide-react';
 import { useStore, type FileNode } from '../store';
-import { filterFiles, getFileKind } from '../utils/files';
-import { readFile, scanDirectories, isTauri, openInExplorer, appendToHistory } from '../utils/tauri';
+import { agentFilesToTree, filterFiles, getFileKind } from '../utils/files';
+import { readFile, scanDirectories, scanProjectAgentFiles, isTauri, openInExplorer, appendToHistory } from '../utils/tauri';
 import clsx from 'clsx';
 import PanelZoomBadge from './PanelZoomBadge';
 import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
@@ -211,9 +211,10 @@ interface DirectorySectionProps {
   dirPath: string;
   rootNode: FileNode | undefined;
   filterQuery: string;
+  agentFilter: boolean;
 }
 
-const DirectorySection: React.FC<DirectorySectionProps> = ({ dirPath, rootNode, filterQuery }) => {
+const DirectorySection: React.FC<DirectorySectionProps> = ({ dirPath, rootNode, filterQuery, agentFilter }) => {
   const removeDirectory = useStore((s) => s.removeDirectory);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -276,6 +277,11 @@ const DirectorySection: React.FC<DirectorySectionProps> = ({ dirPath, rootNode, 
           ))}
         </div>
       )}
+      {!isCollapsed && filteredChildren.length === 0 && !filterQuery && (
+        <p className="directory-section-empty">
+          {agentFilter ? 'No agent files in this folder.' : 'No Markdown files in this folder.'}
+        </p>
+      )}
     </div>
   );
 };
@@ -322,16 +328,41 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   const zoom = useStore((s) => s.panelZoom.files);
   const smoothScroll = useStore((s) => s.smoothScroll);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [agentFilter, setAgentFilter] = useState(false);
+  const [projectAgentPaths, setProjectAgentPaths] = useState<string[]>([]);
+  const [agentError, setAgentError] = useState(false);
   const treeRef = useRef<HTMLElement>(null);
 
   const isEmpty = directories.length === 0;
   useSmoothWheelScroll(treeRef, smoothScroll, !isEmpty);
 
   // Create a map of directory path to its root FileNode
-  const dirToFileNode = new Map<string, FileNode>();
-  for (const node of files) {
-    dirToFileNode.set(node.path, node);
-  }
+  const dirToFileNode = useMemo(() => {
+    const nodes = new Map<string, FileNode>();
+    if (agentFilter) {
+      for (const dir of directories) nodes.set(dir, agentFilesToTree(dir, projectAgentPaths));
+    } else {
+      for (const node of files) nodes.set(node.path, node);
+    }
+    return nodes;
+  }, [agentFilter, directories, files, projectAgentPaths]);
+
+  const refreshAgents = useCallback(async () => {
+    try {
+      setProjectAgentPaths((await scanProjectAgentFiles(directories)).map((e) => e.path));
+      setAgentError(false);
+    } catch (error) {
+      console.error('Failed to scan project agent files:', error);
+      setAgentError(true);
+    }
+  }, [directories]);
+
+  useEffect(() => {
+    if (!agentFilter) return;
+    refreshAgents();
+    window.addEventListener('focus', refreshAgents);
+    return () => window.removeEventListener('focus', refreshAgents);
+  }, [agentFilter, refreshAgents]);
 
   const handleAddDirectory = useCallback(() => {
     onAddDirectory?.();
@@ -342,14 +373,14 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
 
     setIsRefreshing(true);
     try {
-      const files = await scanDirectories(directories);
-      setFiles(files);
+      if (agentFilter) await refreshAgents();
+      else setFiles(await scanDirectories(directories));
     } catch (error) {
       console.error('Failed to refresh directories:', error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [directories, setFiles, isRefreshing]);
+  }, [agentFilter, directories, setFiles, isRefreshing, refreshAgents]);
 
   return (
     <aside className="file-panel" style={{ width }} data-zoom-panel="files">
@@ -375,6 +406,16 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
         </div>
       </div>
 
+      {!isEmpty && (
+        <div className="file-panel-filters" role="group" aria-label="File filter">
+          <button type="button" className={clsx('file-panel-filter', !agentFilter && 'active')}
+            aria-pressed={!agentFilter} onClick={() => setAgentFilter(false)}>Files</button>
+          <button type="button" className={clsx('file-panel-filter', agentFilter && 'active')}
+            aria-pressed={agentFilter} onClick={() => setAgentFilter(true)}>Agents</button>
+        </div>
+      )}
+      {agentFilter && agentError && <p className="directory-section-empty">Could not list agent files. Try Refresh.</p>}
+
       {isEmpty ? (
         <EmptyState onAddDirectory={handleAddDirectory} />
       ) : (
@@ -386,6 +427,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
                 dirPath={dirPath}
                 rootNode={dirToFileNode.get(dirPath)}
                 filterQuery={filterQuery}
+                agentFilter={agentFilter}
               />
             ))}
           </div>

@@ -583,6 +583,7 @@ fn scan_directory_recursive(
     let path_str = dir_path.to_string_lossy().to_string();
     let mut children: Vec<FileNode> = Vec::new();
     let mut has_md_files = false;
+    let count_before = *file_count;
     
     let entries = match fs::read_dir(dir_path) {
         Ok(entries) => entries,
@@ -621,7 +622,7 @@ fn scan_directory_recursive(
                 || canonicalize(&entry_path).is_ok_and(|real| is_viewable_file(&real, include_text)))
         {
             *file_count += 1;
-            has_md_files = true;
+            has_md_files |= is_markdown_file(&entry_path);
             children.push(FileNode {
                 id: generate_id(&entry_path.to_string_lossy()),
                 name: entry_name.clone(),
@@ -634,7 +635,10 @@ fn scan_directory_recursive(
         }
     }
     
-    if children.is_empty() && !has_md_files {
+    // A folder containing only other text files is not part of the Markdown tree.
+    // Keep those files in folders that also contain a Markdown document.
+    if !has_md_files && !children.iter().any(|child| child.node_type == "directory") {
+        *file_count = count_before;
         return None;
     }
     
@@ -848,6 +852,30 @@ async fn scan_directories(
     }
     
     Ok(results)
+}
+
+#[tauri::command]
+async fn scan_project_agent_files(
+    paths: Vec<String>,
+    access: State<'_, AccessState>,
+) -> Result<Vec<agent::AgentEntry>, AppError> {
+    let mut opened = Vec::new();
+    let mut real_roots = Vec::new();
+    for path in paths {
+        let target = expand_target(&path)?;
+        access.check(&target, Use::List)?;
+        real_roots.push(target.real);
+        opened.push(target.named);
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        agent::scan_projects(&opened).into_iter().filter(|entry| {
+            canonicalize(Path::new(&entry.path)).ok().is_some_and(|real| {
+                real_roots.iter().any(|root| real.starts_with(root)) && is_markdown_file(&real)
+            })
+        }).collect()
+    })
+        .await
+        .map_err(|e| AppError::with_details("SCAN_ERROR", "Failed to list project agent files", &e.to_string()))
 }
 
 #[tauri::command]
@@ -1667,6 +1695,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_directories,
+            scan_project_agent_files,
             read_file,
             write_file,
             pick_directory,
@@ -1812,6 +1841,22 @@ mod tests {
         let names: Vec<_> = tree.children.unwrap().iter().map(|c| c.name.clone()).collect();
         assert_eq!(names, ["guide", "notes.md"], "no link to a non-document, no loop");
 
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn file_tree_skips_folders_without_markdown_even_when_text_is_visible() {
+        let root = temp_dir("markdown-tree");
+        fs::create_dir_all(root.join("code/nested")).unwrap();
+        fs::create_dir_all(root.join("docs/nested")).unwrap();
+        fs::write(root.join("code/nested/main.rs"), "fn main() {}").unwrap();
+        fs::write(root.join("docs/README.md"), "# Docs").unwrap();
+        fs::write(root.join("docs/nested/notes.txt"), "text").unwrap();
+        let mut visited = HashSet::new();
+        let tree = scan_directory_recursive(&root, 0, &mut 0, true, &mut visited).unwrap();
+        let children = tree.children.unwrap();
+        assert_eq!(children.iter().map(|n| n.name.as_str()).collect::<Vec<_>>(), ["docs"]);
+        assert_eq!(children[0].children.as_ref().unwrap().iter().map(|n| n.name.as_str()).collect::<Vec<_>>(), ["README.md"]);
         let _ = fs::remove_dir_all(&root);
     }
 
