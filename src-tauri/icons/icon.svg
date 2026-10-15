@@ -1,23 +1,27 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
    width="256"
    height="256"
-   viewBox="0 0 67.733332 67.733333"
+   viewBox="0 0 256 256"
+   role="img"
+   aria-labelledby="title description"
    version="1.1"
-   id="svg1"
+   id="svg6"
+   sodipodi:docname="icon.svg"
    inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
-   sodipodi:docname="mdviewer.svg"
-   inkscape:export-filename="512.png"
+   xml:space="preserve"
+   inkscape:export-filename="512x512.png"
    inkscape:export-xdpi="192"
    inkscape:export-ydpi="192"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <sodipodi:namedview
-     id="namedview1"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"><defs
+     id="defs6" /><sodipodi:namedview
+     id="namedview6"
      pagecolor="#505050"
      bordercolor="#eeeeee"
      borderopacity="1"
@@ -25,30 +29,69 @@
      inkscape:pageopacity="0"
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#505050"
-     inkscape:document-units="mm"
-     inkscape:zoom="2.8044052"
-     inkscape:cx="129.08263"
-     inkscape:cy="120.70296"
-     inkscape:window-width="1920"
-     inkscape:window-height="1025"
+     inkscape:zoom="4.3476019"
+     inkscape:cx="118.11109"
+     inkscape:cy="153.3029"
+     inkscape:window-width="3840"
+     inkscape:window-height="2105"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
-  <defs
-     id="defs1" />
-  <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
-     id="layer1">
-    <path
-       id="rect1"
-       style="fill:#333333;stroke:none;stroke-width:0.264583"
-       d="M 0,0 H 67.73333 V 67.733329 H 0 Z" />
-    <path
-       d="M 17.393696,47.720264 8.2743807,23.427959 H 8.1191583 q 0.1164168,1.202974 0.194028,3.259671 0.077611,2.017891 0.077611,4.22981 V 47.720264 H 5.1699327 V 20.013067 h 5.1611443 l 8.537232,22.701275 h 0.155223 l 8.692454,-22.701275 h 5.122339 V 47.720264 H 29.384627 V 30.684606 q 0,-2.017891 0.07761,-3.996976 0.116417,-1.979086 0.194028,-3.220865 H 29.501043 L 20.265311,47.720264 Z M 62.563398,33.595026 q 0,7.023814 -3.841754,10.593929 -3.802949,3.531309 -10.632734,3.531309 H 40.366596 V 20.013067 h 8.537231 q 4.191005,0 7.256647,1.552224 3.065643,1.552224 4.734284,4.57906 1.66864,2.988031 1.66864,7.450675 z m -3.686532,0.116417 q 0,-5.549201 -2.755197,-8.11037 -2.716392,-2.599975 -7.722314,-2.599975 H 43.8591 v 21.731135 h 3.764143 q 11.253623,0 11.253623,-11.02079 z"
-       id="text1"
-       style="font-size:38.8056px;text-align:center;text-anchor:middle;fill:#cccccc;stroke-width:0.264583"
-       aria-label="MD" />
-  </g>
-</svg>
+     inkscape:current-layer="svg6" /><title
+     id="title">Hexagonal document icon</title><desc
+     id="description">A Markdown document at the center of two nested hexagons.</desc><rect
+     x="8"
+     y="8"
+     width="240"
+     height="240"
+     rx="48"
+     fill="#252526"
+     id="rect1" /><rect
+     x="9"
+     y="9"
+     width="238"
+     height="238"
+     rx="47"
+     fill="none"
+     stroke="#3c3c3c"
+     stroke-width="2"
+     id="rect2" /><path
+     d="m 128,37 79,45 v 92 L 128,219 49,174 V 82 Z"
+     fill="none"
+     stroke="#4fc1ff"
+     stroke-width="7"
+     stroke-linejoin="round"
+     id="path2"
+     style="stroke-width:20;stroke-dasharray:none" /><path
+     d="m 128,43.723686 73.5934,42.731652 V 169.54467 L 128,212.27631 54.4066,169.54467 V 86.455338 Z"
+     fill="none"
+     stroke="#007acc"
+     stroke-width="4.37806"
+     stroke-linejoin="round"
+     id="path3"
+     style="stroke-width:10.8449;stroke-dasharray:none" /><path
+     style="fill:#2ad4ff;stroke:#4fc1ff;stroke-width:5;stroke-dasharray:none"
+     d="m 49,82 c 158,92 158,92 158,92"
+     id="path7" /><path
+     style="fill:#2ad4ff;stroke:#4fc1ff;stroke-width:5;stroke-dasharray:none"
+     d="M 48.662831,173.41601 C 207.33717,82.583993 207.33717,82.583993 207.33717,82.583993"
+     id="path7-3" /><path
+     style="fill:#2ad4ff;stroke:#4fc1ff;stroke-width:5;stroke-dasharray:none"
+     d="M 127.66283,219.41601 C 128.33717,36.583993 128.33717,36.583993 128.33717,36.583993"
+     id="path7-3-6" /><path
+     d="m 90.412408,67.314843 h 56.940142 l 24.91131,24.911313 v 87.782724 c 0,5.93126 -4.74501,10.67627 -10.67627,10.67627 H 90.412408 c -5.931265,0 -10.676277,-4.74501 -10.676277,-10.67627 V 77.99112 c 0,-5.931265 4.745012,-10.676277 10.676277,-10.676277 z"
+     fill="#f4f6f8"
+     id="path4"
+     style="stroke-width:1.18625" /><path
+     d="m 147.35255,67.314843 v 18.980048 c 0,3.558759 2.37251,5.931265 5.93127,5.931265 h 18.98004 z"
+     fill="#4fc1ff"
+     id="path5"
+     style="stroke-width:1.18625" /><path
+     d="m 103.46119,112.39246 h 43.89136 m -43.89136,24.91131 h 43.89136 m -43.89136,24.91131 h 30.84258"
+     fill="none"
+     stroke="#007acc"
+     stroke-width="9.49002"
+     stroke-linecap="round"
+     id="path6" /><metadata
+     id="metadata8"><rdf:RDF><cc:Work
+         rdf:about=""><dc:title>Hexagonal document icon</dc:title></cc:Work></rdf:RDF></metadata></svg>
