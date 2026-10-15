@@ -9,7 +9,7 @@ This document is the plan for getting from here to there, in the order that make
 | | State |
 |---|---|
 | Latest release | v1.0.4. It has no updater, so its users install the next version by hand once |
-| Next version | 1.1.0: 1.0.5's privacy and access fixes, plus the agent workspace |
+| Next version | 1.1.0: privacy and access fixes, the agent workspace, and the new menu and search improvements |
 | Build matrix | macOS arm64 and x86_64, Windows x86_64, Linux x86_64 (`.github/workflows/release.yml`) |
 | Installers | `.dmg`, `.msi` and NSIS `.exe`, `.deb`, `.rpm` and `.AppImage` |
 | Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). Release builds need `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD`, and **neither secret is set**, so a tag would fail today |

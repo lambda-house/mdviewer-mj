@@ -14,6 +14,7 @@ import {
   onFileDrop,
   takeLaunchPaths,
   onOpenPaths,
+  onMenuCommand,
   openExternal,
   followLocalLink,
   checkForUpdate,
@@ -391,9 +392,18 @@ const App: React.FC = () => {
       .map((dir) => ({ dir, result: addDirectory(dir) }))
       .filter(({ result }) => !result.containedIn)
       .map(({ dir }) => normalizeDirPath(dir));
+    // A folder can already be open, and another panel may be covering Files.
+    // Always bring the requested folder into view after the picker closes.
+    setSearchVisible(false);
+    setHistoryVisible(false);
+    setAgentVisible(false);
+    setFilePanelVisible(true);
+    useStore.getState().setFilterQuery('');
+    revealPath(normalizeDirPath(dirs[dirs.length - 1]));
     if (added.length === 0) return;
 
-    await refreshFileTree();
+    const files = await scanDirectories(useStore.getState().directories);
+    setFiles(files);
 
     const root = useStore.getState().files.find((node) => node.path === added[added.length - 1]);
     const first = root && findFirstMarkdown(root);
@@ -405,13 +415,16 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Failed to open first markdown file:', error);
     }
-  }, [addDirectory, refreshFileTree, revealPath, openPath]);
+  }, [addDirectory, setFiles, setSearchVisible, setHistoryVisible, setAgentVisible, setFilePanelVisible, revealPath, openPath]);
 
   // Handle add directory - opens native picker
   const handleAddDirectory = useCallback(async () => {
-    const dir = await pickDirectory();
-    if (dir) {
-      await addDirectories([dir]);
+    try {
+      const dir = await pickDirectory();
+      if (dir) await addDirectories([dir]);
+    } catch (error) {
+      console.error('Failed to open folder:', error);
+      alert(`Could not open folder:\n${errorText(error)}`);
     }
   }, [addDirectories]);
   
@@ -440,7 +453,11 @@ const App: React.FC = () => {
     }
 
     if (dirs.length > 0) {
-      await addDirectories(dirs);
+      try {
+        await addDirectories(dirs);
+      } catch (error) {
+        errors.push(`Folders: ${errorText(error)}`);
+      }
     }
 
     if (errors.length > 0) {
@@ -484,19 +501,8 @@ const App: React.FC = () => {
     };
   }, [handleDroppedPaths]);
 
-  // "Open with" / command-line files. Opened only after the session restore,
-  // which would otherwise drop tabs it did not restore itself.
-  useEffect(() => {
-    if (!sessionRestored) return;
-
-    takeLaunchPaths()
-      .then((paths) => {
-        if (paths.length > 0) handleDroppedPaths(paths);
-      })
-      .catch((error) => console.error('Failed to read launch paths:', error));
-  }, [sessionRestored, handleDroppedPaths]);
-
-  // Files from a second launch while this instance is already running
+  // Listen before draining startup paths so Finder / a second instance cannot
+  // deliver a file between the two steps and lose its event.
   useEffect(() => {
     if (!sessionRestored) return;
 
@@ -504,9 +510,11 @@ const App: React.FC = () => {
     let disposed = false;
 
     onOpenPaths(handleDroppedPaths)
-      .then((fn) => {
-        if (disposed) fn();
-        else unlisten = fn;
+      .then(async (fn) => {
+        if (disposed) { fn(); return; }
+        unlisten = fn;
+        const paths = await takeLaunchPaths();
+        if (!disposed && paths.length > 0) await handleDroppedPaths(paths);
       })
       .catch((error) => console.error('Failed to listen for opened paths:', error));
 
@@ -562,6 +570,21 @@ const App: React.FC = () => {
     }),
     [handleOpenFile, handleAddDirectory, handleReopenClosedTab]
   );
+
+  // The system menu uses the same commands as the toolbar menu.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    onMenuCommand((id) => {
+      const command = menuCommands(menu).find((item) => item.id === id);
+      if (command && (!command.enabled || command.enabled(useStore.getState()))) command.run();
+    }).then((stop) => {
+      if (disposed) stop();
+      else unlisten = stop;
+    }).catch((error) => console.error('Failed to listen for menu commands:', error));
+    return () => { disposed = true; unlisten?.(); };
+  }, [menu]);
 
   useEffect(() => {
     const commands = menuCommands(menu);

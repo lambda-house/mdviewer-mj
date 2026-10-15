@@ -41,6 +41,8 @@ Download the installer for your platform from the
 | Windows | `MDViewer_<version>_x64-setup.exe` or `MDViewer_<version>_x64_en-US.msi` |
 | Linux | `.deb`, `.rpm` or `.AppImage` |
 
+Installed packages register MDViewer as an app for `.md` and `.markdown` files. Double-clicking one opens it in MDViewer when the operating system selects MDViewer as the default. An existing default chosen by the user remains in place; select MDViewer in the system's **Open with** or default-app settings to switch it.
+
 Unless the release was built with signing set up (see [Code signing](#code-signing)), the builds are not code-signed and the first launch needs one extra step:
 
 - **macOS:** right-click MDViewer.app → Open, or run `xattr -dr com.apple.quarantine /Applications/MDViewer.app`
@@ -92,8 +94,8 @@ CI (`.github/workflows/ci.yml`) typechecks the frontend and checks the Rust back
 To publish a release, bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, add a `CHANGELOG.md` entry, then push a tag:
 
 ```bash
-git tag v1.0.5
-git push origin v1.0.5
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 `.github/workflows/release.yml` builds macOS (arm64 and x64), Windows x64 and Linux x64, and attaches the installers to a GitHub Release for that tag. Running the workflow by hand from the Actions tab builds the same installers as workflow artifacts without publishing a release.

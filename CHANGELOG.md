@@ -1,6 +1,21 @@
 # MDViewer - Fixes Applied
 
-## Unreleased
+## Version 1.1.0
+
+Users on v1.0.4 need to install this version manually once. In-app updates start with v1.1.0.
+
+### Opening files and folders
+- Opening a folder brings its location into the Files panel, even if the panel was hidden or the folder was already open; picker errors are shown instead of disappearing into the console
+- The native File menu now offers Open File, Open Folder, Save and Export actions; Help links to the documentation and issue tracker
+- Toolbar icons show visible tooltips, and the Workspaces menu explains how to save a workspace when none exist
+- Installers register MDViewer as a viewer for `.md` and `.markdown`; macOS Finder file-open events reach the running app
+
+### Find and scrolling
+- Find highlights matches across formatted text, keeps the selected match in view while diagrams and code finish rendering, and responds faster when jumping between results
+- Restored scroll positions stay anchored to the visible document block as content changes height
+
+### App icon
+- Replaced the desktop icon with the new hexagon design across macOS, Windows and Linux assets
 
 ### Main menu (`MainMenu.tsx`, `utils/commands.ts`, `App.tsx`, `main.rs`)
 - **Before:** the menu button in the top left corner did nothing
@@ -25,8 +40,6 @@
 ### Scrolling (`useSmoothWheelScroll.ts`)
 - **Before:** trackpad and Magic Mouse scrolling was animated a second time on top of the system's momentum, and stretched up to 2.5× because their events come fast, so the page overshot and kept gliding
 - **After:** only mouse wheel notches are animated; trackpads scroll natively
-
-## Version 1.0.5
 
 ### Privacy and access
 

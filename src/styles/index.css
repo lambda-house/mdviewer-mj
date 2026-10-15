@@ -281,6 +281,8 @@ a:hover {
    ============================================================ */
 
 .toolbar {
+  position: relative;
+  z-index: 20;
   height: var(--toolbar-height);
   min-height: var(--toolbar-height);
   background: var(--surface-elevated);
@@ -330,6 +332,39 @@ a:hover {
 .toolbar-button.active {
   background: var(--selected-bg);
   color: var(--text-accent);
+}
+
+/* WebKit does not consistently show native title tooltips on toolbar icons. */
+.toolbar-button[title] {
+  position: relative;
+}
+
+.toolbar-button[title]:hover:not([aria-expanded="true"])::after,
+.toolbar-button[title]:focus-visible:not([aria-expanded="true"])::after {
+  content: attr(title);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  width: max-content;
+  max-width: 240px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.toolbar-group:last-child .toolbar-button[title]::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .toolbar-search {

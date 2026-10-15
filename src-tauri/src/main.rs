@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WindowEvent};
+use tauri::menu::{MenuBuilder, SubmenuBuilder};
 use tauri::http::{Response as HttpResponse, StatusCode};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
@@ -893,7 +894,13 @@ pub struct FileFilter {
 /// Native folder picker. The chosen folder is added to the access list.
 #[tauri::command]
 async fn pick_directory(app: AppHandle, access: State<'_, AccessState>) -> Result<Option<String>, AppError> {
-    let Some(picked) = app.dialog().file().set_title("Select Directory").blocking_pick_folder() else {
+    let dialog = app.dialog().file().set_title("Select Directory");
+    #[cfg(any(windows, target_os = "macos"))]
+    let dialog = match app.get_webview_window("main") {
+        Some(window) => dialog.set_parent(&window),
+        None => dialog,
+    };
+    let Some(picked) = dialog.blocking_pick_folder() else {
         return Ok(None);
     };
     let path = picked.into_path()
@@ -1497,7 +1504,32 @@ fn serve_local_image(access: &AccessState, url_path: &str) -> HttpResponse<Vec<u
 /// Files/folders passed on the command line (e.g. "Open with" from a file
 /// manager). Taken once by the frontend after it has restored the session.
 #[derive(Default)]
-pub struct LaunchPaths(Mutex<Vec<String>>);
+struct LaunchPathQueue {
+    pending: Vec<String>,
+    frontend_ready: bool,
+}
+
+#[derive(Default)]
+pub struct LaunchPaths(Mutex<LaunchPathQueue>);
+
+impl LaunchPaths {
+    fn take(&self) -> Vec<String> {
+        let mut queue = self.0.lock().unwrap();
+        queue.frontend_ready = true;
+        std::mem::take(&mut queue.pending)
+    }
+
+    fn deliver(&self, app: &AppHandle, paths: Vec<String>) {
+        if paths.is_empty() { return; }
+        let mut queue = self.0.lock().unwrap();
+        if !queue.frontend_ready {
+            queue.pending.extend(paths);
+            return;
+        }
+        drop(queue);
+        let _ = app.emit("open-paths", paths);
+    }
+}
 
 /// Resolve command-line arguments to absolute paths, skipping flags.
 /// Relative paths are resolved against `cwd` (the launching process' cwd).
@@ -1518,7 +1550,50 @@ fn resolve_cli_paths(args: &[String], cwd: &Path) -> Vec<String> {
 
 #[tauri::command]
 fn take_launch_paths(launch: State<'_, LaunchPaths>) -> Vec<String> {
-    std::mem::take(&mut *launch.0.lock().unwrap())
+    launch.take()
+}
+
+/// Replace the placeholder system File/Help menus with actions backed by the
+/// same commands as the toolbar. Standard Edit and window actions stay native.
+fn install_app_menu(app: &mut tauri::App) -> tauri::Result<()> {
+    let handle = app.handle();
+    #[cfg(target_os = "macos")]
+    let app_menu = SubmenuBuilder::new(handle, "MDViewer")
+        .about(None).separator().services().separator()
+        .hide().hide_others().separator().quit().build()?;
+
+    let file = SubmenuBuilder::new(handle, "File")
+        .text("file.open", "Open File…")
+        .text("file.openFolder", "Open Folder…")
+        .separator()
+        .text("file.save", "Save File")
+        .text("file.saveAll", "Save All…")
+        .text("file.exportMarkdown", "Export as Markdown…")
+        .text("file.exportHtml", "Export as HTML…")
+        .separator().close_window().build()?;
+    let edit = SubmenuBuilder::new(handle, "Edit")
+        .undo().redo().separator().cut().copy().paste().select_all().build()?;
+    let window = SubmenuBuilder::new(handle, "Window")
+        .minimize().maximize().build()?;
+    let help = SubmenuBuilder::new(handle, "Help")
+        .text("help.docs", "Documentation")
+        .text("help.issues", "Report an Issue")
+        .build()?;
+
+    let menu = MenuBuilder::new(handle);
+    #[cfg(target_os = "macos")]
+    let menu = menu.item(&app_menu);
+    app.set_menu(menu.items(&[&file, &edit, &window, &help]).build()?)?;
+    app.on_menu_event(|app, event| match event.id().0.as_str() {
+        "help.docs" => {
+            let _ = app.opener().open_url("https://github.com/lambda-house/mdviewer-mj#readme", None::<&str>);
+        }
+        "help.issues" => {
+            let _ = app.opener().open_url("https://github.com/lambda-house/mdviewer-mj/issues", None::<&str>);
+        }
+        id => { let _ = app.emit("menu-command", id); }
+    });
+    Ok(())
 }
 
 /// Workaround for the torn / corrupted rendering seen on Raspberry Pi and other
@@ -1566,13 +1641,11 @@ fn main() {
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
-            if !paths.is_empty() {
-                let _ = app.emit("open-paths", paths);
-            }
+            app.state::<LaunchPaths>().deliver(app, paths);
         }))
         .manage(AppState::default())
         .manage(access)
-        .manage(LaunchPaths(Mutex::new(launch_paths)))
+        .manage(LaunchPaths(Mutex::new(LaunchPathQueue { pending: launch_paths, frontend_ready: false })))
         .manage(PendingUpdate::default())
         .plugin(tauri_plugin_dialog::init())
         // Used from Rust only (`check_for_update`, `install_update`)
@@ -1580,6 +1653,7 @@ fn main() {
         // Used from Rust only (`open_external`); no JS permissions are granted
         .plugin(tauri_plugin_opener::init())
         .plugin(navigation_guard())
+        .setup(|app| install_app_menu(app).map_err(Into::into))
         // Dropped files and folders were chosen by the user. Tauri runs this
         // listener in the same event-loop turn that queues the drop event for
         // the webview, so the paths are granted before the frontend sees them.
@@ -1618,8 +1692,21 @@ fn main() {
             read_snapshot,
             mark_read,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                let paths: Vec<String> = urls.into_iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().to_string())
+                    .collect();
+                app.state::<AccessState>().grant(&paths);
+                app.state::<LaunchPaths>().deliver(app, paths);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 #[cfg(test)]

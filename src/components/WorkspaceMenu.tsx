@@ -110,6 +110,7 @@ const WorkspaceMenu: React.FC = () => {
         className={clsx('toolbar-button workspace-menu-button', open && 'active')}
         onClick={() => setOpen((v) => !v)}
         title={activeWorkspace ? `Workspace: ${activeWorkspace}` : 'Workspaces'}
+        aria-label={activeWorkspace ? `Workspace: ${activeWorkspace}` : 'Workspaces'}
         aria-haspopup="menu"
         aria-expanded={open}
         type="button"
@@ -122,7 +123,7 @@ const WorkspaceMenu: React.FC = () => {
       {open && (
         <div className="context-menu workspace-dropdown" role="menu">
           {workspaces.length === 0 ? (
-            <div className="workspace-empty">No saved workspaces yet</div>
+            <div className="workspace-empty">No saved workspaces. Name the current folders and tabs below to save one.</div>
           ) : (
             workspaces.map((workspace) => (
               <div

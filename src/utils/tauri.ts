@@ -373,6 +373,13 @@ export async function onOpenPaths(handler: (paths: string[]) => void): Promise<(
   return listen<string[]>('open-paths', (event) => handler(event.payload));
 }
 
+/** Receive a command selected from the native application menu. */
+export async function onMenuCommand(handler: (id: string) => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<string>('menu-command', (event) => handler(event.payload));
+}
+
 /**
  * Write a document back to disk. The backend keeps the file's encoding (and
  * refuses files in an unknown non-UTF-8 encoding) and replaces the file
