@@ -2,11 +2,11 @@
 
 ## Version 1.1.0
 
-Users on v1.0.4 need to install this version manually once. In-app updates start with v1.1.0.
+This is the first release with in-app updates.
 
 ### Opening files and folders
 - Global agent files now appear as a collapsible top-level root alongside opened folders in the Files column. The root can be hidden and restored with the toolbar button.
-- Files now filters out subfolders without Markdown. The Files panel has an Agents filter for agent documents inside opened folders, including hidden agent directories; the toolbar 🤖 view is for global agent files.
+- Files now filters out subfolders without Markdown. The Files panel has an Agents filter for agent documents inside opened folders, including hidden agent directories; the toolbar 🤖 button shows or hides the separate Global agent files root.
 - Opening a folder brings its location into the Files panel, even if the panel was hidden or the folder was already open; picker errors are shown instead of disappearing into the console
 - The native File menu now offers Open File, Open Folder, Save and Export actions; Help links to the documentation and issue tracker
 - Toolbar icons show visible tooltips, and the Workspaces menu explains how to save a workspace when none exist
@@ -29,12 +29,12 @@ Users on v1.0.4 need to install this version manually once. In-app updates start
 - Commands are defined once in `utils/commands.ts`; the menu and the key handler both read that list. Shortcuts now work on Cyrillic and other non-Latin keyboard layouts, and AltGr combinations no longer trigger them
 
 ### Agent workspace (`agent.rs`, `AgentPanel.tsx`, `utils/agent.ts`, `DocumentPanel.tsx`)
-- A new left panel (🤖, Ctrl+Shift+A) lists the instructions, memory, plans, skills, subagents and commands of Claude Code, Codex and Gemini CLI, plus agent files in the opened folders. Skills, memory and commands show their frontmatter descriptions, and a filter searches titles, descriptions and paths
+- The Files column has an Agents filter for the folders you open and a collapsible Global agent files root (🤖, Ctrl+Shift+A) for Claude Code, Codex and Gemini CLI user files. Skills, memory and commands show their frontmatter descriptions, and a filter searches titles, descriptions and paths
 - Turning it on asks in a native dialog. It adds no folders to the access list: while it's on, markdown in fixed places inside `~/.claude`, `~/.codex` and `~/.gemini` counts as opened (`agent::is_agent_document`); settings, credentials and transcripts stay unreadable
 - **What changed since you read it:** a copy of each agent file is kept when you read it (`read-state/` in the config dir). Changed files get a dot and a "Changed since you read them" section; opening one highlights the changed blocks, with **Next change** and **Mark as read**
 - Open agent files reload when an agent changes them
 - **Rules:** Cursor rules (`.cursor/rules/*.mdc`, legacy `.cursorrules`) and Claude Code rules (`~/.claude/rules`, `.claude/rules`) get their own section, described by what they apply to (`globs` / `paths`, `alwaysApply`). `.mdc` and `.cursorrules` open as markdown everywhere
-- **Live updates (`agent::Watch`):** instead of rescanning every 10 s, the backend watches the agents' folders and the opened folders and reports changes to agent files only (transcripts and caches next to them are ignored); the panel updates about half a second after an agent writes. Polling remains as a fallback if the watcher can't start
+- **Live updates (`agent::Watch`):** instead of rescanning every 10 s, the backend watches the agents' folders and the opened folders and reports changes to agent files only (transcripts and caches next to them are ignored); the Global agent files root updates about half a second after an agent writes. Polling remains as a fallback if the watcher can't start
 
 ### Frontend tests (`src/utils/*.test.ts`)
 - Vitest (`npm test`, also run in CI) with tests for the line diff and changed-block marking, file types, and the markdown renderer's escaping of raw HTML, code, diagrams and remote images

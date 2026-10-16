@@ -89,9 +89,11 @@ On Linux, install the WebKitGTK build dependencies first:
 
 ### Releasing
 
+For the first signed release and account setup, follow [the 1.1.0 release plan](docs/RELEASE_1.1.0.md). The production bundle identifier, Apple Developer ID identity and Windows signing identity must be settled before tagging.
+
 CI (`.github/workflows/ci.yml`) typechecks the frontend and checks the Rust backend on every push and pull request.
 
-To publish a release, bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, add a `CHANGELOG.md` entry, then push a tag:
+To publish a release after signed builds and install checks pass, bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, add a `CHANGELOG.md` entry, then push a tag:
 
 ```bash
 git tag v1.1.0
@@ -110,7 +112,7 @@ The updater needs the repository to be public, because the app downloads release
 
 ### Code signing
 
-The release workflow signs as soon as the secrets below exist (repository Settings → Secrets and variables → Actions); without them it builds unsigned installers. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
+The release workflow signs when the secrets below exist (repository Settings → Secrets and variables → Actions). Manual workflow runs can build unsigned installers for testing; tagged builds fail before packaging if updater, Apple or Windows signing credentials are missing. A tagged release remains a draft until all four builds and the updater manifest succeed. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
 
 **macOS** needs an Apple Developer Program membership and a "Developer ID Application" certificate:
 

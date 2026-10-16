@@ -9,7 +9,44 @@ permissions:
   contents: write
 
 jobs:
+  release-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require credentials before publishing a tagged release
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          required=(
+            TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+            APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
+            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+            AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
+            AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing signing secret $name"
+              exit 1
+            fi
+          done
+
   build:
+    needs: release-readiness
     strategy:
       fail-fast: false
       matrix:
@@ -102,8 +139,14 @@ jobs:
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: MDViewer ${{ github.ref_name }}
-          releaseBody: See CHANGELOG.md for what changed, and the README for installing.
-          releaseDraft: false
+          releaseBody: |
+            MDViewer 1.1.0 adds a searchable Files column with project agent files,
+            a collapsible Global agent files root, file associations for Markdown,
+            and improvements to opening folders, menus, search, and file access.
+
+            This is the first release with in-app updates. See CHANGELOG.md for
+            the full list of changes and README.md for installation instructions.
+          releaseDraft: true
           prerelease: false
           # Written by the updater-manifest job instead: jobs updating it in
           # parallel can drop each other's platforms
@@ -168,3 +211,4 @@ jobs:
           EOF
           cat latest.json
           gh release upload "$TAG" latest.json --clobber
+          gh release edit "$TAG" --draft=false

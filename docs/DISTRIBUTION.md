@@ -1,6 +1,6 @@
 # Distribution roadmap
 
-MDViewer builds for macOS, Windows and Linux on every `v*` tag, and that's where it stops: unsigned installers on a GitHub release page. That's fine for developers who know to right-click → Open, and a dead end for everyone else — Gatekeeper and SmartScreen greet them with "unidentified developer", and none of the places people actually install software from (Homebrew, winget, Flathub, the two app stores) list the app yet.
+MDViewer builds for macOS, Windows and Linux on every `v*` tag. The next tag is planned as the first release for users, with signed macOS and Windows installers and updater packages. Homebrew, winget, Flathub and the two app stores are later distribution steps.
 
 This document is the plan for getting from here to there, in the order that makes sense: first the things that cost nothing but a decision, then signing (which every later step depends on), then the cheap channels, and the two app stores last.
 
@@ -8,16 +8,16 @@ This document is the plan for getting from here to there, in the order that make
 
 | | State |
 |---|---|
-| Latest release | v1.0.4. It has no updater, so its users install the next version by hand once |
+| Latest published tag | v1.0.4; 1.1.0 is being prepared as the first release for users |
 | Next version | 1.1.0: privacy and access fixes, the agent workspace, and the new menu and search improvements |
 | Build matrix | macOS arm64 and x86_64, Windows x86_64, Linux x86_64 (`.github/workflows/release.yml`) |
 | Installers | `.dmg`, `.msi` and NSIS `.exe`, `.deb`, `.rpm` and `.AppImage` |
-| Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). Release builds need `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD`, and **neither secret is set**, so a tag would fail today |
+| Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). The matching updater key and password are configured as GitHub Actions secrets; the four-platform manual build is the next check |
 | macOS signing | Wired up in the workflow, and turns on when the `APPLE_*` secrets exist. None exist |
 | Windows signing | Wired up for Azure Trusted Signing (now called Artifact Signing), and turns on when the `AZURE_*` secrets exist. None exist |
-| Bundle identifier | `com.mdviewer-mj` |
+| Bundle identifier | `com.mdviewer-mj` in test builds; finalize before tagging 1.1.0, with no user migration required |
 
-The pipeline is ready: what's missing is accounts, certificates and a few decisions.
+The release pipeline is prepared. Publishing still depends on the production identifier, legal publisher identity, signing accounts, certificates and install checks.
 
 ## Phase 0: decisions before 1.1.0 (no cost)
 
@@ -25,11 +25,7 @@ These are cheap now and expensive later, because each one is visible to every in
 
 ### The bundle identifier
 
-`com.mdviewer-mj` was a placeholder, and it's the one thing to settle before the app spreads. The identifier is the App ID in Apple's portal, the Flatpak app ID, and the folder where the webview keeps its storage. Changing it after the stores means a new app listing; changing it after 1.1.0 means every user loses their open tabs, workspaces and settings, which live in the webview's localStorage under that folder.
-
-- **Pick a reverse-DNS name on a domain Lambda House controls**, e.g. `house.lambda.mdviewer`. Flathub verifies the app by that domain (a token under `/.well-known/`), and Apple and Microsoft only care that it's unique.
-- **Or, with no domain to spare**, `io.github.lambda_house.MDViewer`. Flathub accepts it with GitHub verification (the hyphen in the org name becomes an underscore), and the other platforms don't mind.
-- **Migrate once:** on first launch under the new identifier, the backend copies the old webview data folder (`~/Library/WebKit/com.mdviewer-mj` on macOS, `%LOCALAPPDATA%\com.mdviewer-mj` on Windows, `~/.local/share/com.mdviewer-mj` on Linux) before the webview starts. The backend's own config dir (`mdviewer`) doesn't depend on the identifier and stays put.
+Choose the production identifier before signing 1.1.0. There is no installed user base to migrate. The Lambda House GitHub organization lists `lambdahouse.cc`; if the publisher controls that domain, `cc.lambdahouse.mdviewer` works as a reverse-DNS identifier on Apple, Tauri and Flathub. A GitHub-based Flathub ID for the hyphenated `lambda-house` organization needs an underscore, which Apple and Tauri do not allow in bundle IDs, so it would require a separate Linux bundle overlay.
 
 ### The publisher
 
@@ -39,12 +35,12 @@ Everything below is enrolled by one legal entity, and its name is what users see
 
 The updater keypair already exists: the public key is in `tauri.conf.json`. Store the private key and its password in a password manager first, because losing them means no installed copy can ever update again. Then:
 
-1. Set `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` as repository secrets.
-2. Bump the version to 1.1.0 (`package.json`, `tauri.conf.json`, `Cargo.toml`) and move the CHANGELOG's "Unreleased" under it.
-3. Tag `v1.1.0` and check that `latest.json` on the release lists all four platforms.
-4. Say in the release notes that 1.0.4 users need to install 1.1.0 by hand once.
+1. The matching `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` are configured as repository secrets. Back up both securely outside GitHub before publishing.
+2. Version 1.1.0 is set in `package.json`, `tauri.conf.json`, and `Cargo.toml`; the changelog contains the release notes.
+3. Run the manual release workflow on `main` and check all four build targets. Test installed packages on each platform, especially `.md` and `.markdown` association, folder opening and the updater package signatures.
+4. After installer signing and checks, tag `v1.1.0`; check `latest.json` lists all four platforms.
 
-This release can ship unsigned: signing changes nothing in the app, so 1.1.1 can be the first signed one.
+The current release plan is to sign the macOS and Windows installers as well as updater packages before tagging. See `docs/RELEASE_1.1.0.md` for the operational sequence.
 
 ## Phase 1: signing
 
