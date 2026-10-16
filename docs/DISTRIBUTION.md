@@ -12,12 +12,12 @@ This document is the plan for getting from here to there, in the order that make
 | Next version | 1.1.0: privacy and access fixes, the agent workspace, and the new menu and search improvements |
 | Build matrix | macOS arm64 and x86_64, Windows x86_64, Linux x86_64 (`.github/workflows/release.yml`) |
 | Installers | `.dmg`, `.msi` and NSIS `.exe`, `.deb`, `.rpm` and `.AppImage` |
-| Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). The matching updater key and password are configured as GitHub Actions secrets; the four-platform manual build is the next check |
+| Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). The matching updater key and password are configured as GitHub Actions secrets; the four-platform manual build passed |
 | macOS signing | Wired up in the workflow, and turns on when the `APPLE_*` secrets exist. None exist |
 | Windows signing | Wired up for Azure Trusted Signing (now called Artifact Signing), and turns on when the `AZURE_*` secrets exist. None exist |
-| Bundle identifier | `com.mdviewer-mj` in test builds; finalize before tagging 1.1.0, with no user migration required |
+| Bundle identifier | `cc.lambdahouse.mdviewer`, chosen before the first public release |
 
-The release pipeline is prepared. Publishing still depends on the production identifier, legal publisher identity, signing accounts, certificates and install checks.
+The release pipeline is prepared. Publishing still depends on legal publisher identity, signing accounts, certificates and install checks.
 
 ## Phase 0: decisions before 1.1.0 (no cost)
 
@@ -25,7 +25,7 @@ These are cheap now and expensive later, because each one is visible to every in
 
 ### The bundle identifier
 
-Choose the production identifier before signing 1.1.0. There is no installed user base to migrate. The Lambda House GitHub organization lists `lambdahouse.cc`; if the publisher controls that domain, `cc.lambdahouse.mdviewer` works as a reverse-DNS identifier on Apple, Tauri and Flathub. A GitHub-based Flathub ID for the hyphenated `lambda-house` organization needs an underscore, which Apple and Tauri do not allow in bundle IDs, so it would require a separate Linux bundle overlay.
+The publisher controls `lambdahouse.cc`, so the production identifier is `cc.lambdahouse.mdviewer`. It works as a reverse-DNS identifier on Apple, Tauri and Flathub. There is no installed user base to migrate.
 
 ### The publisher
 

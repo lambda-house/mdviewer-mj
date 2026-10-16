@@ -5,7 +5,7 @@ This plan separates the first signed GitHub release from later store listings. T
 ## 1. Fix the publisher and application identity
 
 - Choose the legal publisher name for both Apple and Microsoft. The names shown on the signatures must match the enrolled legal entity.
-- Finalize the Tauri bundle identifier before creating Apple's App ID. `com.mdviewer-mj` is still in test builds. If Lambda House controls `lambdahouse.cc`, use `cc.lambdahouse.mdviewer` for the production builds. There are no users whose app state needs migration.
+- The Tauri bundle identifier is `cc.lambdahouse.mdviewer`, based on the publisher-controlled `lambdahouse.cc` domain. There are no users whose app state needs migration.
 - Register that identifier in Apple's Certificates, Identifiers & Profiles once the developer membership is active.
 
 ## 2. Updater signing (done)

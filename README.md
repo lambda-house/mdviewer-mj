@@ -89,7 +89,7 @@ On Linux, install the WebKitGTK build dependencies first:
 
 ### Releasing
 
-For the first signed release and account setup, follow [the 1.1.0 release plan](docs/RELEASE_1.1.0.md). The production bundle identifier, Apple Developer ID identity and Windows signing identity must be settled before tagging.
+For the first signed release and account setup, follow [the 1.1.0 release plan](docs/RELEASE_1.1.0.md). The bundle identifier is `cc.lambdahouse.mdviewer`; Apple Developer ID and Windows signing identities must be settled before tagging.
 
 CI (`.github/workflows/ci.yml`) typechecks the frontend and checks the Rust backend on every push and pull request.
 

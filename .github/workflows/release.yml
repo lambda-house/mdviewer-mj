@@ -86,6 +86,10 @@ jobs:
 
       - run: npm ci
 
+      - name: Clear cached bundle output
+        shell: bash
+        run: rm -rf "src-tauri/target/${{ matrix.target }}/release/bundle"
+
       # Code signing turns on once its secrets exist (README, "Code signing");
       # without them the builds are unsigned. Only variables that are set are
       # exported: an empty APPLE_CERTIFICATE would still make the bundler sign.
