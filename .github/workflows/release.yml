@@ -12,26 +12,17 @@ jobs:
   release-readiness:
     runs-on: ubuntu-latest
     steps:
-      - name: Require credentials before publishing a tagged release
+      - name: Require the updater key before publishing a tagged release
         if: github.ref_type == 'tag'
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        # Windows installers are not signed in 1.1.0 (docs/RELEASE_1.1.0.md),
-        # so the AZURE_* secrets are optional
+        # Installer signing is optional: 1.1.0 ships ad-hoc signed on macOS and
+        # unsigned on Windows (docs/RELEASE_1.1.0.md). Without the updater key
+        # installed copies could never update, so that one is required
         run: |
-          required=(
-            TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-            APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
-            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
-          )
+          required=(TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
           for name in "${required[@]}"; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing signing secret $name"
@@ -103,7 +94,15 @@ jobs:
               { echo "$name<<__END__"; echo "${!name}"; echo "__END__"; } >> "$GITHUB_ENV"
             fi
           done
-          [ -n "$APPLE_CERTIFICATE" ] && echo "Signing with $APPLE_SIGNING_IDENTITY" || echo "No certificate: unsigned build"
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            echo "Signing with $APPLE_SIGNING_IDENTITY"
+          else
+            # Ad-hoc signature: without one the bundle's linker signature doesn't
+            # cover its resources, and a downloaded copy reports itself damaged
+            echo "No certificate: ad-hoc signed build"
+            echo '{"bundle": {"macOS": {"signingIdentity": "-"}}}' > src-tauri/signing.conf.json
+            echo "SIGNING_ARGS=--config src-tauri/signing.conf.json" >> "$GITHUB_ENV"
+          fi
 
       - name: Windows signing (Azure Trusted Signing)
         if: runner.os == 'Windows'
@@ -176,6 +175,10 @@ jobs:
     needs: build
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Publish latest.json
         env:
@@ -214,4 +217,29 @@ jobs:
           EOF
           cat latest.json
           gh release upload "$TAG" latest.json --clobber
-          gh release edit "$TAG" --draft=false
+
+      # Lets users check unsigned downloads: SHA256SUMS, and a provenance
+      # attestation per file (`gh attestation verify <file> --repo <repo>`)
+      - name: Checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir assets && cd assets
+          gh release download "$TAG" --pattern '*' --skip-existing
+          rm -f SHA256SUMS
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" SHA256SUMS --clobber
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-checksums: assets/SHA256SUMS
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --draft=false
