@@ -24,19 +24,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        # Windows installers are not signed in 1.1.0 (docs/RELEASE_1.1.0.md),
+        # so the AZURE_* secrets are optional
         run: |
           required=(
             TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
             APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
             APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
-            AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
-            AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE
           )
           for name in "${required[@]}"; do
             if [ -z "${!name}" ]; then
@@ -150,6 +144,9 @@ jobs:
 
             This is the first release with in-app updates. See CHANGELOG.md for
             the full list of changes and README.md for installation instructions.
+
+            The Windows installers are not code-signed yet: on the SmartScreen
+            warning, click "More info" and then "Run anyway".
           releaseDraft: true
           prerelease: false
           # Written by the updater-manifest job instead: jobs updating it in

@@ -14,7 +14,7 @@ This document is the plan for getting from here to there, in the order that make
 | Installers | `.dmg`, `.msi` and NSIS `.exe`, `.deb`, `.rpm` and `.AppImage` |
 | Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). The matching updater key and password are configured as GitHub Actions secrets; the four-platform manual build passed |
 | macOS signing | Wired up in the workflow, and turns on when the `APPLE_*` secrets exist. None exist |
-| Windows signing | Wired up for Azure Trusted Signing (now called Artifact Signing), and turns on when the `AZURE_*` secrets exist. None exist |
+| Windows signing | Wired up for Azure Trusted Signing (now called Artifact Signing), and turns on when the `AZURE_*` secrets exist. Not available to the individual publisher; 1.1.0 ships unsigned on Windows |
 | Bundle identifier | `cc.lambdahouse.mdviewer`, chosen before the first public release |
 
 The release pipeline is prepared. Publishing still depends on legal publisher identity, signing accounts, certificates and install checks.
@@ -29,7 +29,7 @@ The publisher controls `lambdahouse.cc`, so the production identifier is `cc.lam
 
 ### The publisher
 
-Everything below is enrolled by one legal entity, and its name is what users see in Gatekeeper, SmartScreen and both stores ("© 2026 Lambda House" today). Apple asks an organization for a D-U-N-S number, which is free but takes up to 5 business days. Azure Artifact Signing only serves organizations in certain countries (US, Canada, EU, UK and a handful of others), so check the publishing entity against that list before building the Windows plan on it.
+Everything below is enrolled by one legal entity, and its name is what users see in Gatekeeper, SmartScreen and both stores. **Decided (2026-10-17): the publisher is the maintainer as an individual**, so signatures and store listings show the maintainer's legal name; "© 2026 Lambda House" stays as the copyright line. An individual Apple enrollment needs no D-U-N-S number. Azure Artifact Signing serves individuals only in the US and Canada, so Windows signing waits for a code-signing certificate (below).
 
 ### The updater key and release 1.1.0
 
@@ -48,7 +48,7 @@ Every channel after this phase needs signed builds, or works much better with th
 
 ### macOS: Developer ID and notarization
 
-- **Account:** Apple Developer Program as an organization, $99 a year.
+- **Account:** Apple Developer Program as an individual, $99 a year.
 - **Certificate:** "Developer ID Application", exported as a `.p12`.
 - **Secrets:**
   - `APPLE_CERTIFICATE` (the `.p12`, base64) and `APPLE_CERTIFICATE_PASSWORD`;
@@ -62,6 +62,7 @@ The workflow already exports these and `tauri-action` notarizes on its own, so t
 
 - **Azure Artifact Signing** is the cheap option: $9.99 a month for 5,000 signatures, with no hardware token, and the workflow already uses it (`trusted-signing-cli`). It needs a paid Azure subscription and a publisher in an eligible country, and identity validation takes a few days. It's available to individual developers only in the US and Canada.
 - **An OV code signing certificate** is the fallback when the publisher doesn't qualify: roughly $200–400 a year, with the key in a cloud HSM (SSL.com eSigner, DigiCert KeyLocker and others) since certificates can't be exported as files anymore. Its `signCommand` slots into the same place as the Azure one.
+- **For 1.1.0:** neither. The Windows installers ship unsigned, the release notes explain the SmartScreen warning, and the tag check doesn't require the `AZURE_*` secrets. An individual-validated certificate in a cloud HSM (for example SSL.com eSigner) is the likely next step.
 - **Either way:** SmartScreen reputation now attaches to the publisher's identity, so the warnings fade quickly instead of restarting with each release.
 
 ### Linux

@@ -2,22 +2,22 @@
 
 This is the working plan for the first release intended for users. The repository has older tags, including `v1.0.4`, but there is no installed user base. **Do not add upgrade or migration instructions from v1.0.4.** Pushing `v1.1.0` starts the public release workflow, so keep the tag unpushed until signing and install checks are complete.
 
-## Current state (2026-10-16)
+## Current state (2026-10-17)
 
 | Item | State |
 | --- | --- |
 | Repository | `lambda-house/mdviewer-mj`; `main` is the release branch |
-| Baseline before this document update | `9c9f9da`, with a clean working tree |
+| Publisher | **Decided 2026-10-17:** the maintainer as an individual. No Apple Developer Program or Azure account existed at that point |
 | Version | `1.1.0` in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` |
 | Production bundle ID | `cc.lambdahouse.mdviewer`; the user confirmed control of `lambdahouse.cc` |
 | Release notes | `CHANGELOG.md` and the 1.1.0 body in `.github/workflows/release.yml` |
 | Updater key | Local private key/password and configured public key match; a local signing probe passed. Both GitHub Actions updater secrets are set |
 | Build | [Four-target manual Release workflow passed](https://github.com/lambda-house/mdviewer-mj/actions/runs/38893084953) at `1978097`; [CI passed](https://github.com/lambda-house/mdviewer-mj/actions/runs/38893606077) at `9c9f9da` |
 | Packages inspected | macOS DMG and updater archive/signature, Windows MSI and NSIS/signatures, Linux DEB/RPM/AppImage/signatures were present in manual workflow artifacts. The macOS updater archive reports the production bundle ID |
-| Installer signing | No Developer ID identity was installed on the current Mac; no `APPLE_*` or `AZURE_*` repository secrets were set at the last check. The manual installers are therefore unsigned |
+| Installer signing | macOS: no Developer ID identity on the current Mac and no `APPLE_*` secrets yet. Windows: **unsigned for 1.1.0** by decision; the tag check no longer requires `AZURE_*` |
 | Public release | `v1.1.0` has **not** been tagged or published; `v1.0.4` remains the latest published tag |
 
-The last workflow change at `9c9f9da` narrows which macOS updater archive is retained as a manual-run artifact; it does not change packaging. The successful four-target run above used the preceding commit. Check current status again before acting:
+Later workflow changes do not change packaging: `9c9f9da` narrows which macOS updater archive is retained as a manual-run artifact, and the publisher decision drops `AZURE_*` from the tag-only readiness check and adds a SmartScreen note to the release body. Check current status again before acting:
 
 ```bash
 git status --short
@@ -28,9 +28,11 @@ gh run list --repo lambda-house/mdviewer-mj --branch main --limit 5
 
 The private updater key is under `~/.tauri/` on the current Mac. Do not commit it, put its contents in this document, or print it in logs. `gh secret list` shows secret names and timestamps, not values.
 
-## 1. Settle the legal publisher and accounts
+## 1. Legal publisher and accounts
 
-The remaining user decision is whether the signatures and store accounts belong to **Lambda House as a registered legal organization** or to the user **as an individual**. Also establish whether Apple Developer Program and Azure accounts already exist. Domain control is confirmed, but it does not establish the legal signing identity.
+**Decided 2026-10-17:** signatures and store accounts belong to the maintainer **as an individual**. Gatekeeper and later store listings show the maintainer's legal name; the copyright line stays "© 2026 Lambda House". Azure Artifact Signing is not available to individuals outside the US and Canada, so **1.1.0 ships with unsigned Windows installers** and the release body tells users how to get past SmartScreen. Windows signing comes back in a later release with an individual-validated certificate (section 4).
+
+The table below is the general account map.
 
 | Channel | Registration or account | Who must provide it |
 | --- | --- | --- |
@@ -43,7 +45,7 @@ The remaining user decision is whether the signatures and store accounts belong 
 | Flathub, later | Flathub submission and app-ID/domain verification | Publisher |
 | Homebrew and winget, later | Existing GitHub account for manifest submissions; package-manager accounts/maintainership as required | Publisher or maintainer |
 
-For an Apple organization enrollment, gather legal entity details, D-U-N-S number, work-domain email, public website, and a person authorized to bind the organization. Individual enrollment displays the individual's legal name. Azure Public Trust eligibility depends on publisher type and region; the current plan assumes an eligible organization in the EU. Microsoft currently limits individual Public Trust enrollment to the US and Canada. If the publisher is an ineligible individual, choose a conventional publicly trusted code-signing provider and change the Windows CI signing command before tagging.
+Individual Apple enrollment needs an Apple Account with two-factor authentication, the legal name as on government ID, and the $99 yearly fee; no D-U-N-S number. The enrollment, identity verification and payment are done by the account holder.
 
 ## 2. Preserve updater signing access
 
@@ -56,7 +58,7 @@ The successful manual run produced updater signatures, but it did **not** exerci
 
 ## 3. Set up macOS Developer ID signing and notarization
 
-1. [ ] Enroll or confirm the publisher's Apple Developer Program membership. Record the Team ID and the Apple Account used for notarization.
+1. [ ] Enroll in the Apple Developer Program as an individual. Record the Team ID and the Apple Account used for notarization.
 2. [ ] Register `cc.lambdahouse.mdviewer` under Certificates, Identifiers & Profiles if needed for the chosen distribution path.
 3. [ ] Create a [Developer ID Application certificate](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/) with its private key. Export a password-protected `.p12` and record the exact signing identity.
 4. [ ] Create an app-specific Apple Account password for [notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
@@ -65,7 +67,9 @@ The successful manual run produced updater signatures, but it did **not** exerci
 
 The workflow exports the `APPLE_*` values to Tauri during packaging. This path has not been tested with a real certificate; fix any signing or notarization failure before tagging.
 
-## 4. Set up Windows installer signing
+## 4. Windows installer signing (deferred past 1.1.0)
+
+Not required for 1.1.0. For a later release, an individual outside the US/Canada uses step 5 (an individual-validated certificate in a cloud HSM, for example SSL.com eSigner); steps 1–4 apply only to an eligible Azure publisher. Once signing is set up, add its secrets back to the `release-readiness` check.
 
 1. [ ] If the legal publisher is eligible, create an Azure subscription, finish [Artifact Signing identity validation](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart), and create an account with a **Public Trust** certificate profile.
 2. [ ] Create an Azure app registration/service principal, assign its [certificate profile signer role](https://learn.microsoft.com/en-us/azure/artifact-signing/concept-resources-roles), and obtain its tenant/client IDs and client secret.
@@ -95,7 +99,7 @@ The local macOS DMG build passed, and its app metadata declared `cc.lambdahouse.
 ## 6. Publish v1.1.0 only after the checks pass
 
 1. [ ] Confirm `main` is clean and CI green; review `CHANGELOG.md`, version fields, and the hard-coded 1.1.0 release body in `.github/workflows/release.yml`.
-2. [ ] Confirm all updater, Apple, and Windows signing secrets exist and a **signed** manual workflow run and install checks passed.
+2. [ ] Confirm the updater and Apple signing secrets exist and a manual workflow run with **signed macOS** builds and the install checks passed. Windows installers are unsigned by decision.
 3. [ ] Decide to publish. Pushing the tag starts the public release workflow:
 
    ```bash

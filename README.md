@@ -89,7 +89,7 @@ On Linux, install the WebKitGTK build dependencies first:
 
 ### Releasing
 
-For the first signed release and account setup, follow [the 1.1.0 release plan](docs/RELEASE_1.1.0.md). The bundle identifier is `cc.lambdahouse.mdviewer`; Apple Developer ID and Windows signing identities must be settled before tagging.
+For the first signed release and account setup, follow [the 1.1.0 release plan](docs/RELEASE_1.1.0.md). The bundle identifier is `cc.lambdahouse.mdviewer`. 1.1.0 is signed for macOS under an individual Apple Developer ID; the Windows installers are not code-signed yet.
 
 CI (`.github/workflows/ci.yml`) typechecks the frontend and checks the Rust backend on every push and pull request.
 
@@ -112,7 +112,7 @@ The updater needs the repository to be public, because the app downloads release
 
 ### Code signing
 
-The release workflow signs when the secrets below exist (repository Settings → Secrets and variables → Actions). Manual workflow runs can build unsigned installers for testing; tagged builds fail before packaging if updater, Apple or Windows signing credentials are missing. A tagged release remains a draft until all four builds and the updater manifest succeed. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
+The release workflow signs when the secrets below exist (repository Settings → Secrets and variables → Actions). Manual workflow runs can build unsigned installers for testing; tagged builds fail before packaging if updater or Apple signing credentials are missing. Windows signing is optional and turns on when its secrets exist. A tagged release remains a draft until all four builds and the updater manifest succeed. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
 
 **macOS** needs an Apple Developer Program membership and a "Developer ID Application" certificate:
 
@@ -120,10 +120,10 @@ The release workflow signs when the secrets below exist (repository Settings →
 |--------|-------|
 | `APPLE_CERTIFICATE` | The certificate exported from Keychain Access as `.p12`, base64-encoded (`base64 -i cert.p12`) |
 | `APPLE_CERTIFICATE_PASSWORD` | The `.p12` export password |
-| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Lambda House (TEAMID)` |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Your Name (TEAMID)` |
 | `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | For notarization: the Apple ID, an app-specific password for it, and the team ID |
 
-**Windows** uses [Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/): an Azure account with a Trusted Signing account and certificate profile, and an app registration allowed to sign with it:
+**Windows** installers are unsigned for now. The workflow can sign them with [Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/) (an Azure account with a Trusted Signing account and certificate profile, and an app registration allowed to sign with it), which Microsoft offers to individual developers only in the US and Canada:
 
 | Secret | Value |
 |--------|-------|
