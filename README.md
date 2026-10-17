@@ -41,11 +41,19 @@ Download the installer for your platform from the
 | Windows | `MDViewer_<version>_x64-setup.exe` or `MDViewer_<version>_x64_en-US.msi` |
 | Linux | `.deb`, `.rpm` or `.AppImage` |
 
+Or install with a package manager:
+
+- **Homebrew (macOS):** `brew install --cask lambda-house/tap/mdviewer`
+- **apt (Debian, Ubuntu) and dnf (Fedora):** add the signed repository at [lambda-house.github.io/mdviewer-packages](https://lambda-house.github.io/mdviewer-packages/), then install `md-viewer`
+- **AUR (Arch):** `mdviewer-bin`
+
+Every release lists `SHA256SUMS` and has a build provenance attestation for each file: `gh attestation verify <file> --repo lambda-house/mdviewer-mj` checks that it was built by this repository's release workflow.
+
 Installed packages register MDViewer as an app for `.md` and `.markdown` files. Double-clicking one opens it in MDViewer when the operating system selects MDViewer as the default. An existing default chosen by the user remains in place; select MDViewer in the system's **Open with** or default-app settings to switch it.
 
 Unless the release was built with signing set up (see [Code signing](#code-signing)), the builds are not code-signed and the first launch needs one extra step:
 
-- **macOS:** right-click MDViewer.app → Open, or run `xattr -dr com.apple.quarantine /Applications/MDViewer.app`
+- **macOS:** open MDViewer once, then click **Open Anyway** in System Settings → Privacy & Security, or run `xattr -dr com.apple.quarantine /Applications/MDViewer.app`
 - **Windows:** on the SmartScreen warning, click "More info" → "Run anyway"
 
 ## Getting Started
@@ -112,7 +120,7 @@ The updater needs the repository to be public, because the app downloads release
 
 ### Code signing
 
-The release workflow signs when the secrets below exist (repository Settings → Secrets and variables → Actions). Manual workflow runs can build unsigned installers for testing; tagged builds fail before packaging if updater or Apple signing credentials are missing. Windows signing is optional and turns on when its secrets exist. A tagged release remains a draft until all four builds and the updater manifest succeed. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
+The release workflow signs when the secrets below exist (repository Settings → Secrets and variables → Actions). Manual workflow runs can build unsigned installers for testing; tagged builds fail before packaging only if the updater key is missing. Without Apple credentials the macOS app is ad-hoc signed (it opens after **Open Anyway**); without Windows credentials the installers are unsigned. A tagged release remains a draft until all four builds and the updater manifest succeed. Signing is the first step of the [distribution roadmap](docs/DISTRIBUTION.md) (package managers and app stores).
 
 **macOS** needs an Apple Developer Program membership and a "Developer ID Application" certificate:
 
@@ -131,7 +139,19 @@ The release workflow signs when the secrets below exist (repository Settings →
 | `AZURE_SIGNING_ENDPOINT` | The account's region endpoint, e.g. `https://weu.codesigning.azure.net` |
 | `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` | The Trusted Signing account and certificate profile names |
 
-Linux packages are not signed.
+Linux release files are not signed; the apt and dnf repository below signs its packages and indexes.
+
+### Package channels
+
+After a tagged release is published, three jobs of the release workflow update the package channels. Each skips with a notice while its secrets are missing. The scripts that generate the files are in `packaging/`.
+
+| Job | Updates | Secrets |
+|-----|---------|---------|
+| `homebrew` | `Casks/mdviewer.rb` in [lambda-house/homebrew-tap](https://github.com/lambda-house/homebrew-tap) | `HOMEBREW_TAP_DEPLOY_KEY`: private half of a write deploy key on that repository |
+| `linux-repo` | The apt and dnf repository in [lambda-house/mdviewer-packages](https://github.com/lambda-house/mdviewer-packages) (GitHub Pages), via `packaging/linux-repo/build.sh` | `PACKAGES_DEPLOY_KEY` (write deploy key on that repository) and `PACKAGES_GPG_PRIVATE_KEY` (armored signing key without passphrase) |
+| `aur` | [`mdviewer-bin`](https://aur.archlinux.org/packages/mdviewer-bin), which repackages the `.deb` | `AUR_SSH_PRIVATE_KEY`: the key registered on the AUR maintainer account |
+
+Users trust the packages' GPG key by its fingerprint, so keep a backup of it with its revocation certificate. The deploy keys and the AUR key can be replaced at any time.
 
 ## Project Structure
 

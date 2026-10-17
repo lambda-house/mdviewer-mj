@@ -1,6 +1,6 @@
 # Distribution roadmap
 
-MDViewer builds for macOS, Windows and Linux on every `v*` tag. The next tag is planned as the first release for users, with signed macOS and Windows installers and updater packages. Homebrew, winget, Flathub and the two app stores are later distribution steps.
+MDViewer builds for macOS, Windows and Linux on every `v*` tag. The next tag, 1.1.0, is the first release for users: signed updater packages, an ad-hoc signed macOS app and unsigned Windows installers, published together with a Homebrew tap, a signed apt/dnf repository and an AUR package. Notarization, Windows signing, winget, Flathub and the two app stores are later steps.
 
 This document is the plan for getting from here to there, in the order that makes sense: first the things that cost nothing but a decision, then signing (which every later step depends on), then the cheap channels, and the two app stores last.
 
@@ -13,11 +13,13 @@ This document is the plan for getting from here to there, in the order that make
 | Build matrix | macOS arm64 and x86_64, Windows x86_64, Linux x86_64 (`.github/workflows/release.yml`) |
 | Installers | `.dmg`, `.msi` and NSIS `.exe`, `.deb`, `.rpm` and `.AppImage` |
 | Updater | Built in (`tauri-plugin-updater`, `latest.json` from the latest release). The matching updater key and password are configured as GitHub Actions secrets; the four-platform manual build passed |
-| macOS signing | Wired up in the workflow, and turns on when the `APPLE_*` secrets exist. None exist |
+| macOS signing | Wired up in the workflow, and turns on when the `APPLE_*` secrets exist. None exist yet, so builds are ad-hoc signed (users click **Open Anyway** once) |
 | Windows signing | Wired up for Azure Trusted Signing (now called Artifact Signing), and turns on when the `AZURE_*` secrets exist. Not available to the individual publisher; 1.1.0 ships unsigned on Windows |
 | Bundle identifier | `cc.lambdahouse.mdviewer`, chosen before the first public release |
+| Package channels | Homebrew tap (`lambda-house/homebrew-tap`), apt/dnf repository (`lambda-house/mdviewer-packages` on GitHub Pages) and AUR `mdviewer-bin`, updated by the release workflow after each tag (README, "Package channels") |
+| Download verification | `SHA256SUMS` and a build provenance attestation per release file |
 
-The release pipeline is prepared. Publishing still depends on legal publisher identity, signing accounts, certificates and install checks.
+The release pipeline is prepared. Publishing 1.1.0 depends on the package channel secrets, key backups and install checks (`docs/RELEASE_1.1.0.md`).
 
 ## Phase 0: decisions before 1.1.0 (no cost)
 

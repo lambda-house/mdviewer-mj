@@ -144,8 +144,13 @@ jobs:
             This is the first release with in-app updates. See CHANGELOG.md for
             the full list of changes and README.md for installation instructions.
 
-            The Windows installers are not code-signed yet: on the SmartScreen
-            warning, click "More info" and then "Run anyway".
+            Install with `brew install --cask lambda-house/tap/mdviewer`, from the
+            apt/dnf repository at https://lambda-house.github.io/mdviewer-packages/,
+            or from the AUR (`mdviewer-bin`). SHA256SUMS lists every file's checksum.
+
+            The installers are not code-signed yet. macOS: open MDViewer once, then
+            click "Open Anyway" in System Settings > Privacy & Security. Windows: on
+            the SmartScreen warning, click "More info" and then "Run anyway".
           releaseDraft: true
           prerelease: false
           # Written by the updater-manifest job instead: jobs updating it in
@@ -243,3 +248,112 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: gh release edit "$TAG" --draft=false
+
+  # Package channels, updated once the release is public. Each one skips with
+  # a notice while its secrets are missing (README, "Package channels")
+  homebrew:
+    needs: updater-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update the cask in lambda-house/homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::notice::No HOMEBREW_TAP_DEPLOY_KEY: the tap was not updated"
+            exit 0
+          fi
+          version=${TAG#v}
+          gh release download "$TAG" --pattern SHA256SUMS
+          sha() { awk -v f="$1" '$2 == f { print $1 }' SHA256SUMS | grep .; }
+          sha_arm=$(sha "MDViewer_${version}_aarch64.dmg")
+          sha_intel=$(sha "MDViewer_${version}_x64.dmg")
+          cask=$(packaging/homebrew/cask.sh "$version" "$sha_arm" "$sha_intel")
+
+          install -m 600 /dev/null "$RUNNER_TEMP/key" && echo "$DEPLOY_KEY" > "$RUNNER_TEMP/key"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q git@github.com:lambda-house/homebrew-tap.git tap
+          echo "$cask" > tap/Casks/mdviewer.rb
+          cd tap
+          git add Casks/mdviewer.rb
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "mdviewer $version"
+          git push -q origin HEAD
+
+  linux-repo:
+    needs: updater-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add the packages to lambda-house/mdviewer-packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          DEPLOY_KEY: ${{ secrets.PACKAGES_DEPLOY_KEY }}
+          GPG_PRIVATE_KEY: ${{ secrets.PACKAGES_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::notice::No PACKAGES_DEPLOY_KEY or PACKAGES_GPG_PRIVATE_KEY: the apt/dnf repository was not updated"
+            exit 0
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev apt-utils createrepo-c rpm > /dev/null
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          export GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ { print $10; exit }')
+          gh release download "$TAG" --pattern '*.deb' --pattern '*.rpm' --dir incoming
+
+          install -m 600 /dev/null "$RUNNER_TEMP/key" && echo "$DEPLOY_KEY" > "$RUNNER_TEMP/key"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q git@github.com:lambda-house/mdviewer-packages.git site
+          packaging/linux-repo/build.sh site incoming
+          cd site
+          git add -A
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "MDViewer ${TAG#v}"
+          git push -q origin HEAD
+
+  aur:
+    needs: updater-manifest
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update mdviewer-bin on the AUR
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_KEY" ]; then
+            echo "::notice::No AUR_SSH_PRIVATE_KEY: the AUR package was not updated"
+            exit 0
+          fi
+          set -euo pipefail
+          pacman -Sy --noconfirm --needed git openssh > /dev/null
+          version=${TAG#v}
+          sha_deb=$(curl -fsSL "https://github.com/$REPO/releases/download/$TAG/SHA256SUMS" \
+            | awk -v f="MDViewer_${version}_amd64.deb" '$2 == f { print $1 }' | grep .)
+          sha_license=$(curl -fsSL "https://raw.githubusercontent.com/$REPO/$TAG/LICENSE" | sha256sum | cut -d' ' -f1)
+
+          install -m 600 /dev/null /tmp/aur_key && echo "$AUR_KEY" > /tmp/aur_key
+          export GIT_SSH_COMMAND="ssh -i /tmp/aur_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q ssh://aur@aur.archlinux.org/mdviewer-bin.git aur
+          packaging/aur/PKGBUILD.sh "$version" "$sha_deb" "$sha_license" > aur/PKGBUILD
+          # makepkg refuses to run as root
+          useradd -m builder
+          install -d -o builder /tmp/srcinfo && cp aur/PKGBUILD /tmp/srcinfo/
+          su builder -c 'cd /tmp/srcinfo && makepkg --printsrcinfo' > aur/.SRCINFO
+          cd aur
+          git add PKGBUILD .SRCINFO
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "mdviewer-bin $version"
+          git push -q origin HEAD:master
