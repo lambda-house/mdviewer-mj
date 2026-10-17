@@ -14,7 +14,7 @@ This is the working plan for the first release intended for users. The repositor
 | Release notes | `CHANGELOG.md` and the 1.1.0 body in `.github/workflows/release.yml` |
 | Updater key | Local private key/password and configured public key match; a local signing probe passed. Both GitHub Actions updater secrets are set. Not yet backed up outside this Mac |
 | Build | [Manual Release run 39019722096](https://github.com/lambda-house/mdviewer-mj/actions/runs/39019722096) passed with the ad-hoc macOS signing. Its arm64 app passes `codesign --verify --deep --strict` (ad-hoc, hardened runtime, sealed resources) and launches; `spctl` rejects it as expected without notarization |
-| Package channels | Created 2026-10-17: [lambda-house/homebrew-tap](https://github.com/lambda-house/homebrew-tap) and [lambda-house/mdviewer-packages](https://github.com/lambda-house/mdviewer-packages) (GitHub Pages on), each with a write deploy key for the release workflow. The `homebrew`, `linux-repo` and `aur` jobs run after a tagged release is published |
+| Package channels | AUR registration paused (2026-10-17), so `mdviewer-bin` waits for an account. Created 2026-10-17: [lambda-house/homebrew-tap](https://github.com/lambda-house/homebrew-tap) and [lambda-house/mdviewer-packages](https://github.com/lambda-house/mdviewer-packages) (GitHub Pages on), each with a write deploy key for the release workflow. The `homebrew`, `linux-repo` and `aur` jobs run after a tagged release is published |
 | Package checks | Locally with the real packages: the generated cask passes `brew style`; the apt/dnf repository built by `packaging/linux-repo/build.sh` verifies in Ubuntu 24.04 (`InRelease`) and Fedora 42 (`repo_gpgcheck`, `rpm -K`); `mdviewer-bin` builds with `makepkg` and passes `namcap` |
 | Public release | `v1.1.0` has **not** been tagged or published; `v1.0.4` remains the latest published tag |
 
@@ -33,24 +33,15 @@ gh run list --repo lambda-house/mdviewer-mj --branch main --limit 5
 | --- | --- | --- |
 | Updater (minisign) private key and password | `~/.tauri/` on the current Mac; GitHub secrets `TAURI_SIGNING_PRIVATE_KEY`, `_PASSWORD` | **Yes.** Losing it means installed copies can never update |
 | Package signing GPG key, RSA 4096, no passphrase, fingerprint `CF6514F8FF85FCB383F24C14D7A16159C913520B` | `~/.mdviewer-keys/packages-gpg-private.asc` (+ public key, revocation certificate, and a dedicated keyring in `~/.mdviewer-keys/gnupg`); GitHub secret `PACKAGES_GPG_PRIVATE_KEY` | **Yes**, with the revocation certificate. apt/dnf users trust this fingerprint |
-| Deploy keys for homebrew-tap and mdviewer-packages | `~/.mdviewer-keys/deploy-*`; GitHub secrets `HOMEBREW_TAP_DEPLOY_KEY`, `PACKAGES_DEPLOY_KEY` | No; replace by adding a new deploy key. Delete the local files once the secrets are set |
+| Deploy keys for homebrew-tap and mdviewer-packages | GitHub secrets `HOMEBREW_TAP_DEPLOY_KEY`, `PACKAGES_DEPLOY_KEY` (only the `.pub` files remain in `~/.mdviewer-keys/`) | No; replace by adding a new deploy key |
 | AUR SSH key | `~/.mdviewer-keys/aur_ed25519`; GitHub secret `AUR_SSH_PRIVATE_KEY` | No; replace it on the AUR account |
 
 Never commit these files, put their contents in documents, or print them in logs. `gh secret list` shows names and timestamps, not values.
 
 ## 1. Before tagging
 
-1. [ ] Set the package channel secrets (the auto-mode classifier doesn't let Claude write secrets):
-
-   ```bash
-   gh secret set HOMEBREW_TAP_DEPLOY_KEY --repo lambda-house/mdviewer-mj < ~/.mdviewer-keys/deploy-homebrew-tap
-   gh secret set PACKAGES_DEPLOY_KEY --repo lambda-house/mdviewer-mj < ~/.mdviewer-keys/deploy-mdviewer-packages
-   gh secret set PACKAGES_GPG_PRIVATE_KEY --repo lambda-house/mdviewer-mj < ~/.mdviewer-keys/packages-gpg-private.asc
-   gh secret set AUR_SSH_PRIVATE_KEY --repo lambda-house/mdviewer-mj < ~/.mdviewer-keys/aur_ed25519
-   rm ~/.mdviewer-keys/deploy-homebrew-tap ~/.mdviewer-keys/deploy-mdviewer-packages
-   ```
-
-2. [ ] Register an account on [aur.archlinux.org](https://aur.archlinux.org/register) (has a CAPTCHA) and add the public key `~/.mdviewer-keys/aur_ed25519.pub` under My Account → SSH Public Key. Without it the `aur` job fails at `git clone`/`push` (the release itself is unaffected); then drop the AUR mention from the release body or register first.
+1. [x] Package channel secrets set 2026-10-17: `HOMEBREW_TAP_DEPLOY_KEY`, `PACKAGES_DEPLOY_KEY`, `PACKAGES_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`. The local deploy-key private files were deleted afterwards.
+2. [ ] **Not a blocker.** AUR registration was paused on 2026-10-17 ("a wave of automated account creation"). When it reopens, register on [aur.archlinux.org](https://aur.archlinux.org/register) (has a CAPTCHA) and add `~/.mdviewer-keys/aur_ed25519.pub` under My Account → SSH Public Key. Until then the `aur` job skips with a notice. After registering, publish the current version by re-running the `aur` job of the latest release run, and add the AUR back to the README install list and the release body.
 3. [ ] Back up the updater key with its password, and the GPG key with its revocation certificate, outside this Mac and outside GitHub (for example a password manager). Record who controls the backup.
 4. [ ] Install checks on each platform from the manual run's artifacts (section 3). The macOS arm64 build was checked by signature and launch only.
 
@@ -66,7 +57,7 @@ Never commit these files, put their contents in documents, or print them in logs
 
 3. [ ] Watch the workflow. `release-readiness` requires only the updater key. Tauri creates a **draft** release; `updater-manifest` uploads `latest.json` and `SHA256SUMS`, attests every file, and only then publishes. The `homebrew`, `linux-repo` and `aur` jobs follow; their failure leaves the release published. This tagged path has not run end to end yet.
 4. [ ] Inspect the [GitHub Release](https://github.com/lambda-house/mdviewer-mj/releases): two macOS DMGs, Windows MSI and NSIS, Linux DEB/RPM/AppImage, updater packages/signatures, `latest.json` (four platforms with correct URLs) and `SHA256SUMS`. `gh attestation verify <file> --repo lambda-house/mdviewer-mj` should pass for a downloaded file.
-5. [ ] Check the channels: `brew install --cask lambda-house/tap/mdviewer`; the apt and dnf instructions on [the packages site](https://lambda-house.github.io/mdviewer-packages/); `mdviewer-bin` on the AUR.
+5. [ ] Check the channels: `brew install --cask lambda-house/tap/mdviewer`; the apt and dnf instructions on [the packages site](https://lambda-house.github.io/mdviewer-packages/). The `aur` job should end with its "not accepted yet" notice.
 6. [ ] Submit winget: a PR to `microsoft/winget-pkgs` for `LambdaHouse.MDViewer` pointing at the NSIS installer (manifests can be written by hand or with `wingetcreate`). Unsigned installers are accepted. Automating later versions needs a GitHub token with `public_repo` for a fork of winget-pkgs (e.g. `vedantmgoyal9/winget-releaser`).
 7. [ ] Test the update path with a later version before promising automatic updates to users.
 

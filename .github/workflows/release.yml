@@ -144,9 +144,9 @@ jobs:
             This is the first release with in-app updates. See CHANGELOG.md for
             the full list of changes and README.md for installation instructions.
 
-            Install with `brew install --cask lambda-house/tap/mdviewer`, from the
-            apt/dnf repository at https://lambda-house.github.io/mdviewer-packages/,
-            or from the AUR (`mdviewer-bin`). SHA256SUMS lists every file's checksum.
+            Install with `brew install --cask lambda-house/tap/mdviewer`
+            or from the apt/dnf repository at https://lambda-house.github.io/mdviewer-packages/.
+            SHA256SUMS lists every file's checksum.
 
             The installers are not code-signed yet. macOS: open MDViewer once, then
             click "Open Anyway" in System Settings > Privacy & Security. Windows: on
@@ -346,6 +346,11 @@ jobs:
 
           install -m 600 /dev/null /tmp/aur_key && echo "$AUR_KEY" > /tmp/aur_key
           export GIT_SSH_COMMAND="ssh -i /tmp/aur_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          # The key works once it's on an AUR account; until then, skip
+          if ! $GIT_SSH_COMMAND aur@aur.archlinux.org help > /dev/null 2>&1; then
+            echo "::notice::The AUR doesn't accept AUR_SSH_PRIVATE_KEY yet: the AUR package was not updated"
+            exit 0
+          fi
           git clone -q ssh://aur@aur.archlinux.org/mdviewer-bin.git aur
           packaging/aur/PKGBUILD.sh "$version" "$sha_deb" "$sha_license" > aur/PKGBUILD
           # makepkg refuses to run as root

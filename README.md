@@ -45,7 +45,6 @@ Or install with a package manager:
 
 - **Homebrew (macOS):** `brew install --cask lambda-house/tap/mdviewer`
 - **apt (Debian, Ubuntu) and dnf (Fedora):** add the signed repository at [lambda-house.github.io/mdviewer-packages](https://lambda-house.github.io/mdviewer-packages/), then install `md-viewer`
-- **AUR (Arch):** `mdviewer-bin`
 
 Every release lists `SHA256SUMS` and has a build provenance attestation for each file: `gh attestation verify <file> --repo lambda-house/mdviewer-mj` checks that it was built by this repository's release workflow.
 
@@ -149,7 +148,7 @@ After a tagged release is published, three jobs of the release workflow update t
 |-----|---------|---------|
 | `homebrew` | `Casks/mdviewer.rb` in [lambda-house/homebrew-tap](https://github.com/lambda-house/homebrew-tap) | `HOMEBREW_TAP_DEPLOY_KEY`: private half of a write deploy key on that repository |
 | `linux-repo` | The apt and dnf repository in [lambda-house/mdviewer-packages](https://github.com/lambda-house/mdviewer-packages) (GitHub Pages), via `packaging/linux-repo/build.sh` | `PACKAGES_DEPLOY_KEY` (write deploy key on that repository) and `PACKAGES_GPG_PRIVATE_KEY` (armored signing key without passphrase) |
-| `aur` | [`mdviewer-bin`](https://aur.archlinux.org/packages/mdviewer-bin), which repackages the `.deb` | `AUR_SSH_PRIVATE_KEY`: the key registered on the AUR maintainer account |
+| `aur` | [`mdviewer-bin`](https://aur.archlinux.org/packages/mdviewer-bin), which repackages the `.deb`. Skips while the AUR doesn't accept the key | `AUR_SSH_PRIVATE_KEY`: the key registered on the AUR maintainer account |
 
 Users trust the packages' GPG key by its fingerprint, so keep a backup of it with its revocation certificate. The deploy keys and the AUR key can be replaced at any time.
 
