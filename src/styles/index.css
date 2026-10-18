@@ -1936,6 +1936,12 @@ a:hover {
   color: var(--text-secondary);
   font-size: 0.85em;
   overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.markdown-body .remote-image:hover {
+  border-color: var(--border-active);
+  color: var(--text-primary);
 }
 
 /* ============================================================

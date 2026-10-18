@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { X, Folder, Trash2, FolderPlus, Settings, ExternalLink, Code, Plus, Palette } from 'lucide-react';
 import { useStore } from '../store';
-import { pickDirectory, scanDirectories, isTauri, openInExplorer, checkForUpdate } from '../utils/tauri';
+import { pickDirectory, scanDirectories, isTauri, openInExplorer, checkForUpdate, getAppVersion } from '../utils/tauri';
 
 type SettingsCategory = 'directories' | 'general' | 'appearance' | 'highlighting';
 
@@ -22,6 +22,11 @@ const SettingsModal: React.FC = () => {
   const setCheckUpdatesOnStart = useStore((s) => s.setCheckUpdatesOnStart);
   const setAvailableUpdate = useStore((s) => s.setAvailableUpdate);
   const [updateStatus, setUpdateStatus] = useState('');
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAppVersion().then(setAppVersion).catch(() => {});
+  }, []);
   const loadRemoteImages = useStore((s) => s.loadRemoteImages);
   const setLoadRemoteImages = useStore((s) => s.setLoadRemoteImages);
   const languageAliases = useStore((s) => s.languageAliases);
@@ -162,7 +167,7 @@ const SettingsModal: React.FC = () => {
                   <div className="settings-option-info">
                     <span className="settings-option-label">Auto-refresh</span>
                     <span className="settings-option-description">
-                      Automatically refresh file list when files change on disk
+                      Update the file list and open documents when files change on disk
                     </span>
                   </div>
                   <label className="settings-toggle">
@@ -230,6 +235,7 @@ const SettingsModal: React.FC = () => {
                   <div className="settings-option-info">
                     <span className="settings-option-label">Check for updates on start</span>
                     <span className="settings-option-description">
+                      {appVersion && `You have MDViewer ${appVersion}. `}
                       {updateStatus || 'Look for a new version on GitHub when the app starts. Updates install only when you click Install'}
                     </span>
                   </div>

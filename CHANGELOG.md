@@ -1,5 +1,13 @@
 # MDViewer - Fixes Applied
 
+## Unreleased
+
+Found by the 1.1.0 smoke tests.
+
+- Open documents reload when another program changes them (unless they have unsaved edits). Before, only agent files did; other documents kept showing the old text
+- Clicking a remote image placeholder loads the document's images. The notice offering **Load images** sits at the top of the document, out of view when the image is further down
+- Settings → General shows the installed version; Windows and Linux have no About box
+
 ## Version 1.1.0
 
 This is the first release with in-app updates.

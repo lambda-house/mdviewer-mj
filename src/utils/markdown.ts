@@ -205,7 +205,7 @@ md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
     const titleIndex = token.attrIndex('title');
     const title = titleIndex >= 0 && token.attrs ? token.attrs[titleIndex][1] : '';
     return `<span class="remote-image" data-src="${escapeHtml(src)}" data-alt="${escapeHtml(alt)}"`
-      + `${title ? ` data-title="${escapeHtml(title)}"` : ''} title="${escapeHtml(src)}">`
+      + `${title ? ` data-title="${escapeHtml(title)}"` : ''} title="${escapeHtml(`${src}\nClick to load the images of this document`)}">`
       + `${escapeHtml(alt || 'Remote image')}</span>`;
   }
 

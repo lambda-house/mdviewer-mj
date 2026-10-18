@@ -63,7 +63,7 @@ Rust backend provides Tauri commands:
 - `read_file` / `write_file` - File I/O; `read_file` decodes UTF-16 BOM and XML-declared encodings, `write_file` encodes back the same way (refuses unknown encodings) and replaces the file atomically (temp file + rename, `atomic_write`)
 - `pick_directory` / `pick_files` / `export_file` - Native folder picker, file picker (Open File) and save dialog, opened from Rust (the JS dialog plugin isn't exposed)
 - `get_file_info` - File metadata
-- `start_watching` / `stop_watching` - File system watching (one event per change; `node_modules`/`target`/`.git` ignored). The frontend debounces rescans (300ms, no overlapping scans) and `setFiles` reuses unchanged tree nodes
+- `start_watching` / `stop_watching` - File system watching (one event per change; `node_modules`/`target`/`.git` ignored). The frontend debounces rescans (300ms, no overlapping scans), `setFiles` reuses unchanged tree nodes, and open documents whose file name changed are reloaded unless dirty (`reloadChangedDocuments` in `App.tsx`)
 - `read_history` / `append_to_history` / `clear_history` - `history/history.md` in the config dir, capped at 1000 entries, writes serialized
 - `adopt_session_access` - One-time migration of a session saved before the access list existed
 - `open_external` - Opens http/https/mailto links in the default browser (opener plugin, Rust-side only)

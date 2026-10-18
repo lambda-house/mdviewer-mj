@@ -53,6 +53,26 @@ function errorText(error: unknown): string {
   return String(error);
 }
 
+/**
+ * Reload the open documents an outside program changed (unless they have
+ * unsaved edits). Matched by file name: the watcher reports real paths, which
+ * can differ from the path a document was opened under (symlinks, /private).
+ */
+async function reloadChangedDocuments(names: string[]): Promise<void> {
+  if (names.length === 0) return;
+  const changed = new Set(names);
+  const { documents, reloadDocument } = useStore.getState();
+  await Promise.all(Object.values(documents)
+    .filter((doc) => !doc.isDirty && changed.has(getFileName(doc.path)))
+    .map(async (doc) => {
+      try {
+        reloadDocument(doc.path, await readFile(doc.path));
+      } catch {
+        // Removed or renamed: the tab keeps the last text
+      }
+    }));
+}
+
 const App: React.FC = () => {
   // Subscribe field by field so that high frequency updates (scroll offsets,
   // active heading) do not re-render the whole application.
@@ -166,6 +186,8 @@ const App: React.FC = () => {
           let timer: ReturnType<typeof setTimeout> | undefined;
           let scanning = false;
           let rescanAgain = false;
+          // Names of the files changed since the last scan
+          const changedNames = new Set<string>();
 
           const rescan = async () => {
             if (scanning) {
@@ -176,8 +198,11 @@ const App: React.FC = () => {
             if (currentDirs.length === 0) return;
 
             scanning = true;
+            const names = [...changedNames];
+            changedNames.clear();
             try {
               setFiles(await scanDirectories(currentDirs));
+              await reloadChangedDocuments(names);
             } catch (error) {
               console.error('Failed to refresh after file change:', error);
             } finally {
@@ -194,7 +219,10 @@ const App: React.FC = () => {
             timer = setTimeout(rescan, RESCAN_DEBOUNCE);
           };
 
-          const unlisten = await listen('files-changed', scheduleRescan);
+          const unlisten = await listen<{ path: string }>('files-changed', (event) => {
+            changedNames.add(getFileName(event.payload.path));
+            scheduleRescan();
+          });
 
           watcherCleanup.current = () => {
             clearTimeout(timer);

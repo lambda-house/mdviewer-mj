@@ -541,6 +541,11 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
         '--text-primary': markdownTextColor,
       } as React.CSSProperties}
       dangerouslySetInnerHTML={{ __html: html }}
+      // The notice is at the top, out of view in a long document: a
+      // placeholder loads the images too
+      onClick={(e) => {
+        if ((e.target as Element).closest?.('span.remote-image')) loadImagesForDocument();
+      }}
     />
     </>
   );

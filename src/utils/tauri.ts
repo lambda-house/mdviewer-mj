@@ -176,6 +176,13 @@ export interface UpdateInfo {
   notes?: string | null;
 }
 
+/** The installed version ("1.1.0"); null outside the app. */
+export async function getAppVersion(): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { getVersion } = await import('@tauri-apps/api/app');
+  return getVersion();
+}
+
 /** Ask the release server for a newer version; null when this is the latest. */
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!isTauri()) return null;
