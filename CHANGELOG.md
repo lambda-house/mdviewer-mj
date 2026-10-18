@@ -1,6 +1,6 @@
 # MDViewer - Fixes Applied
 
-## Unreleased
+## Version 1.1.1
 
 Found by the 1.1.0 smoke tests.
 

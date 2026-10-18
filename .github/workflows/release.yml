@@ -137,12 +137,13 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: MDViewer ${{ github.ref_name }}
           releaseBody: |
-            MDViewer 1.1.0 adds a searchable Files column with project agent files,
-            a collapsible Global agent files root, file associations for Markdown,
-            and improvements to opening folders, menus, search, and file access.
+            MDViewer 1.1.1 fixes what the 1.1.0 smoke tests found: open documents now
+            reload when another program changes them, clicking a remote image
+            placeholder loads the document's images, and Settings shows the
+            installed version. 1.1.0 users get it through the in-app update.
 
-            This is the first release with in-app updates. See CHANGELOG.md for
-            the full list of changes and README.md for installation instructions.
+            See CHANGELOG.md for the full list of changes and README.md for
+            installation instructions.
 
             Install with `brew install --cask lambda-house/tap/mdviewer`
             or from the apt/dnf repository at https://lambda-house.github.io/mdviewer-packages/.
