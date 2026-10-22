@@ -17,6 +17,10 @@ A powerful, elegant markdown document viewer built with Tauri, React, and TypeSc
 - ⚡ **Fast and lightweight** - built with Tauri for minimal resource usage
 - 🖥️ **Cross-platform** - Windows, macOS, and Linux
 
+## UI
+
+![MD VIewer MJ](./docs/mdviewer-mj-screenshot.png)
+
 ## Tech Stack
 
 | Layer | Technology |
