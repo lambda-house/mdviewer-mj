@@ -22,6 +22,13 @@ use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 mod agent;
+mod session_analysis;
+mod session_analysis_commands;
+mod session_mcp;
+mod session_commands;
+mod session_db;
+mod session_memory;
+mod sessions;
 
 // ============================================================
 // Types
@@ -112,6 +119,10 @@ pub struct Access {
     /// (`agent::is_agent_document`) counts as opened.
     #[serde(default)]
     agent_workspace: bool,
+    #[serde(default)]
+    session_workspace: bool,
+    #[serde(default)]
+    session_memories: bool,
 }
 
 impl Access {
@@ -666,7 +677,13 @@ static HISTORY_LOCK: Mutex<()> = Mutex::new(());
 
 fn get_config_dir() -> Result<PathBuf, AppError> {
     dirs::config_dir()
-        .map(|p| p.join("mdviewer"))
+        .map(|p| {
+            p.join(if cfg!(feature = "sessions-preview") {
+                "mdviewer-sessions-preview"
+            } else {
+                "mdviewer"
+            })
+        })
         .ok_or_else(|| AppError::new("CONFIG_ERROR", "Cannot determine config directory"))
 }
 
@@ -1384,6 +1401,10 @@ pub struct UpdateInfo {
 /// for a newer version. `None` when this one is the latest.
 #[tauri::command]
 async fn check_for_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Result<Option<UpdateInfo>, AppError> {
+    // Preview builds must never offer the production updater channel.
+    if cfg!(feature = "sessions-preview") {
+        return Ok(None);
+    }
     let update = app.updater()
         .map_err(|e| AppError::with_details("UPDATE_ERROR", "Updater unavailable", &e.to_string()))?
         .check()
@@ -1555,7 +1576,7 @@ impl LaunchPaths {
             return;
         }
         drop(queue);
-        let _ = app.emit("open-paths", paths);
+        let _ = app.emit_to("main", "open-paths", paths);
     }
 }
 
@@ -1619,7 +1640,11 @@ fn install_app_menu(app: &mut tauri::App) -> tauri::Result<()> {
         "help.issues" => {
             let _ = app.opener().open_url("https://github.com/lambda-house/mdviewer-mj/issues", None::<&str>);
         }
-        id => { let _ = app.emit("menu-command", id); }
+        id => {
+            if let Some(window) = app.webview_windows().values().find(|window| window.is_focused().unwrap_or(false)) {
+                let _ = app.emit_to(window.label(), "menu-command", id);
+            }
+        }
     });
     Ok(())
 }
@@ -1648,6 +1673,12 @@ fn apply_linux_rendering_workarounds() {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--mcp") {
+        let path = std::env::args().nth(2).map(PathBuf::from).or_else(||get_config_dir().ok().map(|p|p.join("analysis/mcp.sock")));
+        let result = path.ok_or_else(||"Configuration directory unavailable".to_string()).and_then(|p|session_mcp::bridge(&p));
+        if let Err(e) = result {eprintln!("{e}");std::process::exit(1);}
+        return;
+    }
     #[cfg(target_os = "linux")]
     apply_linux_rendering_workarounds();
 
@@ -1672,6 +1703,8 @@ fn main() {
             app.state::<LaunchPaths>().deliver(app, paths);
         }))
         .manage(AppState::default())
+        .manage(session_commands::SessionState::default())
+        .manage(session_analysis_commands::AnalysisState::default())
         .manage(access)
         .manage(LaunchPaths(Mutex::new(LaunchPathQueue { pending: launch_paths, frontend_ready: false })))
         .manage(PendingUpdate::default())
@@ -1681,7 +1714,11 @@ fn main() {
         // Used from Rust only (`open_external`); no JS permissions are granted
         .plugin(tauri_plugin_opener::init())
         .plugin(navigation_guard())
-        .setup(|app| install_app_menu(app).map_err(Into::into))
+        .setup(|app| {
+            install_app_menu(app)?;
+            session_analysis_commands::start_scanner(app.handle().clone());
+            Ok(())
+        })
         // Dropped files and folders were chosen by the user. Tauri runs this
         // listener in the same event-loop turn that queues the drop event for
         // the webview, so the paths are granted before the frontend sees them.
@@ -1694,6 +1731,25 @@ fn main() {
             serve_local_image(&ctx.app_handle().state::<AccessState>(), request.uri().path())
         })
         .invoke_handler(tauri::generate_handler![
+            session_analysis_commands::analysis_access,
+            session_analysis_commands::enable_analysis,
+            session_analysis_commands::revoke_analysis,
+            session_analysis_commands::run_session_analysis,
+            session_commands::session_access,
+            session_commands::enable_sessions,
+            session_commands::disable_sessions,
+            session_commands::sessions_snapshot,
+            session_commands::session_details,
+            session_commands::session_events,
+            session_commands::session_memory_access,
+            session_commands::enable_session_memories,
+            session_commands::session_memories,
+            session_commands::read_session_memory,
+            session_commands::open_session_memory_window,
+            session_commands::session_connections,
+            session_commands::configure_session_connections,
+            session_commands::session_context,
+            session_commands::session_control,
             scan_directories,
             scan_project_agent_files,
             read_file,

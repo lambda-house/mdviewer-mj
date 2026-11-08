@@ -5,6 +5,7 @@ import type { ColorTheme } from '../utils/markdown';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
 import type { AgentEntry, UpdateInfo } from '../utils/tauri';
 import { sameScrollPosition, type ScrollPosition } from '../utils/scrollAnchor';
+import { documentWindowPath, documentWindowStorage } from '../utils/documentWindow';
 
 // ============================================================
 // Constants
@@ -1170,7 +1171,7 @@ export const useStore = create<AppState>()(
     {
       name: 'mdviewer-storage',
       version: 4,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => documentWindowPath ? documentWindowStorage(localStorage) : localStorage),
       partialize: (state) => ({
         // Only persist these fields
         directories: state.directories,
