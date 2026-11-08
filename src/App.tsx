@@ -34,6 +34,8 @@ import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
+import SessionWorkspace from './components/SessionWorkspace';
+import { documentWindowPath } from './utils/documentWindow';
 
 // ============================================================
 // Main App Component
@@ -74,6 +76,8 @@ async function reloadChangedDocuments(names: string[]): Promise<void> {
 }
 
 const App: React.FC = () => {
+  const [sessionsVisible, setSessionsVisible] = useState(!documentWindowPath && import.meta.env.VITE_MDVIEWER_SESSIONS_PREVIEW === '1');
+  const [sessionsMounted, setSessionsMounted] = useState(sessionsVisible);
   // Subscribe field by field so that high frequency updates (scroll offsets,
   // active heading) do not re-render the whole application.
   const panelWidth = useStore((s) => s.panelWidth);
@@ -138,7 +142,7 @@ const App: React.FC = () => {
     const restore = async () => {
       const persistedTabs = useStore.getState().tabs;
 
-      if (persistedTabs.length === 0 || !isTauri()) {
+      if (documentWindowPath || persistedTabs.length === 0 || !isTauri()) {
         restoreSession([]);
         return;
       }
@@ -168,6 +172,8 @@ const App: React.FC = () => {
   const watcherCleanup = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    // The main window owns the process-wide directory watcher.
+    if (documentWindowPath) return;
     const setupWatcher = async () => {
       const { directories, autoRefresh } = useStore.getState();
 
@@ -291,7 +297,7 @@ const App: React.FC = () => {
   // agent file is open, when the backend reports a change and when the window
   // gets focus. Each scan also makes the backend watch newly opened folders.
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri() || documentWindowPath) return;
     if (!agentVisible && !hasAgentTabs) {
       // Still learn which documents are agent files (for "what changed")
       refreshAgentWorkspace().catch(() => {});
@@ -346,6 +352,19 @@ const App: React.FC = () => {
     });
   }, [openDocument]);
   
+  // A native memory window opens only its requested document, independently of
+  // the main window's launch queue and saved tabs.
+  useEffect(() => {
+    if (!documentWindowPath || !sessionRestored) return;
+    void openPath(documentWindowPath).catch(error => alert(`Could not open memory:\n${errorText(error)}`));
+    const refresh = () => {
+      const names = Object.values(useStore.getState().documents).map(doc => getFileName(doc.path));
+      void reloadChangedDocuments(names);
+    };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [sessionRestored, openPath]);
+
   // Look for a new version a few seconds after start (not during startup work)
   useEffect(() => {
     if (!isTauri() || !useStore.getState().checkUpdatesOnStart) return;
@@ -527,7 +546,7 @@ const App: React.FC = () => {
   // Listen before draining startup paths so Finder / a second instance cannot
   // deliver a file between the two steps and lose its event.
   useEffect(() => {
-    if (!sessionRestored) return;
+    if (!sessionRestored || documentWindowPath) return;
 
     let unlisten: (() => void) | undefined;
     let disposed = false;
@@ -727,10 +746,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('wheel', handleWheel);
   }, [zoomIn, zoomOut, zoomPanel]);
   
+
+
   return (
     <div className="app-container">
+      <div className="workspace-surface" hidden={!sessionsVisible}>
+        {sessionsMounted && <SessionWorkspace active={sessionsVisible} onClose={() => setSessionsVisible(false)} />}
+      </div>
+      {!sessionsVisible && <div className="workspace-surface">
       <Toolbar
         menu={menu}
+        onOpenSessions={documentWindowPath ? undefined : () => { setSessionsMounted(true); setSessionsVisible(true); }}
         onAddDirectory={handleAddDirectory}
         filePanelVisible={filePanelVisible && !searchVisible && !historyVisible}
         onToggleFilePanel={handleToggleFilePanel}
@@ -803,6 +829,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      </div>}
     </div>
   );
 };

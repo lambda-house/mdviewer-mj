@@ -201,6 +201,46 @@ In the Files panel, select **Agents** to show agent documents inside the folders
 
 The first time you expand the root, select **Show agent files** to confirm access in a native dialog. Everything that is there then counts as read. After that, a dot marks files an agent has changed since you last read them, and **Changed since you read them** collects them at the top. Opening one highlights the changed blocks, with **Next change** and **Mark as read**; leaving the document marks it read too. While the root or an agent file is open, the list and open documents update as soon as an agent writes a file.
 
+## Sessions workspace
+
+To test alongside an installed MDViewer on macOS, run `npm run build:sessions-preview` and open `src-tauri/target/debug/bundle/macos/MDViewer Sessions Preview.app`. This build has a distinct bundle identifier, opens directly to Sessions, uses `mdviewer-sessions-preview` for its backend settings, and disables production updates and file associations. Launching the normal build while MDViewer is already running hands off to the existing instance, so its new UI will not appear until that instance is quit.
+
+Use the **Documents / Sessions** switch in the toolbar to inspect Codex and Claude activity across all recorded project directories. **Enable session access** grants a separate, revocable permission to read `~/.codex/sessions` and `~/.claude/projects`. The existing Global agent files permission does not grant transcript access.
+
+Statistics stay in a compact corner summary; expand it for token totals and session counts. The directory map and activity window are collapsible.
+
+The workspace provides:
+
+- Collapsible session hierarchy distinguishes human sessions, subagents, automation and unknown origins. Human forks retain a separate source link. Filtered-out ancestors remain visible for context and do not inflate totals.
+- Provider, role, status, model, tool and ticket search. Expand **Activity window** for the time filters. **Active since** includes last activity at or after a local date/time; **Inactive since** includes last activity at or before it. **Active in the last** selects recent activity; **No activity for** adds a relative inactivity threshold. These use transcript modification time, not verified process liveness.
+- A directory map includes every recorded working directory, including directory changes within a session. Choose **Current directory** (the selected session’s directory, otherwise the app’s launch directory or `~/work`), an ancestor directory, or **All locations**. Counts include descendant directories without counting a session twice.
+- Message and tool activity with source provenance, model/effort, and per-model token accounting.
+- Input, cached input, cache writes, output and reasoning usage. Cached input is already part of input; reasoning is already part of output. Monetary cost is not inferred from subscription token counts.
+- Jira ticket mentions with browser links and on-demand issue details. A mention does not imply assignment.
+- TEOB `memory_run` lookup by session ID, plus memory tools observed in the transcript.
+- **User memories** and each session’s **Memories** tab show user-wide instructions/memory, shared project files, and explicitly session-linked Codex memories and recorded compaction context. Local memory access has a separate native permission. Files show their source and scope; current shared files are not presented as historical session snapshots. **Open in new window** opens Markdown memories in a separate MDViewer reader, keeping the Sessions view in place. Reopening the same file focuses its existing window.
+- Live Codex inspection, steering and interruption through an **existing** local app-server daemon on macOS/Linux. Commands are confirmed in a native dialog and carry the observed turn ID. No second writer or daemon is started. Externally launched Claude sessions currently provide inspection and a copyable resume command; live Claude steering is not connected.
+
+Recent files are indexed first, in bounded batches; **totals are partial** while history is indexing. The overview refreshes every five seconds while visible; during cold indexing it continues immediately between bounded batches. A persistent SQLite index stores file checkpoints, usage deduplication state and extracted activity. Restarts reuse it: unchanged transcripts require no content reads, appended records resume from the saved offset, incomplete trailing lines wait for the writer, and replaced/truncated files invalidate old events. The activity view pages 300 extracted events from SQLite at a time, with 12,000-character previews. Malformed or oversized records are reported. The footer shows the cache location, restored file count and bytes parsed in the latest scan. **Revoke session access** clears the index and disables local memory access.
+
+The index lives at `dirs::config_dir()/mdviewer/sessions/index.sqlite` (on macOS, `~/Library/Application Support/mdviewer/sessions/index.sqlite`). The isolated preview uses `mdviewer-sessions-preview` instead. Initial history indexing runs once and resumes across restarts; the database contains private extracted transcript content.
+
+Local memory discovery reads fixed Markdown locations under the agent folders and known session directories. Claude project memory is shared, not private to one session. Codex thread memories are read from `~/.codex/memories_1.sqlite`, matched by `stage1_outputs.thread_id`. If the live database cannot be opened read-only, a labelled checkpoint-only view may omit recent WAL records. Recorded memory-tool calls are evidence of an attempt, not proof that a write succeeded.
+
+**Observed working** means a transcript reported an unfinished turn and was written within two minutes; it does not prove process liveness. **Stale** means an unfinished turn has no recent writes. Use **Direct → Inspect live Codex state** to check the daemon. Unknown telemetry stays unknown.
+
+**Connections** accepts an Atlassian site, email and API token, and a TEOB memory MCP HTTPS endpoint and access token. Tokens stay only in the desktop process, never localStorage or a config file, and are cleared on exit or **Revoke session access**. Saving replaces both connections. Reads happen only when you request an issue or memory run; redirects are refused, requests time out, and responses are bounded. The app does not reuse credentials from another agent or from a connected chat plugin. TEOB must grant access to the requested memory run; a session ID alone does not grant access.
+
+For a read-only JSON extraction using the same Rust index:
+
+```bash
+cargo run --manifest-path src-tauri/Cargo.toml --example session_snapshot --no-default-features > /tmp/mdviewer-sessions.json
+```
+
+Optional positional arguments are `max_batches cache_path home_override`; providing a cache path enables persistent reuse for the extractor too. For example, `-- 1000 /tmp/mdviewer-session-cache/index.sqlite` uses a dedicated temporary cache directory.
+
+The JSON contains session metadata, counts, ticket mentions and provenance paths, with activity loaded separately in the desktop workspace. Treat exports as private workspace data. The extractor never changes agent transcripts.
+
 ## Keyboard Shortcuts
 
 The menu button (☰, top left) lists every command with its shortcut.
@@ -322,3 +362,7 @@ MIT License, © 2026 Lambda House. See [LICENSE](LICENSE).
 - [Mermaid](https://mermaid.js.org/) - Diagram library
 - [Lucide](https://lucide.dev/) - Icons
 - [Zustand](https://github.com/pmndrs/zustand) - State management
+
+### Agent analysis through MCP
+
+In Sessions, open **Agent access** to share a session/directory scope with local MCP clients. The app owns the SQLite index; clients start its executable with `--mcp` and connect through a private Unix socket. Seven read-only tools expose session metadata, tool/skill observations, cohort comparisons and bounded evidence. Sharing lasts until revoked or the app closes. [Connection, query examples and validation](docs/SESSION_ANALYSIS_MCP.md).

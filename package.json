@@ -10,7 +10,8 @@
     "build:web": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:sessions-preview": "VITE_MDVIEWER_SESSIONS_PREVIEW=1 tauri build --debug --features sessions-preview --bundles app --config src-tauri/tauri.sessions-preview.conf.json"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

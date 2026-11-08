@@ -21,6 +21,7 @@ import type { MenuItem } from '../utils/commands';
 import clsx from 'clsx';
 import MainMenu from './MainMenu';
 import WorkspaceMenu from './WorkspaceMenu';
+import WorkspaceSwitch from './WorkspaceSwitch';
 
 // ============================================================
 // Zoom Control Component
@@ -92,6 +93,7 @@ const ZoomControl: React.FC = () => {
 // ============================================================
 
 interface ToolbarProps {
+  onOpenSessions?: () => void;
   /** The main menu (see utils/commands.ts). */
   menu: MenuItem[];
   onAddDirectory?: () => void;
@@ -107,6 +109,7 @@ interface ToolbarProps {
 
 const Toolbar: React.FC<ToolbarProps> = ({
   menu,
+  onOpenSessions,
   onAddDirectory,
   filePanelVisible,
   onToggleFilePanel,
@@ -155,6 +158,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     <header className="toolbar">
       {/* Left Section */}
       <div className="toolbar-group">
+        {onOpenSessions && <WorkspaceSwitch active="documents" onChange={workspace => { if (workspace === 'sessions') onOpenSessions(); }} />}
         <MainMenu items={menu} />
         <button
           className={clsx('toolbar-button', filePanelVisible && 'active')}

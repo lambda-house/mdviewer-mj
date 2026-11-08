@@ -1,5 +1,22 @@
 # MDViewer - Fixes Applied
 
+## Unreleased
+
+- Added a shared Documents / Sessions switch, compact session rows and activity, collapsible directory and time filters, and a corner statistics summary.
+- Added **Active in the last** alongside **No activity for**.
+- Markdown memories open in separate reader windows, reusing an existing window for the same file and preserving the main workspace.
+- Jira browser links use the configured Atlassian site.
+
+- Added local read-only MCP analysis with scoped Agent access, connected-client/query audit, evidence navigation, persistent correlated tool facts and descriptive skill/cohort measures.
+
+- Added the Sessions workspace: incremental local Codex/Claude transcript indexing, agent families, model and token accounting, activity drill-down, and ticket mentions.
+- Session indexing now persists SQLite checkpoints, deduplicated usage and paged events across app restarts; unchanged transcripts are reused without content reads.
+- Added human/subagent hierarchy, separate fork links, role and activity-window filters, and a directory map covering historical working directories.
+- Added user, project and session memory views with source provenance and a separate local-memory permission.
+- Added on-demand Jira issue and TEOB memory-run connections with credentials held only in process memory.
+- Added existing-daemon Codex inspection, steering and interruption, with native confirmation and turn preconditions. Claude control remains a terminal handoff.
+- Session transcript access is separate from Global agent files and can be revoked in the workspace.
+
 ## Version 1.1.1
 
 Found by the 1.1.0 smoke tests.

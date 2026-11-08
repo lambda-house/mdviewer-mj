@@ -1,0 +1,26 @@
+{
+  "productName": "MDViewer Sessions Preview",
+  "identifier": "cc.lambdahouse.mdviewer.sessions-preview",
+  "app": {
+    "windows": [
+      {
+        "title": "MDViewer \u2014 Sessions Preview",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 768,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ]
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "fileAssociations": [],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  }
+}
