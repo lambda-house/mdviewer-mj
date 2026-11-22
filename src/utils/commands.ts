@@ -1,5 +1,5 @@
+import { createMenuStore, type Command as WorkbenchCommand, type MenuItem as WorkbenchMenuItem, type Submenu as WorkbenchSubmenu } from '@lambda-house/workbench';
 import { useStore, canNavigateBack, canNavigateForward, type AppState } from '../store';
-import { PLATFORM } from './platform';
 import { saveActiveDocument, requestSaveAll } from './save';
 import { exportActiveDocument } from './export';
 
@@ -8,90 +8,17 @@ import { exportActiveDocument } from './export';
 // the menu and its shortcut are defined once.
 
 // ============================================================
-// Keyboard Shortcuts
+// Commands: the types and helpers are the workbench's
 // ============================================================
 
-export interface Shortcut {
-  /** `KeyboardEvent.key`; letters in lower case. */
-  key: string;
-  /** Ctrl, or Cmd on macOS. */
-  mod?: boolean;
-  /** Ctrl, on macOS too: the system keeps Cmd+Tab for itself. */
-  ctrl?: boolean;
-  shift?: boolean;
-  alt?: boolean;
-}
+export type Command = WorkbenchCommand<AppState>;
+export type Submenu = WorkbenchSubmenu<AppState>;
+export type MenuItem = WorkbenchMenuItem<AppState>;
+export type { Shortcut } from '@lambda-house/workbench';
+export { commandForKey, formatShortcut, isSubmenu, menuCommands } from '@lambda-house/workbench';
 
-/**
- * The key a press stands for. On a layout without Latin letters (Cyrillic,
- * Greek) that is the letter on the physical key, so Ctrl+S saves there too.
- */
-function pressedKey(e: KeyboardEvent): string {
-  if (e.key.length === 1 && e.key.charCodeAt(0) > 127) {
-    const letter = /^Key([A-Z])$/.exec(e.code);
-    if (letter) return letter[1].toLowerCase();
-  }
-  return e.key.toLowerCase();
-}
-
-/** Whether a key press is this shortcut. Ctrl and Cmd both count as the modifier. */
-function matchesShortcut(e: KeyboardEvent, shortcut: Shortcut): boolean {
-  if (pressedKey(e) !== shortcut.key.toLowerCase()) return false;
-  if ((e.metaKey || e.ctrlKey) !== Boolean(shortcut.mod || shortcut.ctrl)) return false;
-  if (e.altKey !== Boolean(shortcut.alt)) return false;
-  // Shift is part of typing a symbol or a digit ("+" is Shift+= on a US
-  // keyboard, digits need Shift on AZERTY): it only tells letters and named
-  // keys apart
-  const shiftCounts = shortcut.key.length > 1 || /[a-z]/i.test(shortcut.key);
-  return !shiftCounts || e.shiftKey === Boolean(shortcut.shift);
-}
-
-const KEY_NAMES: Record<string, string> = { ArrowLeft: 'Left', ArrowRight: 'Right' };
-const MAC_KEY_NAMES: Record<string, string> = { ArrowLeft: '←', ArrowRight: '→' };
-
-/** A shortcut as the platform writes it: "Ctrl+Shift+S", or "⇧⌘S" on macOS. */
-export function formatShortcut(shortcut: Shortcut): string {
-  const isMac = PLATFORM === 'macos';
-  const key = (isMac ? MAC_KEY_NAMES : KEY_NAMES)[shortcut.key]
-    ?? (shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key);
-
-  const parts = isMac
-    // The order of macOS menus: Control, Option, Shift, Command
-    ? [shortcut.ctrl && '⌃', shortcut.alt && '⌥', shortcut.shift && '⇧', shortcut.mod && '⌘', key]
-    : [(shortcut.mod || shortcut.ctrl) && 'Ctrl', shortcut.alt && 'Alt', shortcut.shift && 'Shift', key];
-  return parts.filter(Boolean).join(isMac ? '' : '+');
-}
-
-// ============================================================
-// Commands
-// ============================================================
-
-export interface Command {
-  id: string;
-  label: string;
-  shortcut?: Shortcut;
-  /** Other keys that run the command; the menu shows only `shortcut`. */
-  aliases?: Shortcut[];
-  /**
-   * Whether the menu offers the command now (default: always). `run` is safe
-   * to call either way: a shortcut runs it without asking.
-   */
-  enabled?: (state: AppState) => boolean;
-  /** A toggle: whether it is on now (the menu shows a check mark). */
-  checked?: (state: AppState) => boolean;
-  run: () => void;
-}
-
-export interface Submenu {
-  label: string;
-  items: Array<Command | 'separator'>;
-}
-
-export type MenuItem = Command | Submenu | 'separator';
-
-export function isSubmenu(item: MenuItem): item is Submenu {
-  return item !== 'separator' && 'items' in item;
-}
+/** The menu App builds, for the command palette. */
+export const appMenu = createMenuStore<AppState>();
 
 /** What the commands need from the app shell (App.tsx); the rest is in the store. */
 export interface MenuActions {
@@ -251,6 +178,13 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
       label: 'Search',
       items: [
         {
+          id: 'app.commandPalette',
+          label: 'Command Palette…',
+          shortcut: { mod: true, shift: true, key: 'p' },
+          palette: false,
+          run: () => state().setPaletteOpen(true),
+        },
+        {
           id: 'search.find',
           label: 'Find in Document…',
           shortcut: { mod: true, key: 'f' },
@@ -341,22 +275,4 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
       run: () => state().setSettingsOpen(true),
     },
   ];
-}
-
-/** Every command of a menu, the ones in submenus included. */
-export function menuCommands(items: MenuItem[]): Command[] {
-  return items.flatMap((item) => {
-    if (item === 'separator') return [];
-    return isSubmenu(item) ? menuCommands(item.items) : [item];
-  });
-}
-
-/** The command a key press runs, if any. */
-export function commandForKey(commands: Command[], e: KeyboardEvent): Command | undefined {
-  // The webview's autofill sends keydown events without a key
-  if (!e.key) return undefined;
-
-  return commands.find((command) =>
-    [command.shortcut, ...(command.aliases ?? [])].some((shortcut) => shortcut && matchesShortcut(e, shortcut))
-  );
 }

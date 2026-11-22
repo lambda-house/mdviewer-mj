@@ -21,7 +21,7 @@ import {
   checkForUpdate,
   onAgentFilesChanged,
 } from './utils/tauri';
-import { buildMenu, menuCommands, commandForKey } from './utils/commands';
+import { appMenu, buildMenu, menuCommands, commandForKey } from './utils/commands';
 import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
 import Toolbar from './components/Toolbar';
 import FilePanel from './components/FilePanel';
@@ -35,6 +35,7 @@ import SearchPanel from './components/SearchPanel';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
 import SessionWorkspace from './components/SessionWorkspace';
+import CommandPalette from './components/CommandPalette';
 import { documentWindowPath } from './utils/documentWindow';
 
 // ============================================================
@@ -614,6 +615,9 @@ const App: React.FC = () => {
     [handleOpenFile, handleAddDirectory, handleReopenClosedTab]
   );
 
+  // The command palette lists the same commands
+  useEffect(() => appMenu.set(menu), [menu]);
+
   // The system menu uses the same commands as the toolbar menu.
   useEffect(() => {
     if (!isTauri()) return;
@@ -830,6 +834,7 @@ const App: React.FC = () => {
         </div>
       )}
       </div>}
+      <CommandPalette openFile={(path) => { openPath(path).catch((error) => alert(`Could not open ${path}:\n${errorText(error)}`)); }} />
     </div>
   );
 };

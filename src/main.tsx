@@ -12,6 +12,7 @@ import '@fontsource/jetbrains-mono/500.css';
 import '@fontsource/jetbrains-mono/600.css';
 import '@lambda-house/tokens/tokens.css';
 import '@lambda-house/ui/ui.css';
+import '@lambda-house/workbench/workbench.css';
 import './styles/index.css';
 
 // Apply the persisted theme before the first paint (no dark flash in light

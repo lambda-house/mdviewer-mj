@@ -1,9 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Menu, Check, ChevronRight } from 'lucide-react';
-import clsx from 'clsx';
-import { useStore } from '../store';
-import { formatShortcut, isSubmenu, type Command, type MenuItem } from '../utils/commands';
-import { flushEditorChanges } from '../utils/editorRegistry';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Check, ChevronRight, Menu as MenuIcon } from 'lucide-react';
+import { cx } from '@lambda-house/ui';
+import { formatShortcut, isSubmenu, type Command, type MenuItem } from './commands';
 
 /**
  * How long an open submenu stays when the pointer moves to another row (ms):
@@ -15,8 +13,9 @@ const SUBMENU_SWITCH_DELAY = 250;
 // Menu Popup
 // ============================================================
 
-interface MenuPopupProps {
-  items: MenuItem[];
+interface MenuPopupProps<C> {
+  items: MenuItem<C>[];
+  context: C;
   /** Opened from the keyboard: the first row starts highlighted. */
   highlightFirst: boolean;
   onClose: () => void;
@@ -27,9 +26,7 @@ interface MenuPopupProps {
  * input), so it is still there once the menu closes; keys are caught on the
  * window instead.
  */
-const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose }) => {
-  // The whole state: what is enabled or checked follows it while the menu is open
-  const state = useStore();
+function MenuPopup<C>({ items, context, highlightFirst, onClose }: MenuPopupProps<C>) {
   /** Highlighted row (-1: none). */
   const [activeIndex, setActiveIndex] = useState(highlightFirst ? 0 : -1);
   /** Row whose submenu is open. */
@@ -38,12 +35,12 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
   const [submenuActiveIndex, setSubmenuActiveIndex] = useState(-1);
   const switchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const isDisabled = (command: Command) => command.enabled?.(state) === false;
-  const canHighlight = (item: MenuItem) =>
+  const isDisabled = (command: Command<C>) => command.enabled?.(context) === false;
+  const canHighlight = (item: MenuItem<C>) =>
     item !== 'separator' && (isSubmenu(item) || !isDisabled(item));
 
   /** The next row to highlight, down (1) or up (-1) from `from`, wrapping around. */
-  const step = (list: MenuItem[], from: number, direction: 1 | -1): number => {
+  const step = (list: MenuItem<C>[], from: number, direction: 1 | -1): number => {
     const start = from === -1 && direction === -1 ? 0 : from;
     for (let n = 1; n <= list.length; n++) {
       const index = (((start + direction * n) % list.length) + list.length) % list.length;
@@ -52,7 +49,7 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
     return from;
   };
 
-  const run = (command: Command) => {
+  const run = (command: Command<C>) => {
     if (isDisabled(command)) return;
     onClose();
     command.run();
@@ -152,13 +149,13 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   });
 
-  const renderCommand = (command: Command, highlighted: boolean, onHover: () => void) => {
+  const renderCommand = (command: Command<C>, highlighted: boolean, onHover: () => void) => {
     const disabled = isDisabled(command);
-    const checked = command.checked?.(state);
+    const checked = command.checked?.(context);
     return (
       <button
         key={command.id}
-        className={clsx('main-menu-item', highlighted && !disabled && 'highlighted', disabled && 'disabled')}
+        className={cx('ui-menu__item', highlighted && 'is-highlighted', disabled && 'is-disabled')}
         onMouseEnter={onHover}
         onClick={() => run(command)}
         role={command.checked ? 'menuitemcheckbox' : 'menuitem'}
@@ -166,22 +163,20 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
         aria-disabled={disabled || undefined}
         type="button"
       >
-        <span className="main-menu-check">{checked && <Check size={12} />}</span>
-        <span className="main-menu-label">{command.label}</span>
-        {command.shortcut && (
-          <span className="main-menu-shortcut">{formatShortcut(command.shortcut)}</span>
-        )}
+        <span className="ui-menu__check">{checked && <Check size={12} />}</span>
+        <span className="ui-menu__label">{command.label}</span>
+        {command.shortcut && <span className="ui-menu__shortcut">{formatShortcut(command.shortcut)}</span>}
       </button>
     );
   };
 
   const renderSeparator = (index: number) => (
-    <div key={`separator-${index}`} className="context-menu-separator" role="separator" />
+    <div key={`separator-${index}`} className="ui-menu__separator" role="separator" />
   );
 
   return (
     <div
-      className="context-menu main-menu-panel"
+      className="ui-menu wb-main-menu__panel"
       role="menu"
       aria-label="Menu"
       // A click on a row must not take the focus
@@ -193,22 +188,22 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
 
         const expanded = i === submenuIndex;
         return (
-          <div key={item.label} className="main-menu-submenu" onMouseEnter={() => hoverRow(i)}>
+          <div key={item.label} className="wb-main-menu__submenu" onMouseEnter={() => hoverRow(i)}>
             <button
-              className={clsx('main-menu-item', i === activeIndex && 'highlighted')}
+              className={cx('ui-menu__item', i === activeIndex && 'is-highlighted')}
               onClick={() => openSubmenu(i)}
               role="menuitem"
               aria-haspopup="menu"
               aria-expanded={expanded}
               type="button"
             >
-              <span className="main-menu-check" />
-              <span className="main-menu-label">{item.label}</span>
-              <ChevronRight size={12} className="main-menu-arrow" aria-hidden="true" />
+              <span className="ui-menu__check" />
+              <span className="ui-menu__label">{item.label}</span>
+              <span className="ui-menu__arrow" aria-hidden="true"><ChevronRight size={12} /></span>
             </button>
             {expanded && (
               <div
-                className="context-menu main-menu-panel main-menu-subpanel"
+                className="ui-menu wb-main-menu__panel wb-main-menu__panel--sub"
                 role="menu"
                 aria-label={item.label}
                 onMouseLeave={() => setSubmenuActiveIndex(-1)}
@@ -225,22 +220,33 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
       })}
     </div>
   );
-};
-
-// ============================================================
-// Main Menu Component
-// ============================================================
-
-interface MainMenuProps {
-  /** The app's commands, as laid out by `buildMenu`. */
-  items: MenuItem[];
 }
 
-/**
- * The toolbar's menu button: every command of the app, grouped, with its
- * keyboard shortcut.
- */
-const MainMenu: React.FC<MainMenuProps> = ({ items }) => {
+/** Reads the context while the popup is open: subscribing there re-renders only the open menu. */
+function LivePopup<C>({ useCommandContext, ...props }: Omit<MenuPopupProps<C>, 'context'> & { useCommandContext: () => C }) {
+  return <MenuPopup {...props} context={useCommandContext()} />;
+}
+
+// ============================================================
+// Main Menu
+// ============================================================
+
+export interface MainMenuProps<C> {
+  /** The app's commands, grouped. */
+  items: MenuItem<C>[];
+  /**
+   * A hook that returns what `enabled` and `checked` look at, re-rendering
+   * when it changes (the app's store hook). Called only while the menu is open.
+   */
+  useCommandContext: () => C;
+  /** Runs before the menu opens (the editor passes on its pending typing, which decides what Save offers). */
+  onOpen?: () => void;
+  /** Class of the menu button, to match the toolbar it sits in; `active` is added while open. */
+  buttonClassName?: string;
+}
+
+/** The menu button: every command of the app, grouped, with its keyboard shortcut. */
+export function MainMenu<C>({ items, useCommandContext, onOpen, buttonClassName }: MainMenuProps<C>) {
   const [open, setOpen] = useState(false);
   const [openedByKeyboard, setOpenedByKeyboard] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -248,11 +254,10 @@ const MainMenu: React.FC<MainMenuProps> = ({ items }) => {
   const close = useCallback(() => setOpen(false), []);
 
   const show = useCallback((byKeyboard: boolean) => {
-    // Typing the editor has not passed on yet decides what Save offers
-    flushEditorChanges();
+    onOpen?.();
     setOpenedByKeyboard(byKeyboard);
     setOpen(true);
-  }, []);
+  }, [onOpen]);
 
   // Dismiss on outside click, blur or resize (keys are handled by the popup)
   useEffect(() => {
@@ -271,9 +276,9 @@ const MainMenu: React.FC<MainMenuProps> = ({ items }) => {
   }, [open, close]);
 
   return (
-    <div className="main-menu" ref={rootRef}>
+    <div className="wb-main-menu" ref={rootRef}>
       <button
-        className={clsx('toolbar-button', open && 'active')}
+        className={cx(buttonClassName, open && 'active')}
         // Opening the menu with the mouse leaves the focus where it is
         onMouseDown={(e) => e.preventDefault()}
         // A click without a pointer is Enter or Space on the button
@@ -290,12 +295,10 @@ const MainMenu: React.FC<MainMenuProps> = ({ items }) => {
         aria-expanded={open}
         type="button"
       >
-        <Menu size={16} />
+        <MenuIcon size={16} />
       </button>
 
-      {open && <MenuPopup items={items} highlightFirst={openedByKeyboard} onClose={close} />}
+      {open && <LivePopup items={items} useCommandContext={useCommandContext} highlightFirst={openedByKeyboard} onClose={close} />}
     </div>
   );
-};
-
-export default MainMenu;
+}

@@ -100,7 +100,7 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, focus
   return (
     <div
       ref={menuRef}
-      className={cx('ui-menu', wrap && 'ui-menu--wrap', className)}
+      className={cx('ui-menu', 'ui-menu--fixed', wrap && 'ui-menu--wrap', className)}
       style={{ top: position.top, left: position.left, right: position.left === undefined ? position.right : undefined }}
       role="menu"
       aria-label={label}
