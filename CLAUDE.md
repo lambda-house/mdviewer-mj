@@ -94,7 +94,7 @@ npm workspaces (`@lambda-house/tokens`, `ui`, `workbench`, `reader`, `journal`) 
 - Shared changes are made here first; Agent MCR merges them in. A change made in Agent MCR comes back as a patch.
 - Colours, spacing, radii and type sizes come from `@lambda-house/tokens` (`packages/tokens/tokens.css`, loaded first in `main.tsx`). Every colour a rule uses is a variable: shared ones from the tokens, feature ones (`--syntax-*`, `--find-match-bg`) from the `:root` block at the top of `index.css`. New CSS uses the tokens' names (`--canvas`, `--text`, `--line`, `--accent`, …); the old names (`--surface-bg`, `--text-primary`, …) are aliases at the end of `tokens.css`, to be deleted once unused.
 - A pane whose content is expensive to recreate (terminal, editor, rendered document) is `keepAlive`.
-- `@lambda-house/ui/ui.css` loads after the tokens and before `index.css`. App CSS never targets `ui-*` classes: a control that needs another look gets a prop. App element rules that could reach a shared control (`.session-cockpit button`) are written with `:where()` so a control's classes win.
+- `@lambda-house/ui/ui.css` loads after the tokens and before `index.css`. App CSS never targets `ui-*` classes: a control that needs another look gets a prop. App element rules that could reach a shared control skip it without changing their weight: `.session-cockpit button:where(:not([class^="ui-"],[class*=" ui-"]))` (in `sessions.css`). Menus render in place, so a descendant rule over a menu's owner (`.x button`) reaches its items too: use a child combinator or the same exclusion.
 
 ## Configuration
 
