@@ -365,3 +365,9 @@
 .cmd-body--list { grid-template-columns: minmax(0, 1fr); }
 .cmd-panel:has(.cmd-body--list) { width: min(640px, 94vw); }
 .cmd-preview__text { margin: 0; font-size: var(--fs-12); color: var(--text-muted); }
+
+/* An item with the app's own row: the row draws itself, the option marks the selection */
+.cmd-row { display: flex; align-items: center; gap: var(--sp-2); padding-right: 8px; border: 1px solid transparent; border-radius: var(--r-md); cursor: pointer; }
+.cmd-row > :first-child { flex: 1; min-width: 0; }
+.cmd-row--active { background: var(--selected); border-color: var(--line); }
+.cmd-row--active .cmd-item__enter { opacity: 1; }

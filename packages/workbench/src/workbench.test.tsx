@@ -137,6 +137,14 @@ describe('Palette', () => {
     expect(appShortcut).not.toHaveBeenCalled();
   });
 
+  it('wraps an item with its own row in cmd-row and marks the selected one', () => {
+    setup({ items: [{ id: 'r', group: 'Sessions', label: 'Reviewer', row: <span className="own-row">Reviewer</span>, run: () => {} }] });
+    const option = document.querySelector<HTMLElement>('[role="option"]')!;
+    expect(option.className).toBe('cmd-row cmd-row--active');
+    expect(option.querySelector('.own-row')).not.toBeNull();
+    expect(option.querySelector('.cmd-item__label')).toBeNull();
+  });
+
   it('shows a preview panel when asked, and says when nothing matches', () => {
     setup({ showPreview: true });
     expect(document.querySelector('.cmd-preview__title')?.textContent).toBe('Save All…');

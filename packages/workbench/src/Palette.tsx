@@ -16,7 +16,7 @@ export interface PaletteItem {
   shortcut?: string;
   /** The app's own row instead of icon, label and hint (a session row). */
   row?: ReactNode;
-  /** Extra class of the option, for the app's own row. */
+  /** Extra class of the option. An item with its own `row` is wrapped in `cmd-row`, not `cmd-item`. */
   className?: string;
   /** Shown above the row, outside the option (a folder over its sessions). */
   heading?: ReactNode;
@@ -177,7 +177,9 @@ export function Palette({
                           role="option"
                           aria-selected={isActive}
                           aria-label={item.ariaLabel}
-                          className={cx('cmd-item', isActive && 'cmd-item--active', item.className)}
+                          className={item.row
+                            ? cx('cmd-row', isActive && 'cmd-row--active', item.className)
+                            : cx('cmd-item', isActive && 'cmd-item--active', item.className)}
                           onMouseMove={() => setActive(itemIndex)}
                           onClick={() => choose(item)}
                         >
