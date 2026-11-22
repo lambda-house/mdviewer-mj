@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { createPortal } from 'react-dom';
 import { cx } from './cx';
 
 export type MenuItem =
@@ -17,6 +16,8 @@ export interface MenuProps {
   anchorRef?: RefObject<HTMLElement | null>;
   /** Long items wrap instead of staying on one line. */
   wrap?: boolean;
+  /** Which enabled item takes the focus first (the one Enter should choose). */
+  focusIndex?: number;
   className?: string;
 }
 
@@ -24,12 +25,14 @@ export interface MenuProps {
 const EDGE = 4;
 
 /**
- * A popup menu (role=menu) at a fixed position, drawn above everything. The
- * first item takes the focus; arrows, Home and End move it. Escape, Tab, a
+ * A popup menu (role=menu) at a fixed position. It is drawn where it is
+ * rendered (position: fixed lets it out of scrolling lists), so it stays in
+ * its owner's DOM. The first enabled item (or `focusIndex`) takes the focus;
+ * arrows, Home and End move it. Escape, Tab, a
  * press outside, leaving the window or resizing it close the menu; choosing
  * an item closes it, then runs the item.
  */
-export function Menu({ items, at, onClose, label, anchorRef, wrap = false, className }: MenuProps) {
+export function Menu({ items, at, onClose, label, anchorRef, wrap = false, focusIndex = 0, className }: MenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(at);
   const onCloseRef = useRef(onClose);
@@ -46,10 +49,11 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, class
     setPosition(next);
   }, [at.top, at.left, at.right]);
 
-  // The first item takes the focus; the focus goes back where it was on close
+  // An item takes the focus; the focus goes back where it was on close
   useEffect(() => {
     const previous = document.activeElement;
-    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    const enabled = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)');
+    enabled?.[Math.min(focusIndex, enabled.length - 1)]?.focus();
     return () => {
       const inside = menuRef.current?.contains(document.activeElement) || document.activeElement === document.body;
       if (inside && previous instanceof HTMLElement && previous.isConnected) previous.focus();
@@ -93,7 +97,7 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, class
     enabled[next].focus();
   };
 
-  return createPortal(
+  return (
     <div
       ref={menuRef}
       className={cx('ui-menu', wrap && 'ui-menu--wrap', className)}
@@ -120,7 +124,6 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, class
           </button>
         )
       )}
-    </div>,
-    document.body,
+    </div>
   );
 }

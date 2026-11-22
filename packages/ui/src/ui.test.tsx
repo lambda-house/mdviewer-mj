@@ -111,6 +111,11 @@ describe('Menu', () => {
     expect(all('[role="separator"]')).toHaveLength(1);
   });
 
+  it('can give the focus to another item first', () => {
+    render(<Menu at={{ top: 0, left: 0 }} onClose={() => {}} focusIndex={1} items={[{ label: 'Copy', onSelect: () => {} }, { label: 'Copy as task', onSelect: () => {} }]} />);
+    expect(document.activeElement?.textContent).toBe('Copy as task');
+  });
+
   it('closes, then runs the chosen item', () => {
     const { calls } = setup();
     act(() => all('[role="menuitem"]')[2].click());
