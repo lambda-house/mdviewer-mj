@@ -1,7 +1,215 @@
 /*
  * @lambda-house/tokens: the one set of colour, spacing, type and radius
- * variables of MDViewer and Agent MCR, dark by default, light under
- * :root[data-theme='light'].
+ * variables of MDViewer and Agent MCR. Dark by default, light under
+ * :root[data-theme='light']. Shared UI spec §4.1.
  *
- * Empty until phase 1 of the shared UI spec (§4.1).
+ * Every colour a component uses is a variable. Generic ones are here;
+ * colours that belong to one feature (syntax highlighting, find matches)
+ * are variables in that feature's own CSS.
  */
+
+:root {
+  /* Surfaces, from the window background up */
+  --canvas: #1e1e1e;
+  --surface-1: #252526;
+  --surface-2: #2d2d30;
+  --surface-3: #4a4a4d;
+  --input: #3c3c3c;
+  --hover: #2a2d2e;
+  --selected: #094771;
+  --pressed: #04395e;
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  /* Lines */
+  --line: #3c3c3c;
+  --line-subtle: #2d2d30;
+  --line-strong: #555558;
+  --focus: #007acc;
+
+  /* Text */
+  --text: #cccccc;
+  --text-muted: #858585;
+  --text-faint: #5a5a5a;
+  --text-inverse: #1e1e1e;
+
+  /* Accent: text and lines; filled controls use --accent-fill */
+  --accent: #4fc1ff;
+  --accent-bg: rgba(79, 193, 255, 0.14);
+  --accent-line: rgba(79, 193, 255, 0.4);
+  --accent-fill: #007acc;
+  --text-on-accent: #ffffff;
+
+  /* State */
+  --ok: #89d185;
+  --ok-bg: #1d5a2a;
+  --ok-line: rgba(137, 209, 133, 0.4);
+  --warn: #cca700;
+  --warn-bg: #5a4a1d;
+  --warn-line: rgba(204, 167, 0, 0.4);
+  --danger: #f48771;
+  --danger-bg: #5a1d1d;
+  --danger-line: rgba(244, 135, 113, 0.4);
+
+  /* Identity, not state: tells things apart (provider, human or agent) */
+  --cat-blue: #9bc5e8;
+  --cat-green: #91d6b3;
+  --cat-tan: #d3aa8d;
+  --cat-orange: #f08a4b;
+
+  /* Spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* Type */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+
+  /* Shape and depth */
+  --r-sm: 3px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-full: 9999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+
+  /* Motion */
+  --dur-fast: 100ms;
+  --dur-normal: 200ms;
+  --dur-slow: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Window chrome */
+  --toolbar-height: 32px;
+  --tab-bar-height: 30px;
+  --status-bar-height: 28px;
+}
+
+:root[data-theme='light'] {
+  --canvas: #ffffff;
+  --surface-1: #f3f3f3;
+  --surface-2: #f7f7f7;
+  --surface-3: #d4d4d4;
+  --input: #e9e9e9;
+  --hover: #e8e8e8;
+  --selected: #cce4f7;
+  --pressed: #dbe9f8;
+  --overlay: rgba(0, 0, 0, 0.25);
+
+  --line: #d0d0d0;
+  --line-subtle: #e4e4e4;
+  --line-strong: #b8b8b8;
+  --focus: #005fb8;
+
+  --text: #1f1f1f;
+  --text-muted: #6a6a6a;
+  --text-faint: #a6a6a6;
+  --text-inverse: #ffffff;
+
+  --accent: #005fb8;
+  --accent-bg: rgba(0, 95, 184, 0.12);
+  --accent-line: rgba(0, 95, 184, 0.35);
+  --accent-fill: #007acc;
+  --text-on-accent: #ffffff;
+
+  --ok: #107c10;
+  --ok-bg: #dff6dd;
+  --ok-line: rgba(16, 124, 16, 0.35);
+  --warn: #7a5d00;
+  --warn-bg: #fff4ce;
+  --warn-line: rgba(122, 93, 0, 0.35);
+  --danger: #c42b1c;
+  --danger-bg: #fde7e6;
+  --danger-line: rgba(196, 43, 28, 0.35);
+
+  --cat-blue: #1f5f99;
+  --cat-green: #216d47;
+  --cat-tan: #8a5a3c;
+  --cat-orange: #b5530f;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+}
+
+/*
+ * Component variables, until their component moves to @lambda-house/ui
+ * (phase 2).
+ */
+:root {
+  --segmented-track: var(--input);
+  --segmented-thumb: var(--surface-1);
+  --segmented-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme='light'] {
+  --segmented-thumb: #ffffff;
+  --segmented-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/*
+ * Old names, kept while the apps' CSS moves to the names above. Delete a line
+ * once neither app uses that name (spec §4.1).
+ */
+:root {
+  /* MDViewer */
+  --surface-bg: var(--canvas);
+  --surface-elevated: var(--surface-1);
+  --surface-overlay: var(--surface-2);
+  --surface-input: var(--input);
+  --border-default: var(--line);
+  --border-active: var(--accent-fill);
+  --border-subtle: var(--line-subtle);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --text-accent: var(--accent);
+  --text-disabled: var(--text-faint);
+  --hover-bg: var(--hover);
+  --selected-bg: var(--selected);
+  --focus-ring: var(--focus);
+  --active-bg: var(--pressed);
+  --error-bg: var(--danger-bg);
+  --error-text: var(--danger);
+  --warning-bg: var(--warn-bg);
+  --warning-text: var(--warn);
+  --success-bg: var(--ok-bg);
+  --success-text: var(--ok);
+  --font-size-xs: var(--fs-11);
+  --font-size-sm: var(--fs-12);
+  --font-size-base: var(--fs-13);
+  --font-size-md: var(--fs-14);
+  --font-size-lg: var(--fs-16);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --transition-fast: var(--dur-fast) ease-out;
+  --transition-normal: var(--dur-normal) ease-out;
+  --transition-slow: var(--dur-slow) ease-out;
+
+  /* Agent MCR */
+  --layer-1: var(--surface-2);
+  --layer-2: var(--input);
+  --layer-3: var(--surface-3);
+  --layer-hover: var(--hover);
+  --layer-selected: var(--selected);
+  --bg-panel: var(--surface-1);
+  --bg-input: var(--input);
+  --bg-subtle: var(--surface-2);
+  --bg-hover: var(--hover);
+  --text-soft: var(--text);
+  --info: var(--accent);
+  --info-bg: var(--accent-bg);
+  --info-line: var(--accent-line);
+  --success: var(--ok);
+  --r-xs: var(--r-sm);
+  --r-xl: var(--r-lg);
+}

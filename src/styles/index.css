@@ -4,41 +4,10 @@
    ============================================================ */
 
 /* CSS Variables - Theme (dark is the default, light overrides below) */
+/* Shared colours, sizes and type come from @lambda-house/tokens, loaded before this file; these variables are this app's own. */
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --surface-bg: #1e1e1e;
-  --surface-elevated: #252526;
-  --surface-overlay: #2d2d30;
-  --surface-input: #3c3c3c;
-  
-  /* Borders */
-  --border-default: #3c3c3c;
-  --border-active: #007acc;
-  --border-subtle: #2d2d30;
-  
-  /* Text */
-  --text-primary: #cccccc;
-  --text-secondary: #858585;
-  --text-accent: #4fc1ff;
-  --text-disabled: #5a5a5a;
-  --text-inverse: #1e1e1e;
-  
-  /* Interactive States */
-  --hover-bg: #2a2d2e;
-  --selected-bg: #094771;
-  --focus-ring: #007acc;
-  --active-bg: #04395e;
-  
-  /* Semantic */
-  --error-bg: #5a1d1d;
-  --error-text: #f48771;
-  --warning-bg: #5a4a1d;
-  --warning-text: #cca700;
-  --success-bg: #1d5a2a;
-  --success-text: #89d185;
-  
   /* Syntax Highlighting */
   --syntax-keyword: #569cd6;
   --syntax-string: #ce9178;
@@ -49,7 +18,7 @@
   --syntax-variable: #9cdcfe;
   --syntax-operator: #d4d4d4;
   --syntax-punctuation: #808080;
-  
+
   /* Scrollbar */
   --scrollbar-bg: transparent;
   --scrollbar-thumb: #5a5a5a;
@@ -59,11 +28,8 @@
   --folder-color: #dcb67a;
   --danger-hover-bg: #6a2d2d;
   --drop-overlay-bg: rgba(30, 30, 30, 0.7);
-  
+
   /* Dimensions */
-  --toolbar-height: 32px;
-  --tab-bar-height: 30px;
-  --status-bar-height: 28px;
   --panel-min-width: 200px;
   --panel-max-width: 400px;
   --panel-default-width: 280px;
@@ -72,66 +38,21 @@
   --toc-default-width: 220px;
   /* Width of the text column at 100% zoom; scaled by --zoom-factor */
   --doc-base-width: 800px;
-  
+
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-base: 13px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
   --font-size-xl: 18px;
   --font-size-2xl: 24px;
   --font-size-3xl: 32px;
-  
-  /* Animations */
-  --transition-fast: 100ms ease-out;
-  --transition-normal: 200ms ease-out;
-  --transition-slow: 300ms ease-out;
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
-  
-  /* Border Radius */
-  --radius-sm: 3px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+
+  /* Find matches. The ::highlight() rules repeat these colours as literals
+     until var() inside ::highlight() is checked in WebKitGTK. */
+  --find-match-bg: rgba(234, 179, 8, 0.35);
 }
 
 /* Light theme (IntelliJ / VS Code light). Toggled with the toolbar button;
    applied as <html data-theme="light">. */
 :root[data-theme='light'] {
   color-scheme: light;
-
-  --surface-bg: #ffffff;
-  --surface-elevated: #f3f3f3;
-  --surface-overlay: #f7f7f7;
-  --surface-input: #e9e9e9;
-
-  --border-default: #d0d0d0;
-  --border-active: #007acc;
-  --border-subtle: #e4e4e4;
-
-  --text-primary: #1f1f1f;
-  --text-secondary: #6a6a6a;
-  --text-accent: #005fb8;
-  --text-disabled: #a6a6a6;
-  --text-inverse: #ffffff;
-
-  --hover-bg: #e8e8e8;
-  --selected-bg: #cce4f7;
-  --focus-ring: #005fb8;
-  --active-bg: #dbe9f8;
-
-  --error-bg: #fde7e6;
-  --error-text: #c42b1c;
-  --warning-bg: #fff4ce;
-  --warning-text: #7a5d00;
-  --success-bg: #dff6dd;
-  --success-text: #107c10;
 
   --syntax-keyword: #0000ff;
   --syntax-string: #a31515;
@@ -149,10 +70,6 @@
   --folder-color: #c29a4a;
   --danger-hover-bg: #f5c6c2;
   --drop-overlay-bg: rgba(255, 255, 255, 0.7);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
 }
 
 /* Reset & Base */
@@ -493,8 +410,8 @@ a:hover {
 }
 
 .zoom-reset-button.disabled {
-  color: var(--text-disabled, #555);
-  border-color: var(--text-disabled, #555);
+  color: var(--text-disabled);
+  border-color: var(--text-disabled);
   cursor: default;
   opacity: 0.5;
 }
@@ -1192,7 +1109,7 @@ a:hover {
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   background: var(--border-active);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .editor-save-button:disabled {
@@ -1745,7 +1662,7 @@ a:hover {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1817,7 +1734,7 @@ a:hover {
 .modal-btn-primary {
   background: var(--border-active);
   border: 1px solid var(--border-active);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .modal-btn-primary:hover {
@@ -2811,6 +2728,7 @@ a:hover {
   }
 }
 
+/* Literal colours: see --find-match-bg */
 ::highlight(find-match) {
   background-color: rgba(234, 179, 8, 0.35);
 }
@@ -2924,7 +2842,7 @@ a:hover {
 }
 
 .search-result-mark {
-  background: rgba(234, 179, 8, 0.35);
+  background: var(--find-match-bg);
   color: var(--text-primary);
   border-radius: 2px;
 }
@@ -3119,7 +3037,7 @@ a:hover {
   font-size: var(--font-size-sm);
   border-radius: var(--radius-sm);
   background: var(--border-active);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .workspace-save-button:disabled {
@@ -3176,7 +3094,7 @@ a:hover {
 .update-banner .update-banner-install {
   background: var(--border-active);
   border-color: var(--border-active);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 
 .update-banner .update-banner-close {

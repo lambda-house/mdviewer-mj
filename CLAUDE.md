@@ -93,7 +93,7 @@ npm workspaces (`@lambda-house/tokens`, `ui`, `workbench`, `reader`, `journal`) 
 
 - Shared code imports nothing from the app: no `src/`, no `@/`, no `@tauri-apps/*`, no app store. It gets what it needs through host interfaces the app passes in. `packages/layers.test.ts` enforces the layer order and the allowed libraries; `tsc -p packages` type-checks without the app's alias.
 - Shared changes are made here first; Agent MCR merges them in. A change made in Agent MCR comes back as a patch.
-- Colours, spacing, radii and type sizes come from `@lambda-house/tokens` once phase 1 lands; component CSS gets no literal colours.
+- Colours, spacing, radii and type sizes come from `@lambda-house/tokens` (`packages/tokens/tokens.css`, loaded first in `main.tsx`). Every colour a rule uses is a variable: shared ones from the tokens, feature ones (`--syntax-*`, `--find-match-bg`) from the `:root` block at the top of `index.css`. New CSS uses the tokens' names (`--canvas`, `--text`, `--line`, `--accent`, …); the old names (`--surface-bg`, `--text-primary`, …) are aliases at the end of `tokens.css`, to be deleted once unused.
 - A pane whose content is expensive to recreate (terminal, editor, rendered document) is `keepAlive`.
 
 ## Configuration

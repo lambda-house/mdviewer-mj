@@ -4,9 +4,9 @@
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--sc-border, var(--border-default));
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--sc-bg, var(--bg-primary));
+  background: transparent;
   -webkit-app-region: no-drag;
 }
 .workspace-switch .workspace-switch-option {
@@ -21,19 +21,19 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--sc-muted, var(--text-secondary));
+  color: var(--text-muted);
   font: 500 11px Inter, system-ui, sans-serif;
   white-space: nowrap;
   cursor: pointer;
 }
 .workspace-switch-option svg { flex-shrink: 0; }
-.workspace-switch .workspace-switch-option:hover { color: var(--sc-text, var(--text-primary)); }
+.workspace-switch .workspace-switch-option:hover { color: var(--text); }
 .workspace-switch .workspace-switch-option[aria-current='page'] {
-  color: var(--sc-text, var(--text-primary));
-  background: var(--sc-card, var(--selected-bg));
+  color: var(--text);
+  background: var(--selected);
 }
 .workspace-switch .workspace-switch-option:focus-visible {
-  outline: 2px solid var(--sc-accent, var(--text-accent));
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 

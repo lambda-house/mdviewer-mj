@@ -153,6 +153,16 @@ A host method is optional when only one app has that capability. UI for a missin
 
 The percentages are the alpha of the base colour, as in Agent MCR today.
 
+Added in phase 1, because the table above couldn't express them:
+
+| Token | Dark | Light | Why |
+|---|---|---|---|
+| `--accent-fill` | `#007acc` | `#007acc` | Background of filled controls (primary buttons). `--accent` is a light text blue in the dark theme, and white text on it is unreadable. Replaces `--border-active`. |
+| `--text-on-accent` | `#ffffff` | `#ffffff` | Text on `--accent-fill` |
+| `--surface-3` | `#4a4a4d` | `#d4d4d4` | A raised hover surface (Agent MCR's `--layer-3`) |
+| `--cat-blue`, `--cat-green`, `--cat-tan`, `--cat-orange` | `#9bc5e8`, `#91d6b3`, `#d3aa8d`, `#f08a4b` | `#1f5f99`, `#216d47`, `#8a5a3c`, `#b5530f` | Identity, not state: human/agent, Codex/Claude, "cache warm". Without them those distinctions would collapse into the accent. |
+| `--dur-slow` | `300ms` | | MDViewer's `--transition-slow` |
+
 Scales:
 
 - **Spacing** `--sp-1` … `--sp-6`: 4, 8, 12, 16, 24, 32 px.
@@ -163,6 +173,8 @@ Scales:
 - **Chrome sizes**: `--toolbar-height` 32, `--tab-bar-height` 30, `--status-bar-height` 28 px.
 
 Syntax colours (`--syntax-*`), `--folder-color` and the Shiki variables stay in the reader's CSS. MDViewer's `--drop-overlay-bg` stays in MDViewer.
+
+Every colour a rule uses is a variable. Colours that belong to one feature are variables in that feature's own `:root` block, not in `tokens.css`: syntax colours, `--find-match-bg`. The `::highlight()` rules for find matches keep literal colours until `var()` inside `::highlight()` has been checked in WebKitGTK.
 
 **Migrating to the new names, within one release:**
 1. `tokens.css` also defines every old name as an alias (`--surface-bg: var(--canvas)`). Nothing changes on screen except where a palette is dropped.
@@ -611,7 +623,7 @@ Each phase ships on its own in both apps. Neither app is left on a half-moved la
 | # | Phase | Done when |
 |---|---|---|
 | 0 | Move MDViewer to React 19 and lucide-react 1.x. Set up npm workspaces, empty `packages/*` and `layers.test.ts`. Add the subtree to agent-mcr. | Both apps build and pass their tests on the new versions |
-| 1 | `tokens`: one `tokens.css` with the old names as aliases. Drop `--sc-*` (`sessions.css:1-2`) and Agent MCR's hardcoded colours. | Before/after screenshots of Documents, Journal and Live show only the intended changes (Sessions palette, amber → `--warn`) |
+| 1 | `tokens`: one `tokens.css` with the old names as aliases. Drop `--sc-*` (`sessions.css:1-2`) and Agent MCR's hardcoded colours. | Every declaration, resolved through the variables in both themes, is compared before and after, and only intended changes remain: the Sessions palette, amber → `--warn`, Agent MCR's radii, the dialog backdrop, and variables that were never defined now resolving. Documents screenshots are pixel-identical. |
 | 2 | `ui`: Agent MCR's `src/ui`, plus `ConfirmDialog`, `Splitter` (from `Resizer`), `Segmented` (replaces `WorkspaceSwitch`, the Files/Agents switch and the view switch), `Tabs`, `Menu` (from `RowMenu` and the tab context menu), `PaneFrame`, `EmptyState` | No app CSS styles a shared control; Sessions uses `ui` buttons |
 | 3 | Command registry and the single palette; ⌘S is Save again in Agent MCR | The native menu id test passes; the palette lists commands in both apps |
 | 4 | `workbench`: shell, surfaces and views, plugin registry, layout tree with keep-alive and focus. MDViewer's side panels and Agent MCR's Live move onto it, and saved state is migrated. | Layout operation tests pass; Live terminals survive splitting, swapping and closing other panes; MDViewer's saved state migrates |

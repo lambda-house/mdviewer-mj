@@ -10,6 +10,7 @@ import '@fontsource/inter/700.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
 import '@fontsource/jetbrains-mono/600.css';
+import '@lambda-house/tokens/tokens.css';
 import './styles/index.css';
 
 // Apply the persisted theme before the first paint (no dark flash in light
