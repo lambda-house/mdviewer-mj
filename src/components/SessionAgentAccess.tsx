@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@lambda-house/ui';
 import { Copy, Shield, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { sessionKey, shellQuote, type Session, type SessionEvent } from '../utils/sessions';
@@ -34,7 +35,7 @@ export default function SessionAgentAccess({ close, directory, selected, inspect
       </select></label>
       <label className="sc-analysis-check"><input type="checkbox" checked={excerpts} onChange={e => setExcerpts(e.target.checked)}/> Allow detailed transcript excerpts</label>
       <p className="sc-note">Directory sharing includes sessions whose entire recorded directory history is within the directory. Metadata includes paths, models, usage and ticket mentions.</p>
-      <button className="sc-primary" disabled={busy || !status} onClick={() => void action(() => analysisApi.enable({ enabled: true, directory: scope === 'directory' ? directory : '', session: scope === 'session' && selected ? sessionKey(selected) : '', excerpts }))}>Enable agent access</button>
+      <Button variant="primary" disabled={busy || !status} onClick={() => void action(() => analysisApi.enable({ enabled: true, directory: scope === 'directory' ? directory : '', session: scope === 'session' && selected ? sessionKey(selected) : '', excerpts }))}>Enable agent access</Button>
     </>}
     <h3>Connect a local MCP client</h3><p>Use the app executable as the command and <code>--mcp</code> as its argument. Keep this app open.</p>
     <div className="sc-command"><code>{command}</code><button aria-label="Copy MCP command" disabled={!command} onClick={() => void action(() => navigator.clipboard.writeText(command))}><Copy size={15}/></button></div>

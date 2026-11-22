@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { FileText, X, Pin, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Menu, type MenuItem } from '@lambda-house/ui';
 import { useStore, canNavigateBack, canNavigateForward } from '../store';
 import { openInExplorer } from '../utils/tauri';
 import clsx from 'clsx';
@@ -121,9 +122,6 @@ interface TabContextMenuProps {
 }
 
 const TabContextMenu: React.FC<TabContextMenuProps> = ({ tabId, x, y, onClose }) => {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ left: x, top: y });
-
   const tabs = useStore((s) => s.tabs);
   const closeDocument = useStore((s) => s.closeDocument);
   const closeOtherTabs = useStore((s) => s.closeOtherTabs);
@@ -134,91 +132,34 @@ const TabContextMenu: React.FC<TabContextMenuProps> = ({ tabId, x, y, onClose })
 
   const index = tabs.findIndex((t) => t.id === tabId);
   const tab = tabs[index];
-
-  // Keep the menu inside the window
-  useLayoutEffect(() => {
-    const menu = menuRef.current;
-    if (!menu) return;
-    const rect = menu.getBoundingClientRect();
-    setPosition({
-      left: Math.max(4, Math.min(x, window.innerWidth - rect.width - 4)),
-      top: Math.max(4, Math.min(y, window.innerHeight - rect.height - 4)),
-    });
-  }, [x, y]);
-
-  // Dismiss on outside click, Escape, blur or resize
-  useEffect(() => {
-    const handlePointerDown = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) onClose();
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('mousedown', handlePointerDown, true);
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('blur', onClose);
-    window.addEventListener('resize', onClose);
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown, true);
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('blur', onClose);
-      window.removeEventListener('resize', onClose);
-    };
-  }, [onClose]);
-
   if (!tab) return null;
 
+  // The menu closes itself, then runs the item
   const run = (action: () => { success: boolean; error?: string } | void) => () => {
-    onClose();
     const result = action();
     if (result && !result.success && result.error) {
       alert(result.error);
     }
   };
 
-  const items: Array<{ label: string; action: () => void; disabled?: boolean } | 'separator'> = [
-    { label: 'Close', action: run(() => closeDocument(tabId)) },
-    { label: 'Close Others', action: run(() => closeOtherTabs(tabId)), disabled: tabs.length <= 1 },
-    { label: 'Close to the Left', action: run(() => closeTabsToLeft(tabId)), disabled: index <= 0 },
-    { label: 'Close to the Right', action: run(() => closeTabsToRight(tabId)), disabled: index >= tabs.length - 1 },
-    { label: 'Close All', action: run(closeAllTabs) },
+  const items: MenuItem[] = [
+    { label: 'Close', onSelect: run(() => closeDocument(tabId)) },
+    { label: 'Close Others', onSelect: run(() => closeOtherTabs(tabId)), disabled: tabs.length <= 1 },
+    { label: 'Close to the Left', onSelect: run(() => closeTabsToLeft(tabId)), disabled: index <= 0 },
+    { label: 'Close to the Right', onSelect: run(() => closeTabsToRight(tabId)), disabled: index >= tabs.length - 1 },
+    { label: 'Close All', onSelect: run(closeAllTabs) },
     'separator',
-    { label: 'Keep Open', action: run(() => pinTab(tabId)), disabled: !tab.isPreview },
-    { label: 'Copy Path', action: run(() => { navigator.clipboard?.writeText(tab.path).catch(() => {}); }) },
+    { label: 'Keep Open', onSelect: run(() => pinTab(tabId)), disabled: !tab.isPreview },
+    { label: 'Copy Path', onSelect: run(() => { navigator.clipboard?.writeText(tab.path).catch(() => {}); }) },
     {
       label: 'Reveal in File Manager',
-      action: run(() => {
+      onSelect: run(() => {
         openInExplorer(tab.path).catch((error) => console.error('Failed to open in explorer:', error));
       }),
     },
   ];
 
-  return (
-    <div
-      ref={menuRef}
-      className="context-menu"
-      style={{ left: position.left, top: position.top }}
-      role="menu"
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      {items.map((item, i) =>
-        item === 'separator' ? (
-          <div key={`sep-${i}`} className="context-menu-separator" role="separator" />
-        ) : (
-          <button
-            key={item.label}
-            className="context-menu-item"
-            onClick={item.action}
-            disabled={item.disabled}
-            role="menuitem"
-            type="button"
-          >
-            {item.label}
-          </button>
-        )
-      )}
-    </div>
-  );
+  return <Menu label={tab.title} at={{ left: x, top: y }} items={items} onClose={onClose} />;
 };
 
 // ============================================================

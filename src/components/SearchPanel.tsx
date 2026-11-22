@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { X, ChevronRight, FileText } from 'lucide-react';
+import { Button, PaneFrame } from '@lambda-house/ui';
 import { useStore, type FileNode, type SearchScope } from '../store';
 import { buildSearchRegex, findLineMatches, type LineMatch } from '../utils/search';
 import { flattenFiles, getFileName } from '../utils/files';
@@ -269,15 +270,13 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
   ];
 
   return (
-    <aside className="search-panel file-panel" style={{ width }}>
-      <div className="file-panel-header">
-        <span className="file-panel-title">Search</span>
-        <div className="file-panel-actions">
-          <button className="file-panel-action" onClick={() => setSearchVisible(false)} title="Close search" type="button">
-            <X size={16} />
-          </button>
-        </div>
-      </div>
+    <PaneFrame
+      as="aside"
+      className="search-panel file-panel"
+      style={{ width }}
+      title="Search"
+      tools={<Button variant="ghost" size="xs" icon={<X size={16} />} onClick={() => setSearchVisible(false)} title="Close search" aria-label="Close search" />}
+    >
 
       <div className="search-panel-controls">
         <div className={clsx('find-input-wrap', status.error && 'no-results')}>
@@ -325,7 +324,7 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
           />
         ))}
       </div>
-    </aside>
+    </PaneFrame>
   );
 };
 

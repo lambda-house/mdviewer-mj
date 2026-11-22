@@ -1,9 +1,9 @@
 import React, { useEffect, useCallback, useRef, useMemo } from 'react';
 import { Trash2, RefreshCw } from 'lucide-react';
+import { Button, PaneFrame } from '@lambda-house/ui';
 import { useStore } from '../store';
 import { readHistory, clearHistory, readFile, isTauri } from '../utils/tauri';
 import { renderMarkdown } from '../utils/markdown';
-import clsx from 'clsx';
 
 // ============================================================
 // History Panel Component
@@ -98,27 +98,16 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
   }, [openDocument, renderedHtml]);
 
   return (
-    <aside className="history-panel" style={{ width }}>
-      <div className="history-panel-header">
-        <span className="history-panel-title">History</span>
-        <div className="history-panel-actions">
-          <button
-            className={clsx('history-panel-action', isLoading && 'spinning')}
-            onClick={loadHistory}
-            title="Refresh history"
-            disabled={isLoading}
-          >
-            <RefreshCw size={14} />
-          </button>
-          <button
-            className="history-panel-action"
-            onClick={handleClear}
-            title="Clear history"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
+    <PaneFrame
+      as="aside"
+      className="history-panel"
+      style={{ width }}
+      title="History"
+      tools={<>
+        <Button variant="ghost" size="xs" icon={<RefreshCw size={16} />} onClick={loadHistory} title="Refresh history" aria-label="Refresh history" disabled={isLoading} busy={isLoading} />
+        <Button variant="ghost" size="xs" icon={<Trash2 size={16} />} onClick={handleClear} title="Clear history" aria-label="Clear history" />
+      </>}
+    >
       <div className="history-panel-content">
         <div
           ref={contentRef}
@@ -126,7 +115,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
       </div>
-    </aside>
+    </PaneFrame>
   );
 };
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@lambda-house/ui';
 import { ArrowUpRight, BookOpen, RefreshCw } from 'lucide-react';
 import { sessionApi, type MemoryCatalog, type MemoryDocument, type Session } from '../utils/sessions';
 import { formatAge } from '../utils/agent';
@@ -10,7 +11,7 @@ export default function SessionMemoryBrowser({ session }: { session?: Session })
   useEffect(()=>{let cancelled=false;sessionApi.memoryAccess().then(value=>{if(!cancelled)setEnabled(value);}).catch(e=>{if(!cancelled)setError(String(e));});return()=>{cancelled=true;};},[]);
   useEffect(()=>{setDocument(null);if(enabled)void load();},[enabled,load]);
   return <section className="sc-memory-browser"><div className="sc-section-row"><h3><BookOpen size={16}/> Agent memories</h3>{enabled && <button disabled={busy} onClick={()=>void load()} title="Refresh memories"><RefreshCw size={14}/></button>}</div>
-    {!enabled ? <><p className="sc-note">Read user-wide memories and instructions, project-shared files, and session-linked memory. Source files stay unchanged.</p><button className="sc-primary" onClick={async()=>{try{setEnabled(await sessionApi.enableMemories());}catch(e){setError(String(e));}}}>Enable memory access</button></> : <>
+    {!enabled ? <><p className="sc-note">Read user-wide memories and instructions, project-shared files, and session-linked memory. Source files stay unchanged.</p><Button variant="primary" onClick={async()=>{try{setEnabled(await sessionApi.enableMemories());}catch(e){setError(String(e));}}}>Enable memory access</Button></> : <>
       <nav className="sc-memory-scopes" aria-label="Memory scope">{(session ? ['user','project','session'] : ['user']).map(s=><button key={s} disabled={busy} className={scope===s?'active':''} onClick={()=>{setScope(s);setDocument(null);}}>{s==='user'?'User scope':s==='project'?'Shared project':'This session'}</button>)}</nav>
       <p className="sc-note">{scope==='user'?'Current user-wide memory and instructions, shared across sessions.':scope==='project'?'Current project files associated with this session’s directories; shared with other sessions.':'Memories explicitly linked to this thread, plus recorded memory calls and compaction summaries.'}</p>
       {busy && <p role="status">Reading memory sources…</p>}

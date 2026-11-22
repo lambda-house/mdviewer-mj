@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { useStore } from '../store';
 import { saveAllDocuments } from '../utils/save';
-import ConfirmDialog from './ConfirmDialog';
+import { ConfirmDialog } from '@lambda-house/ui';
 
 /**
  * Asks before Save All writes every modified document (`requestSaveAll`).

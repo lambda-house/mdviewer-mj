@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { Upload } from 'lucide-react';
 import { useStore, PANEL_MIN_WIDTH, TOC_MIN_WIDTH, type Heading, type RestoredDocument } from './store';
+import { Splitter } from '@lambda-house/ui';
 import {
   scanDirectories,
   isTauri,
@@ -26,7 +27,6 @@ import Toolbar from './components/Toolbar';
 import FilePanel from './components/FilePanel';
 import DocumentPanel from './components/DocumentPanel';
 import TocSidebar from './components/TocSidebar';
-import Resizer from './components/Resizer';
 import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
 import SaveAllDialog from './components/SaveAllDialog';
@@ -782,7 +782,7 @@ const App: React.FC = () => {
           />
         )}
 
-        <Resizer
+        <Splitter
           side="left"
           width={panelWidth}
           minWidth={PANEL_MIN_WIDTH}
@@ -794,7 +794,7 @@ const App: React.FC = () => {
 
         <DocumentPanel onHeadingsChange={handleHeadingsChange} />
 
-        <Resizer
+        <Splitter
           side="right"
           width={tocWidth}
           minWidth={TOC_MIN_WIDTH}

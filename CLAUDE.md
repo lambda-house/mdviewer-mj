@@ -40,8 +40,7 @@ Frontend unit tests are Vitest files next to the code (`src/utils/*.test.ts`; DO
   - `Editor.tsx` - CodeMirror 6 source editor (Ctrl+E), lazy-loaded; per-document state lives in `utils/editorRegistry.ts`, saving in `utils/save.ts`
   - `WorkspaceMenu.tsx` - Saved workspaces (folders + tabs)
   - `Toolbar.tsx` - Top bar with search, zoom, theme controls
-  - `ConfirmDialog.tsx` - Modal question; buttons in the platform's order (`utils/platform.ts`). `SaveAllDialog.tsx` uses it
-  - `Resizer.tsx` - Panel separators: drag to resize, drag to the edge or double-click to hide/show
+  - Shared controls come from `@lambda-house/ui` (`packages/ui`): `Button`, `ConfirmDialog` (buttons in the platform's order; `SaveAllDialog.tsx` and the unsaved-changes question use it), `Dialog`, `Splitter` (panel separators: drag to resize, drag to the edge or double-click to hide/show), `Segmented` (`WorkspaceSwitch.tsx`, the Files/Agents filter), `Tabs`, `Menu` (the tab context menu), `PaneFrame` (the header of Files, Search, History, Contents), `EmptyState`, `Kbd`, `Badge`, `Notice`. `MainMenu` and `WorkspaceMenu` still draw their own menus (`.context-menu`)
   - `StatusBar.tsx` - Bottom status bar (auto-hides)
 
 - **Hooks** (`src/hooks/`): `useSmoothWheelScroll` - velocity-based wheel scrolling shared by the document, file panel and TOC
@@ -95,6 +94,7 @@ npm workspaces (`@lambda-house/tokens`, `ui`, `workbench`, `reader`, `journal`) 
 - Shared changes are made here first; Agent MCR merges them in. A change made in Agent MCR comes back as a patch.
 - Colours, spacing, radii and type sizes come from `@lambda-house/tokens` (`packages/tokens/tokens.css`, loaded first in `main.tsx`). Every colour a rule uses is a variable: shared ones from the tokens, feature ones (`--syntax-*`, `--find-match-bg`) from the `:root` block at the top of `index.css`. New CSS uses the tokens' names (`--canvas`, `--text`, `--line`, `--accent`, …); the old names (`--surface-bg`, `--text-primary`, …) are aliases at the end of `tokens.css`, to be deleted once unused.
 - A pane whose content is expensive to recreate (terminal, editor, rendered document) is `keepAlive`.
+- `@lambda-house/ui/ui.css` loads after the tokens and before `index.css`. App CSS never targets `ui-*` classes: a control that needs another look gets a prop. App element rules that could reach a shared control (`.session-cockpit button`) are written with `:where()` so a control's classes win.
 
 ## Configuration
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { FileQuestion, AlertCircle, Save, ImageOff, FileDiff } from 'lucide-react';
+import { ConfirmDialog, EmptyState as UiEmptyState, Kbd } from '@lambda-house/ui';
 import { useStore } from '../store';
 import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from '../utils/markdown';
 import clsx from 'clsx';
@@ -238,16 +239,14 @@ function useDocumentScroll(
 // ============================================================
 
 const EmptyState: React.FC = () => (
-  <div className="document-empty">
-    <FileQuestion size={64} className="document-empty-icon" aria-hidden="true" />
-    <h2 className="document-empty-title">No Document Open</h2>
-    <p className="document-empty-subtitle">
-      Select a markdown file from the sidebar, or drop one on this window
-    </p>
-    <p className="document-empty-hint">
-      <kbd>Ctrl</kbd>+<kbd>P</kbd> to quick open a file
-    </p>
-  </div>
+  <UiEmptyState
+    size="lg"
+    icon={<FileQuestion size={64} />}
+    title="No Document Open"
+    hint={<><Kbd>Ctrl</Kbd>+<Kbd>P</Kbd> to quick open a file</>}
+  >
+    Select a markdown file from the sidebar, or drop one on this window
+  </UiEmptyState>
 );
 
 // ============================================================
@@ -567,28 +566,15 @@ const UnsavedChangesModal: React.FC = () => {
   const tab = tabs.find(t => t.id === pendingCloseTabId);
   
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal">
-        <h2>Unsaved Changes</h2>
-        <p>
-          "{tab?.title}" has unsaved changes. Do you want to close it anyway?
-        </p>
-        <div className="modal-actions">
-          <button 
-            className="modal-btn modal-btn-secondary"
-            onClick={cancelCloseDocument}
-          >
-            Cancel
-          </button>
-          <button 
-            className="modal-btn modal-btn-danger"
-            onClick={confirmCloseDocument}
-          >
-            Close Without Saving
-          </button>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      title="Unsaved Changes"
+      confirmLabel="Close Without Saving"
+      destructive
+      onConfirm={confirmCloseDocument}
+      onCancel={cancelCloseDocument}
+    >
+      <p>"{tab?.title}" has unsaved changes. Do you want to close it anyway?</p>
+    </ConfirmDialog>
   );
 };
 

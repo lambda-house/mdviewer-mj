@@ -1,10 +1,6 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import clsx from 'clsx';
-
-// ============================================================
-// Tuning
-// ============================================================
+import { cx } from './cx';
 
 /** Distance from the window edge (px) at which a hidden panel's grip shows. */
 const EDGE_REVEAL_DISTANCE = 24;
@@ -13,24 +9,22 @@ const COLLAPSE_FRACTION = 0.5;
 /** A double-click right after a click opened the panel must not close it again. */
 const DOUBLE_CLICK_GUARD_MS = 500;
 
-// ============================================================
-// Resizer Component
-// ============================================================
-
-interface ResizerProps {
+export interface SplitterProps {
   /** Which side of the window the panel sits on. */
   side: 'left' | 'right';
   width: number;
   minWidth: number;
   /** False while the panel is hidden - the separator then sits at the window edge. */
   visible: boolean;
+  /** The width the panel would have; the owner clamps it to its limits. */
   onWidthChange: (width: number) => void;
   onVisibleChange: (visible: boolean) => void;
+  /** Names the panel, for the tooltip and screen readers ("table of contents"). */
   label: string;
 }
 
 /**
- * Separator between a side panel and the document.
+ * Separator between a side panel and the content next to it.
  *
  * - drag to resize; dragging the panel below half its minimum width hides it,
  *   dragging a hidden panel's separator back out shows it again
@@ -38,15 +32,7 @@ interface ResizerProps {
  * - a hidden panel keeps its separator at the window edge, and a grip appears
  *   when the cursor comes near that edge
  */
-const Resizer: React.FC<ResizerProps> = ({
-  side,
-  width,
-  minWidth,
-  visible,
-  onWidthChange,
-  onVisibleChange,
-  label,
-}) => {
+export function Splitter({ side, width, minWidth, visible, onWidthChange, onVisibleChange, label }: SplitterProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [nearEdge, setNearEdge] = useState(false);
   const dragRef = useRef({ startX: 0, startWidth: 0, moved: false });
@@ -56,7 +42,7 @@ const Resizer: React.FC<ResizerProps> = ({
   const latest = useRef({ visible, onWidthChange, onVisibleChange });
   latest.current = { visible, onWidthChange, onVisibleChange };
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: ReactMouseEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
     dragRef.current = { startX: e.clientX, startWidth: visible ? width : 0, moved: false };
@@ -76,7 +62,7 @@ const Resizer: React.FC<ResizerProps> = ({
       const { visible: isVisible, onWidthChange: setWidth, onVisibleChange: setVisible } = latest.current;
 
       if (shouldShow !== isVisible) setVisible(shouldShow);
-      if (shouldShow) setWidth(wanted); // the store clamps to min/max
+      if (shouldShow) setWidth(wanted);
     };
 
     const handleMouseUp = () => setIsResizing(false);
@@ -131,7 +117,7 @@ const Resizer: React.FC<ResizerProps> = ({
     toggle();
   }, [toggle]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: ReactKeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       toggle();
@@ -142,12 +128,12 @@ const Resizer: React.FC<ResizerProps> = ({
 
   return (
     <div
-      className={clsx(
-        'resizer',
-        `resizer-${side}`,
-        isResizing && 'active',
-        !visible && 'collapsed',
-        !visible && (nearEdge || isResizing) && 'reveal'
+      className={cx(
+        'ui-splitter',
+        `ui-splitter--${side}`,
+        isResizing && 'is-active',
+        !visible && 'is-collapsed',
+        !visible && (nearEdge || isResizing) && 'is-revealed'
       )}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
@@ -161,12 +147,10 @@ const Resizer: React.FC<ResizerProps> = ({
       tabIndex={0}
     >
       {!visible && (
-        <span className="resizer-grip" aria-hidden="true">
+        <span className="ui-splitter__grip" aria-hidden="true">
           <Chevron size={12} />
         </span>
       )}
     </div>
   );
-};
-
-export default Resizer;
+}

@@ -186,6 +186,10 @@ a:hover {
   background: var(--surface-bg);
 }
 
+/* Documents and Sessions: both stay mounted, so returning restores the selected session/tab */
+.workspace-surface { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.workspace-surface[hidden] { display: none; }
+
 .main-content {
   display: flex;
   flex: 1;
@@ -422,95 +426,6 @@ a:hover {
 }
 
 /* ============================================================
-   Resizer
-   ============================================================ */
-
-.resizer {
-  width: 4px;
-  cursor: col-resize;
-  background: transparent;
-  transition: background var(--transition-fast);
-  position: relative;
-  z-index: 10;
-}
-
-.resizer:hover,
-.resizer.active {
-  background: var(--border-active);
-}
-
-.resizer::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -4px;
-  right: -4px;
-}
-
-/* Hidden panel: the separator stays at the window edge */
-.resizer.collapsed {
-  background: var(--border-subtle);
-}
-
-.resizer.collapsed::before {
-  /* Wider grab area, but only on the window-interior side */
-  left: 0;
-  right: 0;
-}
-
-.resizer-left.collapsed::before {
-  right: -8px;
-}
-
-.resizer-right.collapsed::before {
-  left: -8px;
-}
-
-.resizer-grip {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 48px;
-  margin-top: -24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-overlay);
-  border: 1px solid var(--border-default);
-  color: var(--text-secondary);
-  box-shadow: var(--shadow-md);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
-}
-
-.resizer-left .resizer-grip {
-  left: 0;
-  border-left: none;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  transform: translateX(-100%);
-}
-
-.resizer-right .resizer-grip {
-  right: 0;
-  border-right: none;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-  transform: translateX(100%);
-}
-
-.resizer.reveal .resizer-grip {
-  opacity: 1;
-  pointer-events: auto;
-  cursor: pointer;
-  transform: translateX(0);
-}
-
-.resizer.reveal {
-  background: var(--border-active);
-}
-
-/* ============================================================
    File Panel
    ============================================================ */
 
@@ -524,73 +439,15 @@ a:hover {
   max-width: var(--panel-max-width);
 }
 
-.file-panel-header {
-  height: 40px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.file-panel-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
+/* Wraps the Files | Agents Segmented */
 .file-panel-filters {
-  display: flex;
-  gap: 3px;
   margin: 8px 12px;
-  padding: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-elevated);
 }
-
-.file-panel-filter {
-  flex: 1;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-
-.file-panel-filter:hover { color: var(--text-primary); }
-.file-panel-filter.active { background: var(--selected-bg); color: var(--text-accent); }
 
 .directory-section-empty {
   margin: 8px 14px 12px 32px;
   color: var(--text-secondary);
   font-size: var(--font-size-xs);
-}
-
-.file-panel-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.file-panel-action {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.file-panel-action:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
-.file-panel-action.spinning svg {
-  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
@@ -793,45 +650,6 @@ a:hover {
 
 .tree-node-children.expanded {
   display: block;
-}
-
-/* Empty State */
-.file-panel-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.file-panel-empty-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.file-panel-empty-text {
-  font-size: var(--font-size-sm);
-  margin-bottom: 16px;
-}
-
-.file-panel-empty-button {
-  padding: 8px 16px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  transition: all var(--transition-fast);
-}
-
-.file-panel-empty-button:hover {
-  background: var(--hover-bg);
-  border-color: var(--border-active);
 }
 
 /* ============================================================
@@ -1128,34 +946,6 @@ a:hover {
      the text simply re-wraps instead of scrolling sideways. */
   max-width: calc(var(--doc-base-width) * var(--zoom-factor, 1));
   margin: 0 auto;
-}
-
-/* Document Empty State */
-.document-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-}
-
-.document-empty-icon {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 24px;
-  opacity: 0.3;
-}
-
-.document-empty-title {
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-}
-
-.document-empty-subtitle {
-  font-size: var(--font-size-md);
 }
 
 /* ============================================================
@@ -1527,24 +1317,6 @@ a:hover {
   border-left: none;
 }
 
-.toc-header {
-  height: 40px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.toc-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
 .toc-list {
   flex: 1;
   overflow-y: auto;
@@ -1579,13 +1351,6 @@ a:hover {
 .toc-item.level-4 { padding-left: 48px; }
 .toc-item.level-5 { padding-left: 60px; }
 .toc-item.level-6 { padding-left: 72px; }
-
-.toc-empty {
-  padding: 24px 12px;
-  text-align: center;
-  color: var(--text-disabled);
-  font-size: var(--font-size-sm);
-}
 
 /* ============================================================
    Status Bar
@@ -1668,77 +1433,6 @@ a:hover {
   justify-content: center;
   z-index: 1000;
   backdrop-filter: blur(2px);
-}
-
-.modal {
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  min-width: 400px;
-  max-width: 500px;
-  box-shadow: var(--shadow-lg);
-}
-
-.modal h2 {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: var(--text-primary);
-}
-
-.modal p {
-  font-size: var(--font-size-md);
-  color: var(--text-secondary);
-  margin-bottom: 24px;
-  line-height: 1.5;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.modal-btn {
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.modal-btn-secondary {
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-}
-
-.modal-btn-secondary:hover {
-  background: var(--hover-bg);
-  border-color: var(--border-active);
-}
-
-.modal-btn-danger {
-  background: var(--error-bg);
-  border: 1px solid var(--error-text);
-  color: var(--error-text);
-}
-
-.modal-btn-danger:hover {
-  background: var(--danger-hover-bg);
-}
-
-/* The default button of a dialog */
-.modal-btn-primary {
-  background: var(--border-active);
-  border: 1px solid var(--border-active);
-  color: var(--text-on-accent);
-}
-
-.modal-btn-primary:hover {
-  filter: brightness(1.15);
 }
 
 /* Files a dialog is about, right under the sentence that introduces them */
@@ -1895,26 +1589,6 @@ a:hover {
   position: relative;
   transform: translateY(0);
   box-shadow: none;
-}
-
-/* ============================================================
-   Empty State Hint
-   ============================================================ */
-
-.document-empty-hint {
-  margin-top: 16px;
-  font-size: var(--font-size-sm);
-  color: var(--text-disabled);
-}
-
-.document-empty-hint kbd {
-  display: inline-block;
-  padding: 2px 6px;
-  background: var(--surface-overlay);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
 }
 
 /* ============================================================
@@ -2463,49 +2137,6 @@ a:hover {
   max-width: var(--panel-max-width);
 }
 
-.history-panel-header {
-  height: 40px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.history-panel-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
-.history-panel-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.history-panel-action {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.history-panel-action:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
-.history-panel-action.spinning svg {
-  animation: spin 1s linear infinite;
-}
-
 .history-panel-content {
   flex: 1;
   overflow-y: auto;
@@ -2603,12 +2234,6 @@ a:hover {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
-
-.toc-header .panel-zoom-badge {
-  margin-left: auto;
-  margin-right: 4px;
-}
-
 
 /* ============================================================
    Find in Document / Search Panel
@@ -2847,7 +2472,6 @@ a:hover {
   border-radius: 2px;
 }
 
-
 /* Plain text files (txt, log, csv...) - wrapped, not a code block */
 .plain-text-document {
   margin: 0;
@@ -2859,7 +2483,6 @@ a:hover {
   background: none;
   color: var(--text-primary);
 }
-
 
 /* ============================================================
    Main Menu

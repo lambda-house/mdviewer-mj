@@ -49,12 +49,16 @@ const STATIC_IMPORT = /(?:^|[^\w$.])(?:import|export)\s+(?:type\s+)?(?:[\w*${}\s
 const DYNAMIC_IMPORT = /\b(?:import|require)\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
 const CSS_IMPORT = /@import\s+(?:url\(\s*)?['"]?([^'")\s;]+)/g;
 
+/** Block comments and whole-line // comments, which may quote imports. */
+const COMMENT = /\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm;
+
 /** Module specifiers a source file imports. */
 function importsOf(file: string, source: string): string[] {
   const patterns = file.endsWith('.css') ? [CSS_IMPORT] : [STATIC_IMPORT, DYNAMIC_IMPORT];
+  const code = source.replace(COMMENT, '');
   const found: string[] = [];
   for (const pattern of patterns) {
-    for (const match of source.matchAll(pattern)) found.push(match[1]);
+    for (const match of code.matchAll(pattern)) found.push(match[1]);
   }
   return found;
 }
@@ -167,6 +171,7 @@ describe('the import check', () => {
       'react', '@/store', './multi', '../outside', './all', './side-effect.css', '@tauri-apps/api/core',
     ]);
     expect(importsOf('/x/a.css', "@import url('../other.css');\n@import \"./b.css\";")).toEqual(['../other.css', './b.css']);
+    expect(importsOf(file, "// import x from '@/store';\n/* import '@tauri-apps/api' */\nimport y from 'react';")).toEqual(['react']);
   });
 
   it('allows own files, lower layers and listed libraries', () => {
