@@ -1,0 +1,14 @@
+{
+  "name": "@lambda-house/workbench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Window shell, layout tree, panes, commands and plugins shared by MDViewer and Agent MCR",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@lambda-house/tokens": "*",
+    "@lambda-house/ui": "*"
+  }
+}

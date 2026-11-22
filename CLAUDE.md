@@ -12,7 +12,7 @@ MDViewer is a cross-platform markdown document viewer built with Tauri 2.0, Reac
 npm install              # Install dependencies
 npm run dev              # Start Vite dev server (port 1420)
 npm run tauri dev        # Run full Tauri desktop app in dev mode
-npm run build            # TypeScript check + Vite build
+npm run build            # TypeScript check (app, then packages/) + Vite build
 npm test                 # Frontend unit tests (Vitest)
 npm run tauri build      # Build production desktop app
 ```
@@ -86,6 +86,15 @@ Memory reader windows use a validated `memoryDocument` URL and isolated, read-on
 ### Path Alias
 
 TypeScript path alias `@/*` maps to `src/*` (configured in tsconfig.json and vite.config.ts).
+
+### Shared packages (`packages/`)
+
+npm workspaces (`@lambda-house/tokens`, `ui`, `workbench`, `reader`, `journal`) shared with Agent MCR, which keeps a `git subtree` copy. The plan is the shared UI spec in `20261122_ui-concept.md`; the sync commands and rules are in `packages/README.md`.
+
+- Shared code imports nothing from the app: no `src/`, no `@/`, no `@tauri-apps/*`, no app store. It gets what it needs through host interfaces the app passes in. `packages/layers.test.ts` enforces the layer order and the allowed libraries; `tsc -p packages` type-checks without the app's alias.
+- Shared changes are made here first; Agent MCR merges them in. A change made in Agent MCR comes back as a patch.
+- Colours, spacing, radii and type sizes come from `@lambda-house/tokens` once phase 1 lands; component CSS gets no literal colours.
+- A pane whose content is expensive to recreate (terminal, editor, rendered document) is `keepAlive`.
 
 ## Configuration
 

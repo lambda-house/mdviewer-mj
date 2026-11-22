@@ -5,7 +5,7 @@ import { formatAge } from '../utils/agent';
 export default function SessionTree({ all, matches, selected, select }: { all: Session[]; matches: Session[]; selected: string; select: (key: string) => void }) {
   const nodes=useMemo(() => sessionTree(all,matches),[all,matches]);
   const [collapsed,setCollapsed]=useState<Set<string>>(new Set());
-  const render=(node: SessionNode,depth=0): JSX.Element => {
+  const render=(node: SessionNode,depth=0): React.JSX.Element => {
     const s=node.session; const key=sessionKey(s);const closed=collapsed.has(key);
     return <div className={`sc-tree-node ${node.contextOnly ? 'context-only' : ''}`} key={key}>
       <div className="sc-tree-row" style={{paddingLeft:Math.min(depth,8)*16}}>

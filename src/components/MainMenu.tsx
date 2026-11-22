@@ -36,7 +36,7 @@ const MenuPopup: React.FC<MenuPopupProps> = ({ items, highlightFirst, onClose })
   const [submenuIndex, setSubmenuIndex] = useState<number | null>(null);
   /** Highlighted row of the open submenu (-1: none, the keys move in the menu itself). */
   const [submenuActiveIndex, setSubmenuActiveIndex] = useState(-1);
-  const switchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const switchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const isDisabled = (command: Command) => command.enabled?.(state) === false;
   const canHighlight = (item: MenuItem) =>

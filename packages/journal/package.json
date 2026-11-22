@@ -1,0 +1,15 @@
+{
+  "name": "@lambda-house/journal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Index of past agent sessions shared by MDViewer and Agent MCR",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@lambda-house/tokens": "*",
+    "@lambda-house/ui": "*",
+    "@lambda-house/workbench": "*"
+  }
+}

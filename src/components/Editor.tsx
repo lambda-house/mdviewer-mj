@@ -111,7 +111,7 @@ const Editor: React.FC<EditorProps> = ({ path, content, zoom, onChange, onSave, 
   const callbacks = useRef({ onChange, onSave, onScrollLine });
   callbacks.current = { onChange, onSave, onScrollLine };
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** Last text sent to the store - an equal `content` prop is our own echo. */
   const emittedRef = useRef<string | null>(null);
 

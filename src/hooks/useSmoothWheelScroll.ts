@@ -80,7 +80,7 @@ function hasScrollableAncestor(node: Element | null, stop: Element, deltaY: numb
  * stop, the scroll slows down smoothly instead of halting.
  */
 export function useSmoothWheelScroll(
-  scrollRef: React.RefObject<HTMLElement>,
+  scrollRef: React.RefObject<HTMLElement | null>,
   enabled: boolean,
   ready = true
 ): void {

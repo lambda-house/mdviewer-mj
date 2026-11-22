@@ -115,7 +115,7 @@ function debounce<T extends (...args: unknown[]) => void>(
  * them survive a restart as well.
  */
 function useDocumentScroll(
-  scrollRef: React.RefObject<HTMLDivElement>,
+  scrollRef: React.RefObject<HTMLDivElement | null>,
   path: string | null,
   ready: boolean
 ): void {

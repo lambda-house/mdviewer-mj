@@ -1,0 +1,9 @@
+{
+  "name": "@lambda-house/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Colour, spacing and type variables shared by MDViewer and Agent MCR",
+  "exports": {
+    "./tokens.css": "./tokens.css"
+  }
+}

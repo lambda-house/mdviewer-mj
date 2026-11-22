@@ -197,7 +197,7 @@ function setHighlightRanges(highlight: Highlight, ranges: Range[]): void {
 // ============================================================
 
 interface FindBarProps {
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   activePath: string | null;
 }
 

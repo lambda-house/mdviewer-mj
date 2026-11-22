@@ -1,0 +1,15 @@
+{
+  "name": "@lambda-house/reader",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Markdown reader and editor shared by MDViewer and Agent MCR",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@lambda-house/tokens": "*",
+    "@lambda-house/ui": "*",
+    "@lambda-house/workbench": "*"
+  }
+}
