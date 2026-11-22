@@ -69,7 +69,13 @@ export interface ConfirmDialogProps {
    * verb for what happens ("Save All"), not Yes or OK.
    */
   confirmLabel: string;
-  /** The action throws something away: it is drawn as such and Cancel is the default button. */
+  /**
+   * Cancel is the default button: it has the focus, and Enter cancels. For a
+   * question where going ahead by habit would do harm (opening a link an
+   * agent wrote). The action then takes a click, or a deliberate Tab.
+   */
+  cancelIsDefault?: boolean;
+  /** The action throws something away: it is drawn as such, and Cancel is the default button. */
   destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -78,10 +84,12 @@ export interface ConfirmDialogProps {
 
 /**
  * A modal question with an action button and Cancel, in the platform's order
- * (see ACTION_BUTTON_FIRST). The default button has the focus and Enter
- * presses it; Escape cancels. No key reaches the app while it is open.
+ * (see ACTION_BUTTON_FIRST). The default button (the action, unless
+ * `cancelIsDefault` or `destructive`) has the focus and Enter presses it;
+ * Escape cancels. No key reaches the app while it is open.
  */
-export function ConfirmDialog({ title, confirmLabel, destructive = false, onConfirm, onCancel, children }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, confirmLabel, cancelIsDefault = false, destructive = false, onConfirm, onCancel, children }: ConfirmDialogProps) {
+  const cancelFirst = cancelIsDefault || destructive;
   const dialogRef = useRef<HTMLDivElement>(null);
   const defaultRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -129,12 +137,12 @@ export function ConfirmDialog({ title, confirmLabel, destructive = false, onConf
   }, [onCancel]);
 
   const confirmButton = (
-    <Button key="confirm" ref={destructive ? undefined : defaultRef} variant={destructive ? 'destructive' : 'primary'} onClick={onConfirm}>
+    <Button key="confirm" ref={cancelFirst ? undefined : defaultRef} variant={destructive ? 'destructive' : cancelFirst ? 'secondary' : 'primary'} onClick={onConfirm}>
       {confirmLabel}
     </Button>
   );
   const cancelButton = (
-    <Button key="cancel" ref={destructive ? defaultRef : undefined} variant="secondary" onClick={onCancel}>
+    <Button key="cancel" ref={cancelFirst ? defaultRef : undefined} variant={cancelFirst && !destructive ? 'primary' : 'secondary'} onClick={onCancel}>
       Cancel
     </Button>
   );

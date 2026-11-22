@@ -158,6 +158,16 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('can make Cancel the default without a destructive action', () => {
+    const onCancel = vi.fn();
+    render(<ConfirmDialog title="Open this link?" confirmLabel="Open link" cancelIsDefault onConfirm={() => {}} onCancel={onCancel}>x</ConfirmDialog>);
+    const focused = document.activeElement as HTMLElement;
+    expect(focused.textContent).toBe('Cancel');
+    expect(focused.className).toContain('ui-btn--primary');
+    key(focused, 'Enter');
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps keys from the app while open', () => {
     const appShortcut = vi.fn();
     window.addEventListener('keydown', appShortcut);
