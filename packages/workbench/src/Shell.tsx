@@ -73,9 +73,13 @@ export function Shell({ surfaces, active, onActivate, menu, end, className }: Sh
   );
 }
 
-/** A surface's tools in the top bar: after the main menu (`start`) or before the end. Shown only while the surface is. */
+/**
+ * A surface's tools in the top bar: after the main menu (`start`) or before the end. Shown only while the surface is.
+ * Outside a Shell (a surface on its own, in a test) they render in place.
+ */
 export function ShellTools({ side = 'start', children }: { side?: 'start' | 'end'; children: ReactNode }) {
   const surface = useContext(SurfaceContext);
-  const target = surface?.shown ? surface.targets[side] : null;
+  if (!surface) return <>{children}</>;
+  const target = surface.shown ? surface.targets[side] : null;
   return target ? createPortal(children, target) : null;
 }

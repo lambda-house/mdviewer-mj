@@ -63,6 +63,11 @@ describe('Shell', () => {
     expect(host.querySelector('[data-surface="sessions"]')).toBeNull();
   });
 
+  it('renders a surface’s tools in place outside a Shell', () => {
+    act(() => root.render(<Content id="alone" />));
+    expect([...host.querySelectorAll('[data-surface="alone"] button')].map((b) => b.textContent)).toEqual(['alone start', 'alone end']);
+  });
+
   it('has no switch with one surface', () => {
     render('documents', surfaces.slice(0, 1));
     expect(host.querySelector('[role="radiogroup"], .ui-segmented')).toBeNull();
