@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Layers, Check, Trash2, ChevronDown } from 'lucide-react';
-import { useStore, type RestoredDocument } from '../store';
+import { useStore } from '../store';
+import { useReader } from '../reader';
+import { allTabs, type RestoredDocument } from '@lambda-house/reader';
 import { readFile, scanDirectories } from '../utils/tauri';
 import clsx from 'clsx';
 
@@ -13,7 +15,7 @@ async function switchWorkspace(name: string): Promise<void> {
   const state = useStore.getState();
   if (state.activeWorkspace === name) return;
 
-  if (state.tabs.some((t) => t.isDirty) &&
+  if (allTabs(useReader.getState()).some((t) => t.isDirty) &&
       !window.confirm('Some tabs have unsaved changes, which will be lost. Switch anyway?')) {
     return;
   }
@@ -39,7 +41,7 @@ async function switchWorkspace(name: string): Promise<void> {
   );
   // Another switch happened meanwhile - its restore wins
   if (useStore.getState().activeWorkspace !== name) return;
-  useStore.getState().restoreSession(documents.filter((d): d is RestoredDocument => d !== null));
+  useReader.getState().restoreSession(documents.filter((d): d is RestoredDocument => d !== null));
 }
 
 /**

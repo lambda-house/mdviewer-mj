@@ -1,31 +1,19 @@
 import { create } from 'zustand';
-import type { Heading } from '@lambda-house/reader';
+// First: the reader store takes over the old saved tabs before this store rewrites them
+import { useReader } from '../reader';
+import { activeTabOf, focusedGroupOf } from '@lambda-house/reader';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from '@lambda-house/reader';
 import type { ColorTheme } from '@lambda-house/reader';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
 import type { AgentEntry, UpdateInfo } from '../utils/tauri';
-import { sameScrollPosition, type ScrollPosition } from '@lambda-house/reader';
 import { documentWindowPath, documentWindowStorage } from '../utils/documentWindow';
 
 // ============================================================
 // Constants
 // ============================================================
 
-export const MAX_RECENT_CLOSED = 10;
-/** Back/forward tab navigation entries kept in memory. */
-const MAX_NAV_HISTORY = 50;
-export const MIN_ZOOM = 50;
-export const MAX_ZOOM = 1600;
-/** Zoom in/out is multiplicative so 50%..1600% stays a reasonable number of steps. */
+/** Panel zoom in/out is multiplicative, like the document's. */
 const ZOOM_STEP = 1.1;
-export const DEFAULT_MARKDOWN_TEXT_COLOR = '#9a9996';
-export const DEFAULT_MARKDOWN_TEXT_COLOR_LIGHT = '#1f1f1f';
-/** Default text color before 1.0.3 - migrated to the new default if never changed. */
-const LEGACY_MARKDOWN_TEXT_COLOR = '#cccccc';
-
-const clampZoom = (zoom: number) => Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)));
-
 export const PANEL_MIN_WIDTH = 200;
 export const PANEL_MAX_WIDTH = 400;
 export const TOC_MIN_WIDTH = 180;
@@ -54,29 +42,7 @@ export interface FileNode {
   isExpanded?: boolean;
 }
 
-export interface Document {
-  path: string;
-  content: string;
-  originalContent: string; // For dirty checking
-  renderedHtml: string;
-  headings: Heading[];
-  lastModified: number; // timestamp for serialization
-  isDirty: boolean;
-}
-
 export type { Heading } from '@lambda-house/reader';
-
-export interface Tab {
-  id: string;
-  path: string;
-  title: string;
-  isDirty: boolean;
-  /**
-   * Preview tab (VS Code model): a single-click in the file tree reuses it,
-   * shown in italics. Pinning, double-clicking or editing makes it permanent.
-   */
-  isPreview?: boolean;
-}
 
 /** A saved set of open folders and tabs. */
 export interface Workspace {
@@ -102,32 +68,6 @@ export interface AddDirectoryResult {
 /** Where the search panel looks. */
 export type SearchScope = 'tabs' | 'folders';
 
-/** Jump to a search result once its document is rendered. */
-export interface FindRequest {
-  path: string;
-  /** 0-based source line and column of the match. */
-  line: number;
-  column: number;
-  nonce: number;
-}
-
-export interface OpenDocumentOptions {
-  /** Open in (or replace) the preview tab instead of a permanent tab. */
-  preview?: boolean;
-}
-
-export interface ClosedTab {
-  path: string;
-  title: string;
-  closedAt: number;
-}
-
-/** A document restored from the previous session. */
-export interface RestoredDocument {
-  path: string;
-  content: string;
-}
-
 // ============================================================
 // Store Interface
 // ============================================================
@@ -140,65 +80,33 @@ export interface AppState {
   selectedPath: string | null;
   filterQuery: string;
   
-  // Document Panel (use Record for serialization)
-  documents: Record<string, Document>;
-  tabs: Tab[];
-  activeTabId: string | null;
-  recentlyClosed: ClosedTab[];
-  /**
-   * Scroll position per document path (see `utils/scrollAnchor.ts`). Kept out
-   * of `tabs` on purpose: it changes while scrolling and must not invalidate
-   * anything that renders tabs.
-   */
-  scrollPositions: Record<string, ScrollPosition>;
-  /** True once the previous session's tabs have been reloaded (or found empty). */
-  sessionRestored: boolean;
-  /** Tab ids in activation order, for back/forward. Not persisted. */
-  navHistory: string[];
-  navIndex: number;
   
   // UI State
   panelWidth: number;
   filePanelVisible: boolean;
   tocWidth: number;
   tocVisible: boolean;
-  zoom: number;
   /** Zoom of the file panel and the TOC, independent of the document zoom. */
   panelZoom: Record<ZoomPanel, number>;
   statusBarVisible: boolean;
   statusBarPinned: boolean;
-  activeHeadingId: string | null;
   autoRefresh: boolean;
   /** List other text files (code, txt, fb2...) in the file tree, not just markdown. */
   showTextFiles: boolean;
-  smoothScroll: boolean;
-  /** Show web images in documents without asking first. */
-  loadRemoteImages: boolean;
   /** Look for a new version shortly after start. */
   checkUpdatesOnStart: boolean;
   /** A newer version found by the update check. Not persisted. */
   availableUpdate: UpdateInfo | null;
 
   // Appearance
-  /** Rendered markdown text color in the dark theme. */
-  markdownTextColor: string;
-  /** Rendered markdown text color in the light theme. */
-  markdownTextColorLight: string;
   theme: ColorTheme;
-  /** Source editor next to (or, for non-markdown files, instead of) the preview. */
-  editMode: boolean;
 
   // Code Highlighting
-  languageAliases: Record<string, string>;
 
   // Modal state
-  showUnsavedModal: boolean;
-  pendingCloseTabId: string | null;
   settingsOpen: boolean;
   /** The command palette is showing. Not persisted. */
   paletteOpen: boolean;
-  /** The "Save All Files?" dialog is showing. */
-  saveAllPromptOpen: boolean;
 
   // History
   historyVisible: boolean;
@@ -215,12 +123,6 @@ export interface AppState {
   activeWorkspace: string | null;
 
   // Search - options are shared by find-in-document and the search panel
-  searchOptions: SearchOptions;
-  findOpen: boolean;
-  findQuery: string;
-  /** Bumped to (re)focus the find input. */
-  findFocusNonce: number;
-  findRequest: FindRequest | null;
   searchVisible: boolean;
   searchQuery: string;
   searchScope: SearchScope;
@@ -242,39 +144,6 @@ export interface AppState {
   setSelectedPath: (path: string | null) => void;
   setFilterQuery: (query: string) => void;
   
-  // Actions - Documents
-  openDocument: (
-    path: string,
-    content: string,
-    options?: OpenDocumentOptions
-  ) => { success: boolean; error?: string };
-  closeDocument: (tabId: string, force?: boolean) => void;
-  /** Close several tabs at once. Tabs with unsaved changes are kept open. */
-  closeTabs: (tabIds: string[]) => { success: boolean; error?: string };
-  closeOtherTabs: (tabId: string) => { success: boolean; error?: string };
-  closeTabsToLeft: (tabId: string) => { success: boolean; error?: string };
-  closeTabsToRight: (tabId: string) => { success: boolean; error?: string };
-  closeAllTabs: () => { success: boolean; error?: string };
-  /** Turn the preview tab into a permanent one. */
-  pinTab: (tabId: string) => void;
-  navigateBack: () => void;
-  navigateForward: () => void;
-  confirmCloseDocument: () => void;
-  cancelCloseDocument: () => void;
-  setActiveTab: (tabId: string) => void;
-  activateNextTab: () => void;
-  activatePrevTab: () => void;
-  activateTabByIndex: (index: number) => void;
-  updateDocumentContent: (path: string, content: string) => void;
-  /**
-   * Mark a document as saved. `savedContent` is the text that was written -
-   * edits made while the write was running stay dirty.
-   */
-  saveDocument: (path: string, savedContent?: string) => void;
-  reopenClosedTab: () => ClosedTab | null;
-  restoreSession: (documents: RestoredDocument[]) => void;
-  setScrollPosition: (path: string, position: ScrollPosition) => void;
-  getScrollPosition: (path: string) => ScrollPosition;
   
   // Actions - UI
   setPanelWidth: (width: number) => void;
@@ -282,35 +151,21 @@ export interface AppState {
   setTocWidth: (width: number) => void;
   setTocVisible: (visible: boolean) => void;
   toggleTocVisible: () => void;
-  setZoom: (zoom: number) => void;
-  zoomIn: () => void;
-  zoomOut: () => void;
-  resetZoom: () => void;
   /** Step a panel's zoom in (1) or out (-1), or reset it to 100% (0). */
   zoomPanel: (panel: ZoomPanel, direction: 1 | -1 | 0) => void;
   setStatusBarVisible: (visible: boolean) => void;
   setStatusBarPinned: (pinned: boolean) => void;
-  setActiveHeadingId: (id: string | null) => void;
   setSettingsOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
-  setSaveAllPromptOpen: (open: boolean) => void;
   setAutoRefresh: (enabled: boolean) => void;
   setShowTextFiles: (enabled: boolean) => void;
-  setSmoothScroll: (enabled: boolean) => void;
-  setLoadRemoteImages: (enabled: boolean) => void;
   setCheckUpdatesOnStart: (enabled: boolean) => void;
   setAvailableUpdate: (update: UpdateInfo | null) => void;
 
   // Appearance
-  setMarkdownTextColor: (color: string) => void;
-  setMarkdownTextColorLight: (color: string) => void;
   toggleTheme: () => void;
-  toggleEditMode: () => void;
 
   // Code Highlighting
-  setLanguageAlias: (alias: string, language: string) => void;
-  removeLanguageAlias: (alias: string) => void;
-  setLanguageAliases: (aliases: Record<string, string>) => void;
 
   // History
   setHistoryVisible: (visible: boolean) => void;
@@ -318,11 +173,6 @@ export interface AppState {
   setAgentVisible: (visible: boolean) => void;
   toggleAgentVisible: () => void;
   setAgentEntries: (entries: AgentEntry[]) => void;
-  /**
-   * Show what is on disk now in an open document, unless it has unsaved
-   * edits. Returns whether the document was updated.
-   */
-  reloadDocument: (path: string, content: string) => boolean;
 
   // Workspaces
   /** Save the current folders and tabs under `name` (replacing one of that name). */
@@ -337,14 +187,6 @@ export interface AppState {
   loadWorkspace: (name: string) => Workspace | null;
 
   // Search
-  setSearchOptions: (options: Partial<SearchOptions>) => void;
-  /** Open (and focus) the find bar, optionally with a new query. */
-  openFind: (query?: string) => void;
-  closeFind: () => void;
-  setFindQuery: (query: string) => void;
-  /** Open the find bar on `query` and jump to the match at path:line:column. */
-  requestFindAt: (path: string, line: number, column: number, query: string) => void;
-  clearFindRequest: () => void;
   setSearchVisible: (visible: boolean) => void;
   /** Show (and focus) the search panel, optionally with a new query. */
   openSearch: (query?: string) => void;
@@ -357,146 +199,6 @@ export interface AppState {
 // Helper Functions
 // ============================================================
 
-let idCounter = 0;
-
-function generateId(): string {
-  idCounter += 1;
-  return `${Date.now().toString(36)}-${idCounter.toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
-}
-
-function getFileName(path: string): string {
-  const parts = path.split(/[/\\]/);
-  return parts[parts.length - 1] || path;
-}
-
-/** Keep only the scroll offsets that still belong to a known document. */
-function pruneScrollPositions(
-  positions: Record<string, ScrollPosition>,
-  keep: Iterable<string>
-): Record<string, ScrollPosition> {
-  const allowed = new Set(keep);
-  const next: Record<string, ScrollPosition> = {};
-  for (const [path, offset] of Object.entries(positions)) {
-    if (allowed.has(path)) next[path] = offset;
-  }
-  return next;
-}
-
-/**
- * Persisted tabs come from older app versions too, where they were stored
- * without an `id`. A tab without an id makes every lookup by id match the
- * wrong tab (or all of them), so normalize the shape on rehydrate.
- */
-function normalizeTabs(tabs: unknown): Tab[] {
-  if (!Array.isArray(tabs)) return [];
-
-  const seen = new Set<string>();
-  const normalized: Tab[] = [];
-
-  for (const raw of tabs) {
-    const tab = raw as Partial<Tab> | null;
-    const path = tab && typeof tab.path === 'string' ? tab.path : '';
-    if (!path || seen.has(path)) continue;
-    seen.add(path);
-
-    normalized.push({
-      id: tab && typeof tab.id === 'string' && tab.id ? tab.id : generateId(),
-      path,
-      title: tab && typeof tab.title === 'string' && tab.title ? tab.title : getFileName(path),
-      isDirty: false,
-      isPreview: tab?.isPreview === true,
-    });
-  }
-
-  return normalized;
-}
-
-/**
- * Remove tabs (and their documents) from the state. The closed tabs go to the
- * recently-closed list; if the active tab is closed, its neighbour takes over.
- */
-function removeTabs(state: AppState, tabIds: string[]): Partial<AppState> {
-  const ids = new Set(tabIds);
-  const closing = state.tabs.filter((t) => ids.has(t.id));
-  if (closing.length === 0) return {};
-
-  const newTabs = state.tabs.filter((t) => !ids.has(t.id));
-
-  const now = Date.now();
-  const closedTabs: ClosedTab[] = closing
-    .map((t) => ({ path: t.path, title: t.title, closedAt: now }))
-    .reverse(); // last tab in the strip is reopened first
-  const newRecentlyClosed = [...closedTabs, ...state.recentlyClosed].slice(0, MAX_RECENT_CLOSED);
-
-  const newDocuments = { ...state.documents };
-  for (const tab of closing) {
-    delete newDocuments[tab.path];
-  }
-
-  let newActiveTabId = state.activeTabId;
-  if (newActiveTabId && ids.has(newActiveTabId)) {
-    // Nearest surviving tab to the right of the old position, else to the left
-    const oldIndex = state.tabs.findIndex((t) => t.id === newActiveTabId);
-    const right = state.tabs.slice(oldIndex + 1).find((t) => !ids.has(t.id));
-    const left = state.tabs.slice(0, oldIndex).reverse().find((t) => !ids.has(t.id));
-    newActiveTabId = (right ?? left)?.id ?? null;
-  }
-  const newActiveTab = newTabs.find((t) => t.id === newActiveTabId);
-
-  return {
-    tabs: newTabs,
-    activeTabId: newActiveTabId,
-    selectedPath: newActiveTab?.path ?? state.selectedPath,
-    documents: newDocuments,
-    recentlyClosed: newRecentlyClosed,
-    // Keep the offset of recently closed docs so reopening returns to it
-    scrollPositions: pruneScrollPositions(state.scrollPositions, [
-      ...newTabs.map((t) => t.path),
-      ...newRecentlyClosed.map((t) => t.path),
-    ]),
-  };
-}
-
-/** Close the given tabs, skipping (and reporting) ones with unsaved changes. */
-function closeTabsResult(
-  get: () => AppState,
-  set: (partial: Partial<AppState>) => void,
-  tabIds: string[]
-): { success: boolean; error?: string } {
-  const state = get();
-  const ids = new Set(tabIds);
-  const dirty = state.tabs.filter((t) => ids.has(t.id) && t.isDirty);
-  const closable = state.tabs.filter((t) => ids.has(t.id) && !t.isDirty).map((t) => t.id);
-
-  set(removeTabs(state, closable));
-
-  if (dirty.length > 0) {
-    return {
-      success: false,
-      error: `Kept ${dirty.length} tab(s) with unsaved changes: ${dirty.map((t) => t.title).join(', ')}`,
-    };
-  }
-  return { success: true };
-}
-
-/**
- * Set while back/forward is switching tabs, so that switch is not recorded
- * as a new navigation entry.
- */
-let isNavigating = false;
-
-/** Find the next still-open tab in the nav history, stepping by `direction`. */
-function findNavTarget(state: AppState, direction: -1 | 1): number {
-  const openIds = new Set(state.tabs.map((t) => t.id));
-  for (let i = state.navIndex + direction; i >= 0 && i < state.navHistory.length; i += direction) {
-    const id = state.navHistory[i];
-    if (openIds.has(id) && id !== state.activeTabId) return i;
-  }
-  return -1;
-}
-
-export const canNavigateBack = (state: AppState) => findNavTarget(state, -1) !== -1;
-export const canNavigateForward = (state: AppState) => findNavTarget(state, 1) !== -1;
 
 // ============================================================
 // Store
@@ -513,59 +215,28 @@ export const useStore = create<AppState>()(
       filterQuery: '',
       
       // Initial State - Documents
-      documents: {},
-      tabs: [],
-      activeTabId: null,
-      recentlyClosed: [],
-      scrollPositions: {},
-      sessionRestored: false,
-      navHistory: [],
-      navIndex: -1,
       
       // Initial State - UI
       panelWidth: 280,
       filePanelVisible: true,
       tocWidth: 220,
       tocVisible: true,
-      zoom: 100,
       panelZoom: DEFAULT_PANEL_ZOOM,
       statusBarVisible: false,
       statusBarPinned: false,
-      activeHeadingId: null,
       autoRefresh: true,
       showTextFiles: true,
-      smoothScroll: true,
-      loadRemoteImages: false,
       checkUpdatesOnStart: true,
       availableUpdate: null,
 
       // Appearance
-      markdownTextColor: DEFAULT_MARKDOWN_TEXT_COLOR,
-      markdownTextColorLight: DEFAULT_MARKDOWN_TEXT_COLOR_LIGHT,
       theme: 'dark',
-      editMode: false,
 
       // Code Highlighting - default aliases
-      languageAliases: {
-        'tsx': 'typescript',
-        'jsx': 'javascript',
-        'sh': 'bash',
-        'zsh': 'bash',
-        'sc': 'scala',
-        'py': 'python',
-        'rb': 'ruby',
-        'rs': 'rust',
-        'ts': 'typescript',
-        'js': 'javascript',
-        'yml': 'yaml',
-      },
       
       // Modal state
-      showUnsavedModal: false,
-      pendingCloseTabId: null,
       settingsOpen: false,
       paletteOpen: false,
-      saveAllPromptOpen: false,
 
       // History
       historyVisible: false,
@@ -573,11 +244,6 @@ export const useStore = create<AppState>()(
       agentEntries: [],
       workspaces: [],
       activeWorkspace: null,
-      searchOptions: DEFAULT_SEARCH_OPTIONS,
-      findOpen: false,
-      findQuery: '',
-      findFocusNonce: 0,
-      findRequest: null,
       searchVisible: false,
       searchQuery: '',
       searchScope: 'folders',
@@ -652,292 +318,6 @@ export const useStore = create<AppState>()(
       
       setFilterQuery: (query) => set({ filterQuery: query }),
       
-      // ============================================================
-      // Actions - Documents
-      // ============================================================
-      
-      openDocument: (path, content, options = {}) => {
-        const state = get();
-        const preview = options.preview === true;
-        
-        // Check if already open. A permanent open of the preview tab pins it;
-        // a preview open never un-pins a tab.
-        const existingTab = state.tabs.find((t) => t.path === path);
-        if (existingTab) {
-          set({
-            activeTabId: existingTab.id,
-            selectedPath: path,
-            tabs: !preview && existingTab.isPreview
-              ? state.tabs.map((t) => (t.id === existingTab.id ? { ...t, isPreview: false } : t))
-              : state.tabs,
-          });
-          return { success: true };
-        }
-        
-        // Create new tab
-        const tabId = generateId();
-        const newTab: Tab = {
-          id: tabId,
-          path,
-          title: getFileName(path),
-          isDirty: false,
-          isPreview: preview,
-        };
-        
-        // Create document
-        const newDocument: Document = {
-          path,
-          content,
-          originalContent: content,
-          renderedHtml: '',
-          headings: [],
-          lastModified: Date.now(),
-          isDirty: false,
-        };
-        
-        // A new preview replaces the current (unmodified) preview tab in place
-        const previewTab = preview ? state.tabs.find((t) => t.isPreview && !t.isDirty) : undefined;
-        if (previewTab) {
-          const documents = { ...state.documents, [path]: newDocument };
-          delete documents[previewTab.path];
-          set({
-            tabs: state.tabs.map((t) => (t.id === previewTab.id ? newTab : t)),
-            activeTabId: tabId,
-            documents,
-            selectedPath: path,
-          });
-          return { success: true };
-        }
-        
-        set({
-          tabs: [...state.tabs, newTab],
-          activeTabId: tabId,
-          documents: { ...state.documents, [path]: newDocument },
-          selectedPath: path,
-        });
-        
-        return { success: true };
-      },
-      
-      closeDocument: (tabId, force = false) => {
-        const state = get();
-        const tab = state.tabs.find((t) => t.id === tabId);
-        
-        if (!tab) return;
-        
-        // Check for unsaved changes
-        if (tab.isDirty && !force) {
-          set({ 
-            showUnsavedModal: true, 
-            pendingCloseTabId: tabId 
-          });
-          return;
-        }
-        
-        set({
-          ...removeTabs(state, [tabId]),
-          showUnsavedModal: false,
-          pendingCloseTabId: null,
-        });
-      },
-
-      closeTabs: (tabIds) => closeTabsResult(get, set, tabIds),
-
-      closeOtherTabs: (tabId) =>
-        closeTabsResult(get, set, get().tabs.filter((t) => t.id !== tabId).map((t) => t.id)),
-
-      closeTabsToLeft: (tabId) => {
-        const tabs = get().tabs;
-        const index = tabs.findIndex((t) => t.id === tabId);
-        return closeTabsResult(get, set, index > 0 ? tabs.slice(0, index).map((t) => t.id) : []);
-      },
-
-      closeTabsToRight: (tabId) => {
-        const tabs = get().tabs;
-        const index = tabs.findIndex((t) => t.id === tabId);
-        return closeTabsResult(get, set, index >= 0 ? tabs.slice(index + 1).map((t) => t.id) : []);
-      },
-
-      closeAllTabs: () => closeTabsResult(get, set, get().tabs.map((t) => t.id)),
-
-      pinTab: (tabId) => set((state) => ({
-        tabs: state.tabs.map((t) => (t.id === tabId && t.isPreview ? { ...t, isPreview: false } : t)),
-      })),
-
-      navigateBack: () => {
-        const state = get();
-        const index = findNavTarget(state, -1);
-        if (index === -1) return;
-        isNavigating = true;
-        try {
-          get().setActiveTab(state.navHistory[index]);
-          set({ navIndex: index });
-        } finally {
-          isNavigating = false;
-        }
-      },
-
-      navigateForward: () => {
-        const state = get();
-        const index = findNavTarget(state, 1);
-        if (index === -1) return;
-        isNavigating = true;
-        try {
-          get().setActiveTab(state.navHistory[index]);
-          set({ navIndex: index });
-        } finally {
-          isNavigating = false;
-        }
-      },
-      
-      confirmCloseDocument: () => {
-        const state = get();
-        if (state.pendingCloseTabId) {
-          get().closeDocument(state.pendingCloseTabId, true);
-        }
-      },
-      
-      cancelCloseDocument: () => {
-        set({ 
-          showUnsavedModal: false, 
-          pendingCloseTabId: null 
-        });
-      },
-      
-      setActiveTab: (tabId) => set((state) => {
-        if (state.activeTabId === tabId) return state;
-        const tab = state.tabs.find((t) => t.id === tabId);
-        return {
-          activeTabId: tabId,
-          selectedPath: tab?.path || state.selectedPath,
-        };
-      }),
-      
-      activateNextTab: () => {
-        const state = get();
-        if (state.tabs.length <= 1) return;
-        
-        const currentIndex = state.tabs.findIndex((t) => t.id === state.activeTabId);
-        const nextIndex = (currentIndex + 1) % state.tabs.length;
-        get().setActiveTab(state.tabs[nextIndex].id);
-      },
-      
-      activatePrevTab: () => {
-        const state = get();
-        if (state.tabs.length <= 1) return;
-        
-        const currentIndex = state.tabs.findIndex((t) => t.id === state.activeTabId);
-        const prevIndex = (currentIndex - 1 + state.tabs.length) % state.tabs.length;
-        get().setActiveTab(state.tabs[prevIndex].id);
-      },
-      
-      activateTabByIndex: (index) => {
-        const state = get();
-        if (index >= 0 && index < state.tabs.length) {
-          get().setActiveTab(state.tabs[index].id);
-        }
-      },
-      
-      updateDocumentContent: (path, content) => set((state) => {
-        const doc = state.documents[path];
-        if (!doc) return state;
-        
-        const isDirty = content !== doc.originalContent;
-        
-        return {
-          documents: {
-            ...state.documents,
-            [path]: { ...doc, content, isDirty },
-          },
-          tabs: state.tabs.map((t) =>
-            t.path === path ? { ...t, isDirty, isPreview: t.isPreview && !isDirty } : t
-          ),
-        };
-      }),
-      
-      saveDocument: (path, savedContent) => set((state) => {
-        const doc = state.documents[path];
-        if (!doc) return state;
-
-        const originalContent = savedContent ?? doc.content;
-        const isDirty = doc.content !== originalContent;
-        
-        return {
-          documents: {
-            ...state.documents,
-            [path]: { 
-              ...doc, 
-              originalContent, 
-              isDirty,
-              lastModified: Date.now(),
-            },
-          },
-          tabs: state.tabs.map((t) =>
-            t.path === path ? { ...t, isDirty } : t
-          ),
-        };
-      }),
-      
-      reopenClosedTab: () => {
-        const state = get();
-        if (state.recentlyClosed.length === 0) return null;
-        
-        const [mostRecent, ...rest] = state.recentlyClosed;
-        set({ recentlyClosed: rest });
-        
-        return mostRecent;
-      },
-
-      /**
-       * Rebuild the previous session: tabs whose file could be re-read get a
-       * document again, the rest are dropped. Called once on startup.
-       */
-      restoreSession: (restored) => set((state) => {
-        const contentByPath = new Map(restored.map((d) => [d.path, d.content]));
-        const tabs = state.tabs.filter((t) => contentByPath.has(t.path));
-
-        const documents: Record<string, Document> = { ...state.documents };
-        for (const tab of tabs) {
-          const content = contentByPath.get(tab.path) as string;
-          documents[tab.path] = {
-            path: tab.path,
-            content,
-            originalContent: content,
-            renderedHtml: '',
-            headings: [],
-            lastModified: Date.now(),
-            isDirty: false,
-          };
-        }
-
-        const activeTabId = tabs.some((t) => t.id === state.activeTabId)
-          ? state.activeTabId
-          : tabs[0]?.id ?? null;
-        const activeTab = tabs.find((t) => t.id === activeTabId);
-
-        return {
-          tabs,
-          documents,
-          activeTabId,
-          selectedPath: activeTab?.path ?? state.selectedPath,
-          scrollPositions: pruneScrollPositions(
-            state.scrollPositions,
-            tabs.map((t) => t.path)
-          ),
-          sessionRestored: true,
-        };
-      }),
-
-      setScrollPosition: (path, position) => set((state) => {
-        if (!path) return state;
-        const next = typeof position === 'number' ? Math.max(0, Math.round(position)) : position;
-        if (sameScrollPosition(state.scrollPositions[path], next)) return state;
-        return {
-          scrollPositions: { ...state.scrollPositions, [path]: next },
-        };
-      }),
-
-      getScrollPosition: (path) => get().scrollPositions[path] ?? 0,
       
       // ============================================================
       // Actions - UI
@@ -961,13 +341,6 @@ export const useStore = create<AppState>()(
       
       toggleTocVisible: () => set((state) => ({ tocVisible: !state.tocVisible })),
       
-      setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
-      
-      zoomIn: () => set((state) => ({ zoom: clampZoom(state.zoom * ZOOM_STEP) })),
-      
-      zoomOut: () => set((state) => ({ zoom: clampZoom(state.zoom / ZOOM_STEP) })),
-      
-      resetZoom: () => set({ zoom: 100 }),
 
       zoomPanel: (panel, direction) => set((state) => {
         const current = state.panelZoom[panel];
@@ -983,53 +356,22 @@ export const useStore = create<AppState>()(
       
       setStatusBarPinned: (pinned) => set({ statusBarPinned: pinned }),
       
-      // Called from the scroll handler: skip the update (and the re-render of
-      // every subscriber) when the heading has not actually changed.
-      setActiveHeadingId: (id) => set((state) => (
-        state.activeHeadingId === id ? state : { activeHeadingId: id }
-      )),
 
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setPaletteOpen: (open) => set({ paletteOpen: open }),
 
-      setSaveAllPromptOpen: (open) => set({ saveAllPromptOpen: open }),
 
       setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
 
       setShowTextFiles: (enabled) => set({ showTextFiles: enabled }),
-
-      setSmoothScroll: (enabled) => set({ smoothScroll: enabled }),
-
-      setLoadRemoteImages: (enabled) => set({ loadRemoteImages: enabled }),
 
       setCheckUpdatesOnStart: (enabled) => set({ checkUpdatesOnStart: enabled }),
 
       setAvailableUpdate: (update) => set({ availableUpdate: update }),
 
       // Appearance
-      setMarkdownTextColor: (color) => set({ markdownTextColor: color }),
-
-      setMarkdownTextColorLight: (color) => set({ markdownTextColorLight: color }),
-
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
 
-      toggleEditMode: () => set((state) => ({ editMode: !state.editMode })),
-
-      // Code Highlighting
-      setLanguageAlias: (alias, language) => set((state) => ({
-        languageAliases: {
-          ...state.languageAliases,
-          [alias.toLowerCase()]: language.toLowerCase(),
-        },
-      })),
-
-      removeLanguageAlias: (alias) => set((state) => {
-        const newAliases = { ...state.languageAliases };
-        delete newAliases[alias.toLowerCase()];
-        return { languageAliases: newAliases };
-      }),
-
-      setLanguageAliases: (aliases) => set({ languageAliases: aliases }),
 
       // History
       setHistoryVisible: (visible) => set((state) => ({
@@ -1059,17 +401,6 @@ export const useStore = create<AppState>()(
 
       setAgentEntries: (entries) => set({ agentEntries: entries }),
 
-      reloadDocument: (path, content) => {
-        const doc = get().documents[path];
-        if (!doc || doc.isDirty || doc.content === content) return false;
-        set((state) => ({
-          documents: {
-            ...state.documents,
-            [path]: { ...doc, content, originalContent: content, lastModified: Date.now() },
-          },
-        }));
-        return true;
-      },
 
       // Workspaces
       saveWorkspace: (rawName) => {
@@ -1081,8 +412,8 @@ export const useStore = create<AppState>()(
           name,
           directories: state.directories,
           expandedPaths: state.expandedPaths,
-          tabs: state.tabs.map((t) => t.path),
-          activePath: state.tabs.find((t) => t.id === state.activeTabId)?.path ?? null,
+          tabs: focusedGroupOf(useReader.getState()).tabs.map((t) => t.path),
+          activePath: activeTabOf(focusedGroupOf(useReader.getState()))?.path ?? null,
           savedAt: Date.now(),
         };
         const index = state.workspaces.findIndex((w) => w.name === name);
@@ -1104,53 +435,21 @@ export const useStore = create<AppState>()(
         const workspace = get().workspaces.find((w) => w.name === name);
         if (!workspace) return null;
 
-        const tabs: Tab[] = workspace.tabs.map((path) => ({
-          id: generateId(),
-          path,
-          title: getFileName(path),
-          isDirty: false,
-        }));
-        const active = tabs.find((t) => t.path === workspace.activePath) ?? tabs[0];
 
         set({
           activeWorkspace: name,
           directories: workspace.directories,
           expandedPaths: workspace.expandedPaths,
           files: [],
-          tabs,
-          activeTabId: active?.id ?? null,
-          selectedPath: active?.path ?? null,
-          documents: {},
-          navHistory: [],
-          navIndex: -1,
-          findOpen: false,
-          findRequest: null,
+          selectedPath: workspace.activePath ?? workspace.tabs[0] ?? null,
         });
+        useReader.getState().replaceTabs(workspace.tabs, workspace.activePath);
         return workspace;
       },
 
       // Search
-      setSearchOptions: (options) => set((state) => ({
-        searchOptions: { ...state.searchOptions, ...options },
-      })),
 
-      openFind: (query) => set((state) => ({
-        findOpen: true,
-        findQuery: query ?? state.findQuery,
-        findFocusNonce: state.findFocusNonce + 1,
-      })),
 
-      closeFind: () => set({ findOpen: false, findRequest: null }),
-
-      setFindQuery: (query) => set({ findQuery: query }),
-
-      requestFindAt: (path, line, column, query) => set((state) => ({
-        findOpen: true,
-        findQuery: query,
-        findRequest: { path, line, column, nonce: (state.findRequest?.nonce ?? 0) + 1 },
-      })),
-
-      clearFindRequest: () => set({ findRequest: null }),
 
       setSearchVisible: (visible) => set((state) => ({
         searchVisible: visible,
@@ -1172,7 +471,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'mdviewer-storage',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => documentWindowPath ? documentWindowStorage(localStorage) : localStorage),
       partialize: (state) => ({
         // Only persist these fields
@@ -1183,43 +482,26 @@ export const useStore = create<AppState>()(
         agentVisible: state.agentVisible,
         tocWidth: state.tocWidth,
         tocVisible: state.tocVisible,
-        zoom: state.zoom,
         panelZoom: state.panelZoom,
         statusBarPinned: state.statusBarPinned,
         autoRefresh: state.autoRefresh,
         showTextFiles: state.showTextFiles,
-        smoothScroll: state.smoothScroll,
-        loadRemoteImages: state.loadRemoteImages,
         checkUpdatesOnStart: state.checkUpdatesOnStart,
-        markdownTextColor: state.markdownTextColor,
-        markdownTextColorLight: state.markdownTextColorLight,
         theme: state.theme,
-        editMode: state.editMode,
-        languageAliases: state.languageAliases,
-        searchOptions: state.searchOptions,
         searchScope: state.searchScope,
         workspaces: state.workspaces,
         activeWorkspace: state.activeWorkspace,
-        // Session restore: tab identity + which one was active + where each
-        // document was scrolled to (documents themselves are re-read on start)
-        tabs: state.tabs.map((t) => ({
-          id: t.id,
-          path: t.path,
-          title: t.title,
-          isDirty: false,
-          isPreview: t.isPreview === true,
-        })),
-        activeTabId: state.activeTabId,
-        scrollPositions: state.scrollPositions,
       }),
-      // Nothing to transform here - `merge` below normalizes every shape we
-      // have ever written. Without this, zustand would silently drop the whole
-      // persisted state (directories, aliases, ...) on a version bump.
+      // Without this, zustand would silently drop the whole persisted state
+      // (directories, workspaces, ...) on a version bump. The v3 text colour
+      // default is the reader's concern now (reader.ts).
       migrate: (persistedState, version) => {
-        const persisted = (persistedState ?? {}) as Partial<AppState>;
-        // v3: new dark-mode text default; keep colors the user picked themselves
-        if (version < 3 && persisted.markdownTextColor?.toLowerCase() === LEGACY_MARKDOWN_TEXT_COLOR) {
-          persisted.markdownTextColor = DEFAULT_MARKDOWN_TEXT_COLOR;
+        const persisted = (persistedState ?? {}) as Partial<AppState> & Record<string, unknown>;
+        // v5: tabs, zoom, edit mode and the reader settings are the reader store's
+        // (reader.ts took them over before this store was created)
+        if (version < 5) {
+          for (const key of ['tabs', 'activeTabId', 'scrollPositions', 'zoom', 'editMode', 'smoothScroll', 'loadRemoteImages',
+            'markdownTextColor', 'markdownTextColorLight', 'languageAliases', 'searchOptions']) delete persisted[key];
         }
         // The old flag meant "open the separate agent panel". The new root
         // starts visible (collapsed) for existing users too.
@@ -1228,37 +510,27 @@ export const useStore = create<AppState>()(
       },
       merge: (persistedState, currentState) => {
         const persisted = (persistedState ?? {}) as Partial<AppState>;
-        const tabs = normalizeTabs(persisted.tabs);
-        const activeTabId = tabs.some((t) => t.id === persisted.activeTabId)
-          ? (persisted.activeTabId as string)
-          : tabs[0]?.id ?? null;
 
         return {
           ...currentState,
           ...persisted,
-          tabs,
-          activeTabId,
-          scrollPositions: persisted.scrollPositions ?? {},
           panelZoom: { ...DEFAULT_PANEL_ZOOM, ...persisted.panelZoom },
-          searchOptions: { ...DEFAULT_SEARCH_OPTIONS, ...persisted.searchOptions },
-          // Documents are not persisted - they are re-read from disk on start
-          documents: {},
-          sessionRestored: false,
         };
       },
     }
   )
 );
 
-// Record every tab activation (clicks, opens, closes, shortcuts) for
-// back/forward, except the switches made by back/forward themselves.
+// The reader renders in the app's theme
+useReader.getState().setTheme(useStore.getState().theme);
 useStore.subscribe((state, prev) => {
-  if (isNavigating || state.activeTabId === prev.activeTabId || !state.activeTabId) return;
-  if (state.navHistory[state.navIndex] === state.activeTabId) return;
+  if (state.theme !== prev.theme) useReader.getState().setTheme(state.theme);
+});
 
-  const history = [...state.navHistory.slice(0, state.navIndex + 1), state.activeTabId]
-    .slice(-MAX_NAV_HISTORY);
-  useStore.setState({ navHistory: history, navIndex: history.length - 1 });
+// The file tree selects the document shown in the focused group
+useReader.subscribe((state, prev) => {
+  const path = activeTabOf(focusedGroupOf(state))?.path;
+  if (path && path !== activeTabOf(focusedGroupOf(prev))?.path) useStore.getState().setSelectedPath(path);
 });
 
 export default useStore;

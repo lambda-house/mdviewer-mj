@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useStore, type FileNode } from '../store';
+import { useReader } from '../reader';
+import { allTabs } from '@lambda-house/reader';
 
 /**
  * Check if running inside Tauri environment
@@ -16,7 +18,8 @@ let sessionAccess: Promise<void> | null = null;
 
 function adoptSessionAccess(): Promise<void> {
   if (!sessionAccess) {
-    const { directories, tabs, workspaces } = useStore.getState();
+    const { directories, workspaces } = useStore.getState();
+    const tabs = allTabs(useReader.getState());
     sessionAccess = invoke<void>('adopt_session_access', {
       directories: [...directories, ...workspaces.flatMap((w) => w.directories)],
       files: [...tabs.map((t) => t.path), ...workspaces.flatMap((w) => w.tabs)],

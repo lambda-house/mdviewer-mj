@@ -6,8 +6,8 @@ import { indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { isMarkdownFile } from '@lambda-house/reader';
-import { savedEditorStates as savedStates, setEditorFlush, getEditorFlush } from '@lambda-house/reader';
+import { isMarkdownFile } from './files';
+import { savedEditorStates as savedStates, setEditorFlush, getEditorFlush } from './editorRegistry';
 
 // ============================================================
 // Tuning

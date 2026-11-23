@@ -1,7 +1,9 @@
 import React, { useCallback, useRef } from 'react';
 import { X, List } from 'lucide-react';
 import { Button, EmptyState, PaneFrame } from '@lambda-house/ui';
-import { useStore, type Heading } from '../store';
+import { useStore } from '../store';
+import { useReader } from '../reader';
+import { focusedGroupOf, type Heading } from '@lambda-house/reader';
 import clsx from 'clsx';
 import PanelZoomBadge from './PanelZoomBadge';
 import { useSmoothWheelScroll } from '@lambda-house/ui';
@@ -13,19 +15,18 @@ import { useSmoothWheelScroll } from '@lambda-house/ui';
 interface TocItemProps {
   heading: Heading;
   isActive: boolean;
-  onClick: () => void;
+  /** The document group the heading is in. */
+  group: string;
 }
 
-const TocItem: React.FC<TocItemProps> = ({ heading, isActive, onClick }) => {
+const TocItem: React.FC<TocItemProps> = ({ heading, isActive, group }) => {
   const handleClick = useCallback(() => {
-    onClick();
-    
-    // Scroll to heading
-    const element = document.getElementById(heading.id);
+    // Scroll to the heading in its group (another group can show the same ids)
+    const element = document.querySelector(`.document-panel[data-group="${CSS.escape(group)}"] [id="${CSS.escape(heading.id)}"]`);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [heading.id, onClick]);
+  }, [heading.id, group]);
   
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -54,27 +55,24 @@ const TocItem: React.FC<TocItemProps> = ({ heading, isActive, onClick }) => {
 // ============================================================
 
 interface TocSidebarProps {
-  headings: Heading[];
   width: number;
   isVisible: boolean;
   onToggle: () => void;
 }
 
+/** The contents of the focused document group. */
 const TocSidebar: React.FC<TocSidebarProps> = ({
-  headings,
   width,
   isVisible,
   onToggle,
 }) => {
-  const activeHeadingId = useStore((s) => s.activeHeadingId);
+  const group = useReader((s) => focusedGroupOf(s).id);
+  const headings = useReader((s) => focusedGroupOf(s).headings);
+  const activeHeadingId = useReader((s) => focusedGroupOf(s).activeHeadingId);
   const zoom = useStore((s) => s.panelZoom.toc);
-  const smoothScroll = useStore((s) => s.smoothScroll);
+  const smoothScroll = useReader((s) => s.settings.smoothScroll);
   const listRef = useRef<HTMLElement>(null);
   useSmoothWheelScroll(listRef, smoothScroll, isVisible && headings.length > 0);
-  
-  const handleItemClick = useCallback(() => {
-    // Active heading will be updated by scroll handler
-  }, []);
   
   if (!isVisible) {
     return null;
@@ -100,7 +98,7 @@ const TocSidebar: React.FC<TocSidebarProps> = ({
                 key={`${heading.id}-${index}`}
                 heading={heading}
                 isActive={activeHeadingId === heading.id}
-                onClick={handleItemClick}
+                group={group}
               />
             ))}
           </div>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { X, Folder, Trash2, FolderPlus, Settings, ExternalLink, Code, Plus, Palette } from 'lucide-react';
 import { useStore } from '../store';
 import { pickDirectory, scanDirectories, isTauri, openInExplorer, checkForUpdate, getAppVersion } from '../utils/tauri';
+import { useReader } from '../reader';
 
 type SettingsCategory = 'directories' | 'general' | 'appearance' | 'highlighting';
 
@@ -14,10 +15,10 @@ const SettingsModal: React.FC = () => {
   const setFiles = useStore((s) => s.setFiles);
   const autoRefresh = useStore((s) => s.autoRefresh);
   const setAutoRefresh = useStore((s) => s.setAutoRefresh);
-  const smoothScroll = useStore((s) => s.smoothScroll);
+  const smoothScroll = useReader((s) => s.settings.smoothScroll);
   const showTextFiles = useStore((s) => s.showTextFiles);
   const setShowTextFiles = useStore((s) => s.setShowTextFiles);
-  const setSmoothScroll = useStore((s) => s.setSmoothScroll);
+  const setSmoothScroll = (value: boolean) => setReaderSettings({ smoothScroll: value });
   const checkUpdatesOnStart = useStore((s) => s.checkUpdatesOnStart);
   const setCheckUpdatesOnStart = useStore((s) => s.setCheckUpdatesOnStart);
   const setAvailableUpdate = useStore((s) => s.setAvailableUpdate);
@@ -27,15 +28,23 @@ const SettingsModal: React.FC = () => {
   useEffect(() => {
     getAppVersion().then(setAppVersion).catch(() => {});
   }, []);
-  const loadRemoteImages = useStore((s) => s.loadRemoteImages);
-  const setLoadRemoteImages = useStore((s) => s.setLoadRemoteImages);
-  const languageAliases = useStore((s) => s.languageAliases);
-  const setLanguageAlias = useStore((s) => s.setLanguageAlias);
-  const removeLanguageAlias = useStore((s) => s.removeLanguageAlias);
-  const markdownTextColor = useStore((s) => s.markdownTextColor);
-  const markdownTextColorLight = useStore((s) => s.markdownTextColorLight);
-  const setMarkdownTextColorLight = useStore((s) => s.setMarkdownTextColorLight);
-  const setMarkdownTextColor = useStore((s) => s.setMarkdownTextColor);
+  const setReaderSettings = useReader((s) => s.setSettings);
+  const loadRemoteImages = useReader((s) => s.settings.loadRemoteImages);
+  const setLoadRemoteImages = (value: boolean) => setReaderSettings({ loadRemoteImages: value });
+  const languageAliases = useReader((s) => s.settings.languageAliases);
+  const setLanguageAlias = useCallback((alias: string, language: string) => {
+    const aliases = useReader.getState().settings.languageAliases;
+    setReaderSettings({ languageAliases: { ...aliases, [alias.toLowerCase()]: language.toLowerCase() } });
+  }, [setReaderSettings]);
+  const removeLanguageAlias = (alias: string) => {
+    const aliases = { ...useReader.getState().settings.languageAliases };
+    delete aliases[alias.toLowerCase()];
+    setReaderSettings({ languageAliases: aliases });
+  };
+  const markdownTextColor = useReader((s) => s.settings.markdownTextColor);
+  const markdownTextColorLight = useReader((s) => s.settings.markdownTextColorLight);
+  const setMarkdownTextColorLight = (value: string) => setReaderSettings({ markdownTextColorLight: value });
+  const setMarkdownTextColor = (value: string) => setReaderSettings({ markdownTextColor: value });
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('directories');
   const [newAliasKey, setNewAliasKey] = useState('');

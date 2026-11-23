@@ -18,6 +18,8 @@ import {
   refreshAgentWorkspace,
 } from '../utils/agent';
 import { getFileName } from '@lambda-house/reader';
+import { useReader } from '../reader';
+import { activeTabOf, focusedGroupOf } from '@lambda-house/reader';
 
 // ============================================================
 // Agent Panel: instructions, rules, memory, plans and skills of coding agents
@@ -31,8 +33,8 @@ const AgentItem: React.FC<{ entry: AgentEntry; active: boolean; showGroup?: bool
   active,
   showGroup,
 }) => {
-  const openDocument = useStore((s) => s.openDocument);
-  const reloadDocument = useStore((s) => s.reloadDocument);
+  const openDocument = useReader((s) => s.openDocument);
+  const reloadDocument = useReader((s) => s.reloadDocument);
 
   // Single click opens the preview tab, double-click a permanent tab
   const open = useCallback(async (preview: boolean) => {
@@ -85,7 +87,7 @@ const AgentPanel: React.FC = () => {
   const entries = useStore((s) => s.agentEntries);
   const setAgentEntries = useStore((s) => s.setAgentEntries);
   const setAgentVisible = useStore((s) => s.setAgentVisible);
-  const activePath = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.path ?? null);
+  const activePath = useReader((s) => activeTabOf(focusedGroupOf(s))?.path ?? null);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [rootCollapsed, setRootCollapsed] = useState(true);
   const [loading, setLoading] = useState(false);

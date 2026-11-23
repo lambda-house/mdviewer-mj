@@ -15,8 +15,10 @@ import {
   Bot,
   FileSearch,
 } from 'lucide-react';
-import { useStore, MIN_ZOOM, MAX_ZOOM } from '../store';
-import { exportActiveDocument } from '../utils/export';
+import { useStore } from '../store';
+import { useReader } from '../reader';
+import { reader } from '../readerHost';
+import { MIN_ZOOM, MAX_ZOOM, activeTabOf, exportActiveDocument, focusedGroupOf } from '@lambda-house/reader';
 import clsx from 'clsx';
 import { ShellTools } from '@lambda-house/workbench';
 import WorkspaceMenu from './WorkspaceMenu';
@@ -34,11 +36,12 @@ const sliderToZoom = (value: number) =>
   MIN_ZOOM * Math.pow(MAX_ZOOM / MIN_ZOOM, value / SLIDER_STEPS);
 
 const ZoomControl: React.FC = () => {
-  const zoom = useStore((s) => s.zoom);
-  const setZoom = useStore((s) => s.setZoom);
-  const zoomIn = useStore((s) => s.zoomIn);
-  const zoomOut = useStore((s) => s.zoomOut);
-  const resetZoom = useStore((s) => s.resetZoom);
+  // The focused document group's zoom
+  const zoom = useReader((s) => focusedGroupOf(s).zoom);
+  const setZoom = useCallback((value: number) => useReader.getState().setZoom(value), []);
+  const zoomIn = useCallback(() => useReader.getState().zoomIn(), []);
+  const zoomOut = useCallback(() => useReader.getState().zoomOut(), []);
+  const resetZoom = useCallback(() => useReader.getState().resetZoom(), []);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,9 +122,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const filterQuery = useStore((s) => s.filterQuery);
   const setFilterQuery = useStore((s) => s.setFilterQuery);
-  const activeTab = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId) ?? null);
-  const editMode = useStore((s) => s.editMode);
-  const toggleEditMode = useStore((s) => s.toggleEditMode);
+  const activeTab = useReader((s) => activeTabOf(focusedGroupOf(s)));
+  const editMode = useReader((s) => s.editMode);
+  const toggleEditMode = useReader((s) => s.toggleEditMode);
   const [isExporting, setIsExporting] = useState(false);
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,7 +138,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const handleExportHtml = useCallback(async () => {
     setIsExporting(true);
     try {
-      await exportActiveDocument('html');
+      await exportActiveDocument(reader, 'html');
     } finally {
       setIsExporting(false);
     }

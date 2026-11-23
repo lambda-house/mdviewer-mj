@@ -20,6 +20,7 @@ import clsx from 'clsx';
 import PanelZoomBadge from './PanelZoomBadge';
 import { useSmoothWheelScroll } from '@lambda-house/ui';
 import AgentPanel from './AgentPanel';
+import { useReader } from '../reader';
 
 // ============================================================
 // Tree Node Component
@@ -88,7 +89,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node: chainTop, level }) => {
   }, [isSelected]);
   const toggleExpanded = useStore((s) => s.toggleExpanded);
   const setSelectedPath = useStore((s) => s.setSelectedPath);
-  const openDocument = useStore((s) => s.openDocument);
+  const openDocument = useReader((s) => s.openDocument);
 
   const isExpanded = node.isExpanded || isExpandedInStore;
   const isDirectory = node.type === 'directory';
@@ -323,7 +324,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   const globalAgentsVisible = useStore((s) => s.agentVisible);
   const setFiles = useStore((s) => s.setFiles);
   const zoom = useStore((s) => s.panelZoom.files);
-  const smoothScroll = useStore((s) => s.smoothScroll);
+  const smoothScroll = useReader((s) => s.settings.smoothScroll);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [agentFilter, setAgentFilter] = useState(false);
   const [projectAgentPaths, setProjectAgentPaths] = useState<string[]>([]);

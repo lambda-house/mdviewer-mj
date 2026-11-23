@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { FileText, X, Pin, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Menu, type MenuItem } from '@lambda-house/ui';
-import { useStore, canNavigateBack, canNavigateForward } from '../store';
-import { openInExplorer } from '../utils/tauri';
+import { useReader, useReaderContext } from './host';
+import { canNavigateBack, canNavigateForward, type Tab as TabState } from './store';
 import clsx from 'clsx';
 
 // ============================================================
@@ -115,20 +115,22 @@ const Tab: React.FC<TabProps> = ({
 // ============================================================
 
 interface TabContextMenuProps {
+  group: string;
   tabId: string;
   x: number;
   y: number;
   onClose: () => void;
 }
 
-const TabContextMenu: React.FC<TabContextMenuProps> = ({ tabId, x, y, onClose }) => {
-  const tabs = useStore((s) => s.tabs);
-  const closeDocument = useStore((s) => s.closeDocument);
-  const closeOtherTabs = useStore((s) => s.closeOtherTabs);
-  const closeTabsToLeft = useStore((s) => s.closeTabsToLeft);
-  const closeTabsToRight = useStore((s) => s.closeTabsToRight);
-  const closeAllTabs = useStore((s) => s.closeAllTabs);
-  const pinTab = useStore((s) => s.pinTab);
+const TabContextMenu: React.FC<TabContextMenuProps> = ({ group, tabId, x, y, onClose }) => {
+  const { host } = useReaderContext();
+  const tabs = useReader((s) => s.groups[group]?.tabs ?? NO_TABS);
+  const closeDocument = useReader((s) => s.closeDocument);
+  const closeOtherTabs = useReader((s) => s.closeOtherTabs);
+  const closeTabsToLeft = useReader((s) => s.closeTabsToLeft);
+  const closeTabsToRight = useReader((s) => s.closeTabsToRight);
+  const closeAllTabs = useReader((s) => s.closeAllTabs);
+  const pinTab = useReader((s) => s.pinTab);
 
   const index = tabs.findIndex((t) => t.id === tabId);
   const tab = tabs[index];
@@ -147,16 +149,16 @@ const TabContextMenu: React.FC<TabContextMenuProps> = ({ tabId, x, y, onClose })
     { label: 'Close Others', onSelect: run(() => closeOtherTabs(tabId)), disabled: tabs.length <= 1 },
     { label: 'Close to the Left', onSelect: run(() => closeTabsToLeft(tabId)), disabled: index <= 0 },
     { label: 'Close to the Right', onSelect: run(() => closeTabsToRight(tabId)), disabled: index >= tabs.length - 1 },
-    { label: 'Close All', onSelect: run(closeAllTabs) },
+    { label: 'Close All', onSelect: run(() => closeAllTabs(group)) },
     'separator',
     { label: 'Keep Open', onSelect: run(() => pinTab(tabId)), disabled: !tab.isPreview },
     { label: 'Copy Path', onSelect: run(() => { navigator.clipboard?.writeText(tab.path).catch(() => {}); }) },
-    {
+    ...(host.revealInFolder ? [{
       label: 'Reveal in File Manager',
       onSelect: run(() => {
-        openInExplorer(tab.path).catch((error) => console.error('Failed to open in explorer:', error));
+        host.revealInFolder?.(tab.path).catch((error) => console.error('Failed to open in explorer:', error));
       }),
-    },
+    }] : []),
   ];
 
   return <Menu label={tab.title} at={{ left: x, top: y }} items={items} onClose={onClose} />;
@@ -166,16 +168,19 @@ const TabContextMenu: React.FC<TabContextMenuProps> = ({ tabId, x, y, onClose })
 // Tab Bar Component
 // ============================================================
 
-const TabBar: React.FC = () => {
-  const tabs = useStore((s) => s.tabs);
-  const activeTabId = useStore((s) => s.activeTabId);
-  const setActiveTab = useStore((s) => s.setActiveTab);
-  const closeDocument = useStore((s) => s.closeDocument);
-  const pinTab = useStore((s) => s.pinTab);
-  const navigateBack = useStore((s) => s.navigateBack);
-  const navigateForward = useStore((s) => s.navigateForward);
-  const canGoBack = useStore(canNavigateBack);
-  const canGoForward = useStore(canNavigateForward);
+const NO_TABS: TabState[] = [];
+
+/** The tabs of a document group, with back/forward. */
+const TabBar: React.FC<{ group: string }> = ({ group }) => {
+  const tabs = useReader((s) => s.groups[group]?.tabs ?? NO_TABS);
+  const activeTabId = useReader((s) => s.groups[group]?.activeTabId ?? null);
+  const setActiveTab = useReader((s) => s.setActiveTab);
+  const closeDocument = useReader((s) => s.closeDocument);
+  const pinTab = useReader((s) => s.pinTab);
+  const navigateBack = useReader((s) => s.navigateBack);
+  const navigateForward = useReader((s) => s.navigateForward);
+  const canGoBack = useReader((s) => canNavigateBack(s.groups[group]));
+  const canGoForward = useReader((s) => canNavigateForward(s.groups[group]));
 
   const hasTabs = tabs.length > 0;
   const stripRef = useRef<HTMLDivElement>(null);
@@ -247,7 +252,7 @@ const TabBar: React.FC = () => {
       <div className="tab-bar-nav">
         <button
           className="tab-bar-button"
-          onClick={navigateBack}
+          onClick={() => navigateBack(group)}
           disabled={!canGoBack}
           title="Back (Alt+Left)"
           aria-label="Back to previous tab"
@@ -257,7 +262,7 @@ const TabBar: React.FC = () => {
         </button>
         <button
           className="tab-bar-button"
-          onClick={navigateForward}
+          onClick={() => navigateForward(group)}
           disabled={!canGoForward}
           title="Forward (Alt+Right)"
           aria-label="Forward to next tab"
@@ -317,7 +322,7 @@ const TabBar: React.FC = () => {
         </button>
       )}
 
-      {menu && <TabContextMenu tabId={menu.tabId} x={menu.x} y={menu.y} onClose={closeMenu} />}
+      {menu && <TabContextMenu group={group} tabId={menu.tabId} x={menu.x} y={menu.y} onClose={closeMenu} />}
     </div>
   );
 };

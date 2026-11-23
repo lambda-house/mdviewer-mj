@@ -1,22 +1,21 @@
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo, type ReactNode } from 'react';
 import { FileQuestion, AlertCircle, Save, ImageOff, FileDiff } from 'lucide-react';
-import { ConfirmDialog, EmptyState as UiEmptyState, Kbd } from '@lambda-house/ui';
-import { useStore } from '../store';
-import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from '@lambda-house/reader';
+import { EmptyState as UiEmptyState, useSmoothWheelScroll } from '@lambda-house/ui';
 import clsx from 'clsx';
+import { useReader, useReaderContext, type ReaderHost } from './host';
+import { MAIN_GROUP, activeTabOf, allTabs, type ReaderStore } from './store';
+import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from './markdown';
 import TabBar from './TabBar';
 import FindBar from './FindBar';
-import { pruneEditorStates } from '@lambda-house/reader';
+import { pruneEditorStates } from './editorRegistry';
+import { getFileKind, getFileName, resolveLinkPath } from './files';
+import { saveActiveDocument } from './save';
+import { holdScroll } from './scrollHold';
+import { applyScrollPosition, captureScrollPosition } from './scrollAnchor';
+import { CHANGED_CLASS, diffContent, formatAge, markChangedBlocks } from './changes';
 
 // CodeMirror is only loaded once edit mode is first used
 const Editor = React.lazy(() => import('./Editor'));
-import { getFileKind, getFileName } from '@lambda-house/reader';
-import { saveActiveDocument } from '../utils/save';
-import { useSmoothWheelScroll } from '@lambda-house/ui';
-import { holdScroll } from '@lambda-house/reader';
-import { applyScrollPosition, captureScrollPosition } from '@lambda-house/reader';
-import { readSnapshot } from '../utils/tauri';
-import { CHANGED_CLASS, diffContent, formatAge, markAgentFilesRead, markChangedBlocks, markLeftDocumentRead } from '../utils/agent';
 
 // ============================================================
 // Scroll Tuning Constants
@@ -43,7 +42,7 @@ interface ErrorBoundaryProps {
   onReset?: () => void;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -116,6 +115,8 @@ function debounce<T extends (...args: unknown[]) => void>(
  * them survive a restart as well.
  */
 function useDocumentScroll(
+  store: ReaderStore,
+  group: string,
   scrollRef: React.RefObject<HTMLDivElement | null>,
   path: string | null,
   ready: boolean
@@ -136,13 +137,14 @@ function useDocumentScroll(
     const currentPath = pathRef.current;
     if (currentPath && pendingRef.current !== null) {
       // An unmounting container can't be measured any more: keep the offset
-      useStore.getState().setScrollPosition(
+      store.getState().setScrollPosition(
+        group,
         currentPath,
         el?.isConnected ? captureScrollPosition(el) : pendingRef.current
       );
     }
     pendingRef.current = null;
-  }, [scrollRef]);
+  }, [store, group, scrollRef]);
 
   // Record the offset while scrolling (debounced: each write hits localStorage)
   useEffect(() => {
@@ -169,7 +171,7 @@ function useDocumentScroll(
       const el = scrollRef.current;
       const currentPath = pathRef.current;
       if (el?.isConnected && currentPath && !restoringRef.current) {
-        useStore.getState().setScrollPosition(currentPath, captureScrollPosition(el));
+        store.getState().setScrollPosition(group, currentPath, captureScrollPosition(el));
         pendingRef.current = null;
       }
       flushSave();
@@ -180,7 +182,7 @@ function useDocumentScroll(
       window.removeEventListener('beforeunload', handleUnload);
       handleUnload();
     };
-  }, [scrollRef, flushSave]);
+  }, [store, group, scrollRef, flushSave]);
 
   // Stash the outgoing document's offset, then restore the incoming one
   useEffect(() => {
@@ -194,7 +196,7 @@ function useDocumentScroll(
       }
       pendingRef.current = null;
       // The container still holds the previous document at this point
-      useStore.getState().setScrollPosition(previousPath, captureScrollPosition(el));
+      store.getState().setScrollPosition(group, previousPath, captureScrollPosition(el));
     }
     pathRef.current = path;
 
@@ -203,7 +205,7 @@ function useDocumentScroll(
 
     if (!el || !path || !ready) return;
 
-    const target = useStore.getState().getScrollPosition(path);
+    const target = store.getState().getScrollPosition(group, path);
     const inner = el.firstElementChild;
 
     restoringRef.current = true;
@@ -231,7 +233,7 @@ function useDocumentScroll(
       stop();
       stopRestoreRef.current = null;
     };
-  }, [scrollRef, path, ready]);
+  }, [store, group, scrollRef, path, ready]);
 }
 
 // ============================================================
@@ -239,14 +241,7 @@ function useDocumentScroll(
 // ============================================================
 
 const EmptyState: React.FC = () => (
-  <UiEmptyState
-    size="lg"
-    icon={<FileQuestion size={64} />}
-    title="No Document Open"
-    hint={<><Kbd>Ctrl</Kbd>+<Kbd>P</Kbd> to quick open a file</>}
-  >
-    Select a markdown file from the sidebar, or drop one on this window
-  </UiEmptyState>
+  <UiEmptyState size="lg" icon={<FileQuestion size={64} />} title="No Document Open" />
 );
 
 // ============================================================
@@ -257,31 +252,39 @@ const EmptyState: React.FC = () => (
 const remoteImageDocuments = new Set<string>();
 
 interface MarkdownViewerProps {
+  group: string;
   content: string;
   documentPath: string;
   onHeadingsExtracted?: (headings: RenderResult['headings']) => void;
 }
 
-const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
+/** Tracked reads without a host that tracks them: never. */
+const useNeverTracked = (_path: string) => false;
+
+export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
+  group,
   content,
   documentPath,
   onHeadingsExtracted,
 }) => {
-  const zoom = useStore((s) => s.zoom);
-  const setActiveHeadingId = useStore((s) => s.setActiveHeadingId);
-  const languageAliases = useStore((s) => s.languageAliases);
-  const theme = useStore((s) => s.theme);
-  const markdownTextColor = useStore((s) =>
-    s.theme === 'light' ? s.markdownTextColorLight : s.markdownTextColor);
-  const alwaysLoadRemoteImages = useStore((s) => s.loadRemoteImages);
-  const setLoadRemoteImages = useStore((s) => s.setLoadRemoteImages);
+  const { store, host } = useReaderContext();
+  const zoom = useReader((s) => s.groups[group]?.zoom ?? 100);
+  const setActiveHeadingId = useCallback((id: string | null) => store.getState().setActiveHeadingId(id, group), [store, group]);
+  const languageAliases = useReader((s) => s.settings.languageAliases);
+  const theme = useReader((s) => s.theme);
+  const markdownTextColor = useReader((s) =>
+    s.theme === 'light' ? s.settings.markdownTextColorLight : s.settings.markdownTextColor);
+  const alwaysLoadRemoteImages = useReader((s) => s.settings.loadRemoteImages);
+  const setLoadRemoteImages = (value: boolean) => store.getState().setSettings({ loadRemoteImages: value });
   const containerRef = useRef<HTMLDivElement>(null);
   const headingOffsetsRef = useRef<{ id: string; top: number }[] | null>(null);
   const [html, setHtml] = useState('');
   const [blockedImages, setBlockedImages] = useState(0);
   const [remoteImagesLoaded, setRemoteImagesLoaded] = useState(0);
-  // Agent files: what changed since the user last read the document
-  const isAgentDocument = useStore((s) => s.agentEntries.some((e) => e.path === documentPath));
+  // Tracked documents (agent files): what changed since the person last read it
+  const changesHost: ReaderHost['changes'] = host.changes;
+  const useIsTracked = changesHost?.useIsTracked ?? useNeverTracked;
+  const isAgentDocument = useIsTracked(documentPath);
   const [changes, setChanges] = useState<{ blocks: HTMLElement[]; readAt: number } | null>(null);
   const changeIndexRef = useRef(-1);
   // Committed together with `html`, so the DOM says which document it shows
@@ -302,6 +305,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       const result = renderFile(documentPath, content, basePath);
       setHtml(result.html);
       setRenderedPath(documentPath);
+      store.getState().setHeadings(result.headings, group);
       onHeadingsExtracted?.(result.headings);
       headingOffsetsRef.current = null; // Reset cached heading positions
       setRenderKey(k => k + 1); // Force re-render of mermaid
@@ -310,7 +314,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       setHtml(`<div class="render-error">Failed to render markdown</div>`);
       setRenderedPath(documentPath);
     }
-  }, [content, basePath, documentPath, onHeadingsExtracted]);
+  }, [content, basePath, documentPath, onHeadingsExtracted, store, group]);
   
   // Remote images: loaded when allowed, otherwise counted for the notice
   useEffect(() => {
@@ -332,9 +336,9 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   useEffect(() => {
     const container = containerRef.current;
     setChanges(null);
-    if (!container || !html || !isAgentDocument) return;
+    if (!container || !html || !isAgentDocument || !changesHost) return;
     let cancelled = false;
-    readSnapshot(documentPath)
+    changesHost.readSnapshot(documentPath)
       .then((snapshot) => {
         if (cancelled || !snapshot || snapshot.content === content) return;
         const blocks = markChangedBlocks(container, diffContent(snapshot.content, content));
@@ -345,13 +349,15 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [html, documentPath, isAgentDocument]); // not `content`: it changes before the HTML does
+  }, [html, documentPath, isAgentDocument, changesHost]); // not `content`: it changes before the HTML does
 
-  // Leaving an agent file counts as having read it
+  // Leaving a tracked document counts as having read it
   useEffect(() => {
-    if (!isAgentDocument) return;
-    return () => markLeftDocumentRead(documentPath);
-  }, [documentPath, isAgentDocument]);
+    if (!isAgentDocument || !changesHost) return;
+    return () => {
+      changesHost.markRead([documentPath]).catch((error) => console.error('Failed to save read state:', error));
+    };
+  }, [documentPath, isAgentDocument, changesHost]);
 
   const showNextChange = useCallback(() => {
     if (!changes) return;
@@ -362,8 +368,8 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   const markDocumentRead = useCallback(() => {
     containerRef.current?.querySelectorAll(`.${CHANGED_CLASS}`).forEach((el) => el.classList.remove(CHANGED_CLASS));
     setChanges(null);
-    markAgentFilesRead([documentPath]).catch((error) => console.error('Failed to save read state:', error));
-  }, [documentPath]);
+    changesHost?.markRead([documentPath]).catch((error) => console.error('Failed to save read state:', error));
+  }, [documentPath, changesHost]);
 
   const loadImagesForDocument = useCallback(() => {
     remoteImageDocuments.add(documentPath);
@@ -550,52 +556,41 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   );
 };
 
-// ============================================================
-// Unsaved Changes Modal
-// ============================================================
-
-const UnsavedChangesModal: React.FC = () => {
-  const showUnsavedModal = useStore((s) => s.showUnsavedModal);
-  const pendingCloseTabId = useStore((s) => s.pendingCloseTabId);
-  const tabs = useStore((s) => s.tabs);
-  const confirmCloseDocument = useStore((s) => s.confirmCloseDocument);
-  const cancelCloseDocument = useStore((s) => s.cancelCloseDocument);
-  
-  if (!showUnsavedModal || !pendingCloseTabId) return null;
-  
-  const tab = tabs.find(t => t.id === pendingCloseTabId);
-  
-  return (
-    <ConfirmDialog
-      title="Unsaved Changes"
-      confirmLabel="Close Without Saving"
-      destructive
-      onConfirm={confirmCloseDocument}
-      onCancel={cancelCloseDocument}
-    >
-      <p>"{tab?.title}" has unsaved changes. Do you want to close it anyway?</p>
-    </ConfirmDialog>
-  );
-};
 
 // ============================================================
 // Document Panel Component
 // ============================================================
 
-interface DocumentPanelProps {
+export interface DocumentPanelProps {
+  /** The document group shown (a `documents` pane's key). */
+  group?: string;
+  /** What an empty group says: how to open a document in this app. */
+  empty?: ReactNode;
   onHeadingsChange?: (headings: RenderResult['headings']) => void;
 }
 
-const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
+/** Errors opening a link, for the person. */
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) return String(error.message);
+  return String(error);
+}
+
+/**
+ * A document group: its tabs, find bar, the shown document and its editor.
+ */
+export const DocumentPanel: React.FC<DocumentPanelProps> = ({ group = MAIN_GROUP, empty, onHeadingsChange }) => {
+  const reader = useReaderContext();
+  const { store, host } = reader;
   // Narrow subscriptions: scrolling must not re-render the whole app
-  const activePath = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.path ?? null);
-  const content = useStore((s) => (activePath ? s.documents[activePath]?.content : undefined));
-  const zoom = useStore((s) => s.zoom);
-  const smoothScroll = useStore((s) => s.smoothScroll);
-  const editMode = useStore((s) => s.editMode);
-  const isDirty = useStore((s) => (activePath ? s.documents[activePath]?.isDirty ?? false : false));
-  const openPathsKey = useStore((s) => s.tabs.map((t) => t.path).join('\n'));
-  const updateDocumentContent = useStore((s) => s.updateDocumentContent);
+  const activePath = useReader((s) => activeTabOf(s.groups[group])?.path ?? null);
+  const content = useReader((s) => (activePath ? s.documents[activePath]?.content : undefined));
+  const zoom = useReader((s) => s.groups[group]?.zoom ?? 100);
+  const smoothScroll = useReader((s) => s.settings.smoothScroll);
+  const editMode = useReader((s) => s.editMode);
+  const isDirty = useReader((s) => (activePath ? s.documents[activePath]?.isDirty ?? false : false));
+  const openPathsKey = useReader((s) => allTabs(s).map((t) => t.path).join('\n'));
+  const updateDocumentContent = useReader((s) => s.updateDocumentContent);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasDocument = activePath !== null && content !== undefined;
@@ -606,7 +601,7 @@ const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
   const showEditor = editMode && hasDocument;
   const showPreview = hasDocument && (!showEditor || kind === 'markdown' || kind === 'fb2');
 
-  useDocumentScroll(scrollRef, activePath, showPreview);
+  useDocumentScroll(store, group, scrollRef, activePath, showPreview);
   useSmoothWheelScroll(scrollRef, smoothScroll, showPreview);
 
   // Editor states (undo history) of closed documents are dropped
@@ -643,15 +638,65 @@ const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
     onHeadingsChange?.(headings);
   }, [onHeadingsChange]);
   
+  // Links in the document. The window itself never navigates (the backend
+  // blocks it): anchors scroll, web and mail links open in the default browser,
+  // links to local files open in a tab (or are revealed if not viewable), after
+  // a confirmation when they're outside what the person opened. A relative
+  // link resolves against the document it is in.
+  const handleLinkClick = useCallback(async (e: React.MouseEvent) => {
+    if (e.defaultPrevented || e.button !== 0) return;
+    const link = (e.target as HTMLElement).closest?.('.markdown-body a[href]');
+    if (!link) return;
+    const href = link.getAttribute('href') ?? '';
+    e.preventDefault();
+
+    if (href.startsWith('#')) {
+      let id = href.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        // Malformed escape: use the id as written
+      }
+      link.closest('.markdown-body')?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    try {
+      if (/^(https?|mailto):/i.test(href)) {
+        await host.openExternal(href);
+        return;
+      }
+      if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^file:/i.test(href) && !/^[A-Za-z]:[\\/]/.test(href)) {
+        return; // other schemes (javascript:, data:, ...) are ignored
+      }
+      const documentPath = link.closest('.markdown-body')?.getAttribute('data-rendered-path');
+      if (!documentPath) return;
+      const path = resolveLinkPath(href, documentPath);
+      if ((await host.followLocalLink(path)) === 'open') {
+        store.getState().focusGroup(group);
+        await host.openPath(path);
+      }
+    } catch (error) {
+      console.error('Failed to open link:', href, error);
+      alert(`Could not open ${href}:\n${errorText(error)}`);
+    }
+  }, [host, store, group]);
+
   const handleErrorReset = useCallback(() => {
     // Could trigger a re-fetch of the document here
     console.log('Resetting document render');
   }, []);
   
   return (
-    <main className="document-panel">
-      <TabBar />
-      {showPreview && <FindBar scrollRef={scrollRef} activePath={activePath} />}
+    <main
+      className="document-panel"
+      data-group={group}
+      onPointerDownCapture={() => store.getState().focusGroup(group)}
+      onFocusCapture={() => store.getState().focusGroup(group)}
+      onClick={handleLinkClick}
+    >
+      <TabBar group={group} />
+      {showPreview && <FindBar group={group} scrollRef={scrollRef} activePath={activePath} />}
       
       {hasDocument ? (
         <div className={clsx('document-body', showEditor && showPreview && 'split')}>
@@ -666,7 +711,7 @@ const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
               </span>
               <button
                 className="editor-save-button"
-                onClick={() => saveActiveDocument()}
+                onClick={() => saveActiveDocument(reader, group)}
                 disabled={!isDirty}
                 title="Save (Ctrl+S)"
                 type="button"
@@ -680,7 +725,7 @@ const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
                 content={content as string}
                 zoom={zoom}
                 onChange={updateDocumentContent}
-                onSave={() => saveActiveDocument()}
+                onSave={() => saveActiveDocument(reader, group)}
                 onScrollLine={showPreview ? handleEditorScrollLine : undefined}
               />
             </React.Suspense>
@@ -706,6 +751,7 @@ const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
               }
             >
               <MarkdownViewer
+                group={group}
                 content={content as string}
                 documentPath={activePath as string}
                 onHeadingsExtracted={handleHeadingsExtracted}
@@ -716,12 +762,8 @@ const DocumentPanel: React.FC<DocumentPanelProps> = ({ onHeadingsChange }) => {
         )}
         </div>
       ) : (
-        <EmptyState />
+        empty ?? <EmptyState />
       )}
-      
-      <UnsavedChangesModal />
     </main>
   );
 };
-
-export default DocumentPanel;

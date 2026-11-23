@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { FileText, Clock, Hash, Pin } from 'lucide-react';
 import { useStore } from '../store';
 import clsx from 'clsx';
+import { useReader } from '../reader';
+import { activeTabOf, focusedGroupOf } from '@lambda-house/reader';
 
 // ============================================================
 // Utility Functions
@@ -74,8 +76,8 @@ function repaintMainContent(): void {
 // ============================================================
 
 const StatusBar: React.FC = () => {
-  const activeTab = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId) ?? null);
-  const documents = useStore((s) => s.documents);
+  const activeTab = useReader((s) => activeTabOf(focusedGroupOf(s)));
+  const documents = useReader((s) => s.documents);
   const statusBarVisible = useStore((s) => s.statusBarVisible);
   const statusBarPinned = useStore((s) => s.statusBarPinned);
   const setStatusBarVisible = useStore((s) => s.setStatusBarVisible);

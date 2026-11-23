@@ -1,7 +1,7 @@
-import { useStore } from '../store';
-import { saveFile } from './tauri';
-import { escapeHtml, fileToMarkdown, loadRemoteImages } from '@lambda-house/reader';
-import { flushEditorChanges } from '@lambda-house/reader';
+import type { Reader } from './host';
+import { escapeHtml, fileToMarkdown, loadRemoteImages } from './markdown';
+import { flushEditorChanges } from './editorRegistry';
+import { activeTabOf, focusedGroupOf } from './store';
 
 export type ExportFormat = 'markdown' | 'html';
 
@@ -185,9 +185,10 @@ let exporting = false;
  * HTML page (what is rendered, in the current theme) or as markdown (with
  * unsaved edits). Failures are shown to the user.
  */
-export async function exportActiveDocument(format: ExportFormat): Promise<void> {
-  const state = useStore.getState();
-  const tab = state.tabs.find((t) => t.id === state.activeTabId);
+export async function exportActiveDocument(reader: Reader, format: ExportFormat): Promise<void> {
+  const state = reader.store.getState();
+  const group = focusedGroupOf(state);
+  const tab = activeTabOf(group);
   if (!tab || exporting) return;
 
   const label = format === 'html' ? 'HTML' : 'Markdown';
@@ -196,9 +197,9 @@ export async function exportActiveDocument(format: ExportFormat): Promise<void> 
   exporting = true;
   try {
     if (format === 'html') {
-      // Get rendered HTML from the actual DOM (includes syntax highlighting & mermaid).
-      // Scoped to the document panel: the history panel is a .markdown-body too.
-      const markdownBody = document.querySelector('.document-panel .markdown-body');
+      // Get rendered HTML from the actual DOM (includes syntax highlighting & mermaid):
+      // the focused group's (a history or other panel can be a .markdown-body too)
+      const markdownBody = document.querySelector(`.document-panel[data-group="${CSS.escape(group.id)}"] .markdown-body`);
       if (!markdownBody) {
         alert('No document content to export');
         return;
@@ -208,15 +209,15 @@ export async function exportActiveDocument(format: ExportFormat): Promise<void> 
       loadRemoteImages(exported);
       const htmlContent = generateExportHtml(tab.title, exported.innerHTML, state.theme);
 
-      await saveFile(`${baseName}.html`, htmlContent, [
+      await reader.host.saveAs(`${baseName}.html`, htmlContent, [
         { name: 'HTML', extensions: ['html', 'htm'] }
-      ]);
+      ], 'Export HTML');
     } else {
       flushEditorChanges();
-      const doc = useStore.getState().documents[tab.path];
+      const doc = reader.store.getState().documents[tab.path];
       if (!doc) return;
 
-      await saveFile(`${baseName}.md`, fileToMarkdown(tab.path, doc.content), [
+      await reader.host.saveAs(`${baseName}.md`, fileToMarkdown(tab.path, doc.content), [
         { name: 'Markdown', extensions: ['md', 'markdown'] }
       ], 'Export Markdown');
     }

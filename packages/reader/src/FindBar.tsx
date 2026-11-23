@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from 'lucide-react';
-import { useStore } from '../store';
-import { buildSearchRegex, iterateMatches } from '@lambda-house/reader';
-import { holdScroll } from '@lambda-house/reader';
+import { useReader, useReaderContext } from './host';
+import { buildSearchRegex, iterateMatches } from './search';
+import { holdScroll } from './scrollHold';
 import clsx from 'clsx';
 
 // ============================================================
@@ -197,6 +197,7 @@ function setHighlightRanges(highlight: Highlight, ranges: Range[]): void {
 // ============================================================
 
 interface FindBarProps {
+  group: string;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   activePath: string | null;
 }
@@ -205,16 +206,17 @@ interface FindBarProps {
  * Find in the current document (Ctrl+F). Matches are highlighted with the CSS
  * Custom Highlight API, so the rendered document itself is never modified.
  */
-const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
-  const findOpen = useStore((s) => s.findOpen);
-  const query = useStore((s) => s.findQuery);
-  const options = useStore((s) => s.searchOptions);
-  const focusNonce = useStore((s) => s.findFocusNonce);
-  const findRequest = useStore((s) => s.findRequest);
-  const setFindQuery = useStore((s) => s.setFindQuery);
-  const setSearchOptions = useStore((s) => s.setSearchOptions);
-  const closeFind = useStore((s) => s.closeFind);
-  const clearFindRequest = useStore((s) => s.clearFindRequest);
+const FindBar: React.FC<FindBarProps> = ({ group, scrollRef, activePath }) => {
+  const { store } = useReaderContext();
+  const findOpen = useReader((s) => s.groups[group]?.find.open ?? false);
+  const query = useReader((s) => s.groups[group]?.find.query ?? '');
+  const options = useReader((s) => s.settings.searchOptions);
+  const focusNonce = useReader((s) => s.groups[group]?.find.focusNonce ?? 0);
+  const findRequest = useReader((s) => s.groups[group]?.find.request ?? null);
+  const setSearchOptions = useReader((s) => s.setSearchOptions);
+  const setFindQuery = useCallback((value: string) => store.getState().setFindQuery(value, group), [store, group]);
+  const closeFind = useCallback(() => store.getState().closeFind(group), [store, group]);
+  const clearFindRequest = useCallback(() => store.getState().clearFindRequest(group), [store, group]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const rangesRef = useRef<Range[]>([]);
@@ -301,7 +303,7 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
 
     // Jump requested by the search panel - once this document is rendered
     if (findRequest && findRequest.path === activePath && renderedPath === activePath) {
-      const source = useStore.getState().documents[findRequest.path]?.content ?? '';
+      const source = store.getState().documents[findRequest.path]?.content ?? '';
       setCurrent(ranges.length > 0
         ? resolveSourceMatch(root, ranges, source, findRequest.line, findRequest.column, regex)
         : -1);
@@ -319,7 +321,7 @@ const FindBar: React.FC<FindBarProps> = ({ scrollRef, activePath }) => {
       return firstVisible === -1 ? 0 : firstVisible;
     });
     // `regex` is derived from query + options
-  }, [findOpen, query, options, activePath, domVersion, findRequest, scrollRef, clearFindRequest]);
+  }, [findOpen, query, options, activePath, domVersion, findRequest, scrollRef, clearFindRequest, store]);
 
   // Paint highlights and bring the current match into view
   useEffect(() => {

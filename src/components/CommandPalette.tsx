@@ -3,6 +3,8 @@ import { FileText, File as FileIcon } from 'lucide-react';
 import { Palette, commandItems, matchesQuery, useMenu, type PaletteItem } from '@lambda-house/workbench';
 import { useStore, type FileNode } from '../store';
 import { appMenu } from '../utils/commands';
+import { useReader } from '../reader';
+import { allTabs, focusedGroupOf } from '@lambda-house/reader';
 
 /** Files shown when the query is empty are none; with a query, at most this many. */
 const MAX_FILES = 50;
@@ -22,23 +24,26 @@ const folderOf = (path: string) => path.replace(/[\\/][^\\/]*$/, '');
 /** The palette's content: subscribes to the whole store, so it exists only while open. */
 function PaletteContent({ openFile }: { openFile: (path: string) => void }) {
   const state = useStore();
+  const reader = useReader((s) => s);
+  const openTabs = allTabs(reader);
+  const currentTab = focusedGroupOf(reader).activeTabId;
   const menu = useMenu(appMenu);
   const [query, setQuery] = useState('');
 
   const files = useMemo(() => treeFiles(state.files), [state.files]);
 
   const items = useMemo<PaletteItem[]>(() => {
-    const tabs = state.tabs
+    const tabs = openTabs
       .filter((tab) => matchesQuery(query, tab.title, tab.path))
       .map((tab) => ({
         id: `tab:${tab.id}`,
         group: 'Open tabs',
         label: tab.title,
-        hint: tab.id === state.activeTabId ? 'Current' : folderOf(tab.path),
+        hint: tab.id === currentTab ? 'Current' : folderOf(tab.path),
         icon: <FileText size={14} />,
-        run: () => state.setActiveTab(tab.id),
+        run: () => reader.setActiveTab(tab.id),
       }));
-    const open = new Set(state.tabs.map((tab) => tab.path));
+    const open = new Set(openTabs.map((tab) => tab.path));
     const found = query.trim()
       ? files
         .filter((file) => !open.has(file.path) && matchesQuery(query, file.name, file.displayPath))
@@ -52,8 +57,8 @@ function PaletteContent({ openFile }: { openFile: (path: string) => void }) {
           run: () => openFile(file.path),
         }))
       : [];
-    return [...tabs, ...found, ...commandItems(menu, state, query)];
-  }, [state, menu, files, query, openFile]);
+    return [...tabs, ...found, ...commandItems(menu, { ...state, reader }, query)];
+  }, [state, reader, menu, files, query, openFile]);
 
   return (
     <Palette

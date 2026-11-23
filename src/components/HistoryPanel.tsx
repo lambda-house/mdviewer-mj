@@ -4,6 +4,7 @@ import { Button, PaneFrame } from '@lambda-house/ui';
 import { useStore } from '../store';
 import { readHistory, clearHistory, readFile, isTauri } from '../utils/tauri';
 import { renderMarkdown } from '@lambda-house/reader';
+import { useReader } from '../reader';
 
 // ============================================================
 // History Panel Component
@@ -16,7 +17,7 @@ interface HistoryPanelProps {
 const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
   const historyContent = useStore((s) => s.historyContent);
   const setHistoryContent = useStore((s) => s.setHistoryContent);
-  const openDocument = useStore((s) => s.openDocument);
+  const openDocument = useReader((s) => s.openDocument);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
