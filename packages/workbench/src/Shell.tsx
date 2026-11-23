@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Segmented, cx } from '@lambda-house/ui';
+import { StatusBar } from './StatusBar';
 
 /** A surface of the window: Documents, Sessions (shared UI spec §5.1). */
 export interface ShellSurface {
@@ -20,12 +21,21 @@ export interface ShellProps {
   menu?: ReactNode;
   /** At the right end, on every surface: settings, theme. */
   end?: ReactNode;
+  /** The window's status bar (spec §5.6): what surfaces put there with ShellStatus. Without it, none. */
+  status?: { pinned: boolean; onPinnedChange: (pinned: boolean) => void };
   className?: string;
 }
 
-interface Targets { views: HTMLElement | null; start: HTMLElement | null; end: HTMLElement | null }
+interface Targets {
+  views: HTMLElement | null; start: HTMLElement | null; end: HTMLElement | null;
+  statusStart: HTMLElement | null; statusEnd: HTMLElement | null;
+  /** A ShellStatus is shown: the status bar is drawn while one is. */
+  showStatus: (shown: boolean) => void;
+}
 
 const SurfaceContext = createContext<{ shown: boolean; targets: Targets } | null>(null);
+
+type Slot = 'views' | 'start' | 'end' | 'statusStart' | 'statusEnd';
 
 /**
  * The window: one top bar for every surface (the switch between surfaces, the
@@ -33,8 +43,10 @@ const SurfaceContext = createContext<{ shown: boolean; targets: Targets } | null
  * and the surfaces under it. A surface puts its tools into the bar with
  * ShellTools, from anywhere in its tree.
  */
-export function Shell({ surfaces, active, onActivate, menu, end, className }: ShellProps) {
-  const [targets, setTargets] = useState<Targets>({ views: null, start: null, end: null });
+export function Shell({ surfaces, active, onActivate, menu, end, status, className }: ShellProps) {
+  const [statusItems, setStatusItems] = useState(0);
+  const showStatus = useCallback((shown: boolean) => setStatusItems((n) => n + (shown ? 1 : -1)), []);
+  const [targets, setTargets] = useState<Targets>({ views: null, start: null, end: null, statusStart: null, statusEnd: null, showStatus });
   const visited = useRef(new Set<string>());
   visited.current.add(active);
 
@@ -45,9 +57,12 @@ export function Shell({ surfaces, active, onActivate, menu, end, className }: Sh
     return () => window.removeEventListener('wheel', keep);
   }, []);
 
-  const viewsRef = useCallback((element: HTMLElement | null) => setTargets((t) => (t.views === element ? t : { ...t, views: element })), []);
-  const startRef = useCallback((element: HTMLElement | null) => setTargets((t) => (t.start === element ? t : { ...t, start: element })), []);
-  const endRef = useCallback((element: HTMLElement | null) => setTargets((t) => (t.end === element ? t : { ...t, end: element })), []);
+  const slotRef = (slot: Slot) => (element: HTMLElement | null) => setTargets((t) => (t[slot] === element ? t : { ...t, [slot]: element }));
+  const viewsRef = useCallback(slotRef('views'), []);
+  const startRef = useCallback(slotRef('start'), []);
+  const endRef = useCallback(slotRef('end'), []);
+  const statusStartRef = useCallback(slotRef('statusStart'), []);
+  const statusEndRef = useCallback(slotRef('statusEnd'), []);
 
   return (
     <div className={cx('wb-shell', className)}>
@@ -78,6 +93,7 @@ export function Shell({ surfaces, active, onActivate, menu, end, className }: Sh
           </div>
         );
       })}
+      {status && <StatusBar pinned={status.pinned} onPinnedChange={status.onPinnedChange} empty={statusItems === 0} startRef={statusStartRef} endRef={statusEndRef} />}
     </div>
   );
 }
@@ -147,4 +163,21 @@ export function ShellViews({ views, value, onChange, label, className }: ShellVi
       })}
     </>
   );
+}
+
+/**
+ * What a surface, view or pane shows in the status bar (StatusItem), at its
+ * start or end, while it is shown. Outside a Shell (a test) it renders in place.
+ */
+export function ShellStatus({ side = 'start', children }: { side?: 'start' | 'end'; children: ReactNode }) {
+  const surface = useContext(SurfaceContext);
+  const target = surface?.shown ? surface.targets[side === 'start' ? 'statusStart' : 'statusEnd'] : null;
+  const showStatus = surface?.targets.showStatus;
+  useEffect(() => {
+    if (!target || !showStatus) return;
+    showStatus(true);
+    return () => showStatus(false);
+  }, [target, showStatus]);
+  if (!surface) return <>{children}</>;
+  return target ? createPortal(children, target) : null;
 }

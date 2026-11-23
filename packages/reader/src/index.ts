@@ -19,6 +19,7 @@ export * from './save';
 export * from './export';
 export { DocumentPanel, MarkdownViewer, ErrorBoundary, type DocumentPanelProps } from './DocumentPanel';
 export { DocumentGroups } from './DocumentGroups';
+export { DocumentStatus, truncatePath } from './DocumentStatus';
 export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
 export { SearchOptionToggles } from './FindBar';
 export { readerCommands, selectedText, type ReaderCommands } from './commands';

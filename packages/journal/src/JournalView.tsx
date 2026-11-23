@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bot, ChevronRight, RefreshCw, Settings2, Shield, X } from 'lucide-react';
 import { Button, cx, formatAge } from '@lambda-house/ui';
-import { LayoutView, ShellTools, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
+import { LayoutView, ShellStatus, ShellTools, StatusItem, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext, type Journal } from './host';
 import { AgentAccess } from './AgentAccess';
 import { ConnectionsDialog } from './ConnectionsDialog';
@@ -159,10 +159,13 @@ export function JournalView({ active = true, tools = {} }: JournalViewProps) {
           onFocusLeaf={onFocusLeaf}
           onReset={() => store.getState().resetLayout()}
         />
-        <footer className="sc-footer">
-          <span title={snapshot.cachePath || 'No persistent cache'}><i className="sc-local-dot" /> {snapshot.cachePath ? 'SQLite index' : 'In-memory index'} · {snapshot.restoredFiles || 0} restored · {snapshot.pendingFiles ? `${snapshot.pendingFiles} files still indexing · totals partial` : 'history indexed'} · {compact(snapshot.bytesRead || 0)} bytes read this scan · {snapshot.errors.length} warnings</span>
-          <button onClick={() => void revoke()}>Revoke session access</button>
-        </footer>
+        {/* The index's state and access, in the window's status bar */}
+        <ShellStatus>
+          <StatusItem icon={<i className="sc-local-dot" />} title={snapshot.cachePath || 'No persistent cache'}>
+            {snapshot.cachePath ? 'SQLite index' : 'In-memory index'} · {snapshot.restoredFiles || 0} restored · {snapshot.pendingFiles ? `${snapshot.pendingFiles} files still indexing · totals partial` : 'history indexed'} · {compact(snapshot.bytesRead || 0)} bytes read this scan · {snapshot.errors.length} warnings
+          </StatusItem>
+        </ShellStatus>
+        <ShellStatus side="end"><StatusItem onClick={() => void revoke()}>Revoke session access</StatusItem></ShellStatus>
         {snapshot.errors.length > 0 && <details className="sc-errors"><summary>Index warnings</summary>{snapshot.errors.map((e, i) => <p key={i}>{e}</p>)}</details>}
       </>}
       {dialog === 'agentAccess' && (

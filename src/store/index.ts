@@ -93,7 +93,6 @@ export interface AppState {
   documentsLayout: LayoutNode;
   /** Zoom of the file panel and the TOC, independent of the document zoom. */
   panelZoom: Record<ZoomPanel, number>;
-  statusBarVisible: boolean;
   statusBarPinned: boolean;
   autoRefresh: boolean;
   /** List other text files (code, txt, fb2...) in the file tree, not just markdown. */
@@ -162,7 +161,6 @@ export interface AppState {
   toggleTocVisible: () => void;
   /** Step a panel's zoom in (1) or out (-1), or reset it to 100% (0). */
   zoomPanel: (panel: ZoomPanel, direction: 1 | -1 | 0) => void;
-  setStatusBarVisible: (visible: boolean) => void;
   setStatusBarPinned: (pinned: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
@@ -227,7 +225,6 @@ export const useStore = create<AppState>()(
       documentsLayout: defaultDocumentsLayout(),
       surface: !documentWindowPath && import.meta.env.VITE_MDVIEWER_SESSIONS_PREVIEW === '1' ? 'journal' : 'documents',
       panelZoom: DEFAULT_PANEL_ZOOM,
-      statusBarVisible: false,
       statusBarPinned: false,
       autoRefresh: true,
       showTextFiles: true,
@@ -343,10 +340,6 @@ export const useStore = create<AppState>()(
           : clampPanelZoom(direction > 0 ? current * ZOOM_STEP : current / ZOOM_STEP);
         return next === current ? state : { panelZoom: { ...state.panelZoom, [panel]: next } };
       }),
-      
-      setStatusBarVisible: (visible) => set((state) => (
-        state.statusBarVisible === visible ? state : { statusBarVisible: visible }
-      )),
       
       setStatusBarPinned: (pinned) => set({ statusBarPinned: pinned }),
       

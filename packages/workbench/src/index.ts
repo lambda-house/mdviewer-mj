@@ -16,7 +16,8 @@ export {
 } from './layout';
 export { LayoutView, type LayoutViewProps, type PaneActions, type PaneContext, type PanePreview, type PaneType, type PaneZoom } from './LayoutView';
 export { Pane, PaneMenu, PaneTitle, PaneZoomBadge, paneMenuItems, usePane, usePaneZoom } from './panes';
-export { Shell, ShellTools, ShellViews, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
+export { Shell, ShellStatus, ShellTools, ShellViews, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
+export { StatusItem } from './StatusBar';
 export {
   PluginRegistry, createPlugin, usePlugins,
   type Plugin, type PluginApi, type PluginStorage, type WorkbenchEvents, type WorkbenchPoints, type WorkbenchSlots,

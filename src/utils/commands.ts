@@ -114,11 +114,7 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
           id: 'view.pinStatusBar',
           label: 'Pin Status Bar',
           checked: (s) => s.statusBarPinned,
-          run: () => {
-            const pinned = !state().statusBarPinned;
-            state().setStatusBarPinned(pinned);
-            if (pinned) state().setStatusBarVisible(true);
-          },
+          run: () => state().setStatusBarPinned(!state().statusBarPinned),
         },
         'separator',
         onDocuments(doc.splitRight),

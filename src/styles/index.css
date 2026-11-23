@@ -1317,52 +1317,6 @@ a:hover {
 .toc-item.level-6 { padding-left: 72px; }
 
 /* ============================================================
-   Status Bar
-   ============================================================ */
-
-.status-bar {
-  height: var(--status-bar-height);
-  min-height: var(--status-bar-height);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  background: var(--surface-elevated);
-  border-top: 1px solid var(--border-subtle);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  gap: 16px;
-  /* Unpinned it overlays the bottom edge, so hiding it leaves no empty strip */
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  transform: translateY(100%);
-  transition: transform var(--transition-normal);
-}
-
-.status-bar.visible {
-  transform: translateY(0);
-  box-shadow: var(--shadow-md);
-}
-
-.status-bar-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.status-bar-separator {
-  width: 1px;
-  height: 14px;
-  background: var(--border-default);
-}
-
-.status-bar-spacer {
-  flex: 1;
-}
-
-/* ============================================================
    Utility Classes
    ============================================================ */
 
@@ -1518,41 +1472,6 @@ a:hover {
 .markdown-body .remote-image:hover {
   border-color: var(--border-active);
   color: var(--text-primary);
-}
-
-/* ============================================================
-   Status Bar Pin Button
-   ============================================================ */
-
-.status-bar-pin {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.status-bar-pin:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
-.status-bar-pin.active {
-  color: var(--text-accent);
-  background: var(--selected-bg);
-}
-
-.status-bar.pinned {
-  /* Pinned it takes its own row, so it never covers the document */
-  position: relative;
-  transform: translateY(0);
-  box-shadow: none;
 }
 
 /* ============================================================

@@ -3,6 +3,7 @@ import { LayoutView, type Layout, type PaneType } from '@lambda-house/workbench'
 import clsx from 'clsx';
 import { useReader, useReaderContext } from './host';
 import { DocumentPanel } from './DocumentPanel';
+import { DocumentStatus } from './DocumentStatus';
 
 /**
  * The document groups side by side (or above each other), as the store
@@ -45,6 +46,8 @@ export function DocumentGroups({ empty }: { empty?: ReactNode }) {
   const onFocusLeaf = useCallback((id: string) => store.getState().focusGroup(id), [store]);
 
   return (
+    <>
+    <DocumentStatus />
     <LayoutView
       className={clsx('reader-groups', several && 'has-several')}
       layout={layout}
@@ -53,5 +56,6 @@ export function DocumentGroups({ empty }: { empty?: ReactNode }) {
       focusedLeaf={focused}
       onFocusLeaf={onFocusLeaf}
     />
+    </>
   );
 }

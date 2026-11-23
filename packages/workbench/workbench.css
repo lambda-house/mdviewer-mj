@@ -444,3 +444,40 @@
 .wb-preview { position: fixed; z-index: 30; pointer-events: none; border: 2px dashed var(--accent); background: var(--accent-bg); }
 .wb-preview--remove { border-color: var(--danger); background: var(--danger-bg); opacity: .6; }
 .wb-preview--swap { border-style: dotted; }
+
+/* ============================================================
+   Status bar: one for the window (spec §5.6)
+   ============================================================ */
+
+.wb-status {
+  height: var(--status-bar-height); min-height: var(--status-bar-height);
+  display: flex; align-items: center; gap: 16px; padding: 0 16px;
+  background: var(--surface-1); border-top: 1px solid var(--line-subtle);
+  font-size: var(--fs-11); color: var(--text-muted);
+  /* Unpinned it overlays the bottom edge, so hiding it leaves no empty strip */
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+  transform: translateY(100%); transition: transform var(--dur-normal) ease-out;
+}
+.wb-status.is-visible { transform: translateY(0); box-shadow: var(--shadow-md); }
+/* Pinned it takes its own row, so it never covers the surface */
+.wb-status.is-pinned { position: relative; transform: translateY(0); box-shadow: none; }
+.wb-status.is-empty { display: none; }
+.wb-status__side { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.wb-status__spacer { flex: 1; }
+.wb-status__item { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.wb-status__item--button { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.wb-status__item--button:hover { color: var(--text); }
+.wb-status__text { overflow: hidden; text-overflow: ellipsis; }
+.wb-status__icon { display: inline-flex; }
+/* Items are set apart by a thin line, as the bar always was */
+.wb-status__item + .wb-status__item::before, .wb-status__separator {
+  content: ""; flex: 0 0 auto; width: 1px; height: 14px; background: var(--line);
+}
+.wb-status__item + .wb-status__item::before { margin-right: 10px; }
+.wb-status__pin {
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); color: var(--text-muted); background: none; border: none; cursor: pointer;
+  transition: all var(--dur-fast) ease-out;
+}
+.wb-status__pin:hover { background: var(--hover); color: var(--text); }
+.wb-status__pin.is-active { color: var(--accent); background: var(--selected); }

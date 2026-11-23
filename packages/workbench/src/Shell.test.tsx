@@ -2,7 +2,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Shell, ShellTools, ShellViews, type ShellSurface, type ShellView } from './index';
+import { Shell, ShellStatus, ShellTools, ShellViews, StatusItem, type ShellSurface, type ShellView } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -121,6 +121,38 @@ describe('Shell', () => {
       expect(bar()).toEqual(['Documents', 'Sessions', 'Menu', 'live start', 'live end', 'Theme']);
       act(() => root.render(<ShellViews label="Sessions view" views={views} value="journal" onChange={() => {}} />));
       expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Live', 'Journal', 'Board', 'journal start', 'journal end']);
+    });
+  });
+
+  describe('status bar', () => {
+    const withStatus: ShellSurface[] = [
+      { id: 'documents', label: 'Documents', render: () => <ShellStatus><StatusItem>readme.md</StatusItem><StatusItem>2 KB</StatusItem></ShellStatus> },
+      { id: 'sessions', label: 'Sessions', render: () => <ShellStatus side="end"><StatusItem onClick={() => {}}>Revoke</StatusItem></ShellStatus> },
+      { id: 'empty', label: 'Empty', render: () => <p /> },
+    ];
+    const onPinnedChange = vi.fn();
+    const show = (active: string, pinned = false) => act(() => root.render(
+      <Shell surfaces={withStatus} active={active} onActivate={() => {}} status={{ pinned, onPinnedChange }} />,
+    ));
+    const status = () => host.querySelector('.wb-status')!;
+    const texts = () => [...status().querySelectorAll('.wb-status__item')].map((i) => i.textContent);
+
+    it('shows what the shown surface puts in it, and is not drawn with nothing in it', () => {
+      show('documents');
+      expect(texts()).toEqual(['readme.md', '2 KB']);
+      show('sessions');
+      expect(texts()).toEqual(['Revoke']);
+      expect(status().classList.contains('is-empty')).toBe(false);
+      show('empty');
+      expect(texts()).toEqual([]);
+      expect(status().classList.contains('is-empty')).toBe(true);
+    });
+
+    it('is pinned by the app', () => {
+      show('documents', true);
+      expect(status().classList.contains('is-pinned')).toBe(true);
+      act(() => status().querySelector<HTMLButtonElement>('.wb-status__pin')!.click());
+      expect(onPinnedChange).toHaveBeenCalledWith(false);
     });
   });
 });

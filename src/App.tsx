@@ -33,7 +33,6 @@ import Toolbar, { ToolbarEnd } from './components/Toolbar';
 import { flushEditorChanges } from '@lambda-house/reader';
 import FilePanel from './components/FilePanel';
 import TocSidebar from './components/TocSidebar';
-import StatusBar from './components/StatusBar';
 import SettingsModal from './components/SettingsModal';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
@@ -97,6 +96,8 @@ const NO_DOCUMENT = (
 const App: React.FC = () => {
   // The shown surface is the store's: commands of the other one wait
   const surface = useStore((s) => s.surface);
+  const statusBarPinned = useStore((s) => s.statusBarPinned);
+  const setStatusBarPinned = useStore((s) => s.setStatusBarPinned);
   const setSurface = useStore((s) => s.setSurface);
   const journalVisible = surface === 'journal';
   // Subscribe field by field so that high frequency updates (scroll offsets,
@@ -716,7 +717,6 @@ const App: React.FC = () => {
             <LayoutView layout={documentsLayout} onChange={applyDocumentsLayout} paneTypes={documentPanes} onReset={resetDocumentsLayout} />
           </div>
 
-          <StatusBar />
 
           {isDropTarget && (
             <div className="drop-overlay" aria-hidden="true">
@@ -749,6 +749,7 @@ const App: React.FC = () => {
         surfaces={surfaces}
         active={surface}
         onActivate={setSurface}
+        status={{ pinned: statusBarPinned, onPinnedChange: setStatusBarPinned }}
         menu={<MainMenu items={menu} useCommandContext={useCommandContext} onOpen={flushEditorChanges} buttonClassName="toolbar-button" surface={surface} />}
         end={<ToolbarEnd />}
       />
