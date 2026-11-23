@@ -15,7 +15,7 @@ export {
   type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Size, type Split,
 } from './layout';
 export { LayoutView, type LayoutViewProps, type PaneContext, type PaneType } from './LayoutView';
-export { Shell, ShellTools, type ShellProps, type ShellSurface } from './Shell';
+export { Shell, ShellTools, ShellViews, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
 export {
   PluginRegistry, createPlugin, usePlugins,
   type Plugin, type PluginApi, type PluginStorage, type WorkbenchEvents, type WorkbenchPoints, type WorkbenchSlots,

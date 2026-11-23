@@ -2,7 +2,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Shell, ShellTools, type ShellSurface } from './index';
+import { Shell, ShellTools, ShellViews, type ShellSurface, type ShellView } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -72,5 +72,55 @@ describe('Shell', () => {
     render('documents', surfaces.slice(0, 1));
     expect(host.querySelector('[role="radiogroup"], .ui-segmented')).toBeNull();
     expect(bar()).toEqual(['Menu', 'documents start', 'documents end', 'Theme']);
+  });
+
+  describe('views', () => {
+    const views: ShellView[] = [
+      { id: 'live', label: 'Live', keepMounted: true, render: () => <Content id="live" /> },
+      { id: 'journal', label: 'Journal', keepMounted: 'always', render: () => <Content id="journal" /> },
+      { id: 'board', label: 'Board', render: () => <Content id="board" /> },
+    ];
+    const withViews = (view: string, onChange = () => {}) => [
+      surfaces[0],
+      { id: 'sessions', label: 'Sessions', render: () => <ShellViews label="Sessions view" views={views} value={view} onChange={onChange} /> },
+    ];
+    const shown = () => [...host.querySelectorAll('.wb-view')].filter((v) => !v.hasAttribute('hidden')).map((v) => v.getAttribute('data-view'));
+    const mounted = () => [...host.querySelectorAll('.wb-view')].map((v) => v.getAttribute('data-view'));
+
+    it('puts the view switch after the menu, and only the shown view’s tools', () => {
+      render('sessions', withViews('live'));
+      expect(bar()).toEqual(['Documents', 'Sessions', 'Menu', 'Live', 'Journal', 'Board', 'live start', 'live end', 'Theme']);
+      render('sessions', withViews('board'));
+      expect(bar()).toEqual(['Documents', 'Sessions', 'Menu', 'Live', 'Journal', 'Board', 'board start', 'board end', 'Theme']);
+      // Another surface shows neither the switch nor the views' tools
+      render('documents', withViews('board'));
+      expect(bar()).toEqual(['Documents', 'Sessions', 'Menu', 'documents start', 'documents end', 'Theme']);
+    });
+
+    it('keeps views mounted as they ask: from the start, once shown, or only while shown', () => {
+      render('sessions', withViews('board'));
+      expect(mounted()).toEqual(['journal', 'board']);
+      expect(shown()).toEqual(['board']);
+      render('sessions', withViews('live'));
+      render('sessions', withViews('board'));
+      expect(mounted()).toEqual(['live', 'journal', 'board']);
+      render('sessions', withViews('journal'));
+      expect(mounted()).toEqual(['live', 'journal']);
+      expect(shown()).toEqual(['journal']);
+    });
+
+    it('switches through the app', () => {
+      const onChange = vi.fn();
+      render('sessions', withViews('live', onChange));
+      act(() => [...host.querySelectorAll<HTMLButtonElement>('.wb-topbar button')].find((b) => b.textContent === 'Board')!.click());
+      expect(onChange).toHaveBeenCalledWith('board');
+    });
+
+    it('has no switch with one view, and renders in place outside a Shell', () => {
+      render('sessions', [surfaces[0], { id: 'sessions', label: 'Sessions', render: () => <ShellViews label="Sessions view" views={views.slice(0, 1)} value="live" onChange={() => {}} /> }]);
+      expect(bar()).toEqual(['Documents', 'Sessions', 'Menu', 'live start', 'live end', 'Theme']);
+      act(() => root.render(<ShellViews label="Sessions view" views={views} value="journal" onChange={() => {}} />));
+      expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Live', 'Journal', 'Board', 'journal start', 'journal end']);
+    });
   });
 });

@@ -417,3 +417,5 @@
 
 .wb-surface { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .wb-surface[hidden] { display: none; }
+.wb-view { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.wb-view[hidden] { display: none; }
