@@ -16,6 +16,7 @@ import '@lambda-house/tokens/tokens.css';
 import '@lambda-house/ui/ui.css';
 import '@lambda-house/workbench/workbench.css';
 import '@lambda-house/reader/reader.css';
+import '@lambda-house/journal/journal.css';
 import './styles/index.css';
 
 // Apply the persisted theme before the first paint (no dark flash in light

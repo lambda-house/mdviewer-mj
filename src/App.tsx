@@ -38,7 +38,8 @@ import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
-import SessionWorkspace from './components/SessionWorkspace';
+import { JournalProvider, JournalView } from '@lambda-house/journal';
+import { journal } from './journal';
 import CommandPalette from './components/CommandPalette';
 import { documentWindowPath } from './utils/documentWindow';
 
@@ -93,7 +94,7 @@ const NO_DOCUMENT = (
 );
 
 const App: React.FC = () => {
-  const [sessionsVisible, setSessionsVisible] = useState(!documentWindowPath && import.meta.env.VITE_MDVIEWER_SESSIONS_PREVIEW === '1');
+  const [journalVisible, setJournalVisible] = useState(!documentWindowPath && import.meta.env.VITE_MDVIEWER_SESSIONS_PREVIEW === '1');
   // Subscribe field by field so that high frequency updates (scroll offsets,
   // active heading) do not re-render the whole application.
   const panelWidth = useStore((s) => s.panelWidth);
@@ -754,7 +755,7 @@ const App: React.FC = () => {
   }, [panelWidth, tocWidth, tocVisible, handleAddDirectory, handleToggleToc]);
 
   // The window's surfaces under one top bar (the workbench Shell). Documents is mounted only while shown;
-  // Sessions stays mounted once opened. A memory window has Documents only.
+  // the Journal stays mounted once opened. A memory window has Documents only.
   const surfaces: ShellSurface[] = [
     {
       id: 'documents', label: 'Documents', icon: <FileText size={13} />, keepMounted: false,
@@ -795,8 +796,12 @@ const App: React.FC = () => {
       ),
     },
     ...(documentWindowPath ? [] : [{
-      id: 'sessions', label: 'Sessions', icon: <Activity size={13} />,
-      render: () => <SessionWorkspace active={sessionsVisible} />,
+      id: 'journal', label: 'Journal', icon: <Activity size={13} />,
+      render: () => (
+        <JournalProvider journal={journal}>
+          <JournalView active={journalVisible} tools={{ refresh: true, memories: true, agentAccess: true }} />
+        </JournalProvider>
+      ),
     }]),
   ];
 
@@ -805,8 +810,8 @@ const App: React.FC = () => {
     <div className="app-container">
       <Shell
         surfaces={surfaces}
-        active={sessionsVisible ? 'sessions' : 'documents'}
-        onActivate={(surface) => setSessionsVisible(surface === 'sessions')}
+        active={journalVisible ? 'journal' : 'documents'}
+        onActivate={(surface) => setJournalVisible(surface === 'journal')}
         menu={<MainMenu items={menu} useCommandContext={useCommandContext} onOpen={flushEditorChanges} buttonClassName="toolbar-button" />}
         end={<ToolbarEnd />}
       />

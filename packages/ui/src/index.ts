@@ -13,3 +13,4 @@ export { Tabs, type TabItem, type TabsProps } from './Tabs';
 export { Menu, type MenuItem, type MenuProps } from './Menu';
 export { PaneFrame, type PaneFrameProps } from './PaneFrame';
 export { useSmoothWheelScroll } from './useSmoothWheelScroll';
+export { formatAge } from './format';

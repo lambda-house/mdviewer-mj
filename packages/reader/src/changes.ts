@@ -2,18 +2,8 @@
 // saved copy, and the rendered blocks that hold them. The app keeps the copies
 // (ReaderHost.changes); this is the comparing and the marking.
 
-/** "5 min ago", "yesterday", "12 Mar". */
-export function formatAge(ms: number, now = Date.now()): string {
-  const minutes = Math.round((now - ms) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
-  return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-}
+/** Ages are formatted by the ui package; the reader's own name for it stays. */
+export { formatAge } from '@lambda-house/ui';
 
 // ============================================================
 // What changed since the last read
