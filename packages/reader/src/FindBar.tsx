@@ -187,9 +187,36 @@ function getFindHighlights(): FindHighlights | null {
   return { all, current };
 }
 
-function setHighlightRanges(highlight: Highlight, ranges: Range[]): void {
+/**
+ * Each document group's matches. The registry has one "all" and one "current"
+ * highlight for the window, so they show every group's: changed in place,
+ * because WebKitGTK doesn't repaint replaced highlights.
+ */
+const groupMatches = new Map<string, { all: Range[]; current: Range[] }>();
+
+function repaint(highlight: Highlight, part: 'all' | 'current'): void {
   highlight.clear();
-  for (const range of ranges) highlight.add(range);
+  for (const matches of groupMatches.values()) for (const range of matches[part]) highlight.add(range);
+}
+
+/** Show a group's matches; returns false without the highlight API. */
+function paintGroupMatches(group: string, all: Range[], current: Range[]): boolean {
+  const highlights = getFindHighlights();
+  if (!highlights) return false;
+  const before = groupMatches.get(group);
+  groupMatches.set(group, { all, current });
+  // Next/Previous change only the current match: the others stay painted
+  if (before?.all !== all) repaint(highlights.all, 'all');
+  repaint(highlights.current, 'current');
+  return true;
+}
+
+function clearGroupMatches(group: string): void {
+  if (!groupMatches.delete(group)) return;
+  const highlights = getFindHighlights();
+  if (!highlights) return;
+  repaint(highlights.all, 'all');
+  repaint(highlights.current, 'current');
 }
 
 // ============================================================
@@ -220,8 +247,6 @@ const FindBar: React.FC<FindBarProps> = ({ group, scrollRef, activePath }) => {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const rangesRef = useRef<Range[]>([]);
-  /** The ranges in the "all matches" highlight; Next/Previous leave it alone. */
-  const paintedRangesRef = useRef<Range[] | null>(null);
   const [count, setCount] = useState(0);
   const [current, setCurrent] = useState(-1);
   const [error, setError] = useState<string | undefined>();
@@ -325,16 +350,11 @@ const FindBar: React.FC<FindBarProps> = ({ group, scrollRef, activePath }) => {
 
   // Paint highlights and bring the current match into view
   useEffect(() => {
-    const highlights = getFindHighlights();
     const ranges = rangesRef.current;
     const currentRange = current >= 0 ? ranges[current] : undefined;
 
-    if (highlights) {
-      if (paintedRangesRef.current !== ranges) {
-        setHighlightRanges(highlights.all, ranges);
-        paintedRangesRef.current = ranges;
-      }
-      setHighlightRanges(highlights.current, currentRange ? [currentRange] : []);
+    if (paintGroupMatches(group, ranges, currentRange ? [currentRange] : [])) {
+      // painted
     } else if (currentRange) {
       // No highlight API: at least select the current match
       const selection = window.getSelection();
@@ -370,22 +390,17 @@ const FindBar: React.FC<FindBarProps> = ({ group, scrollRef, activePath }) => {
       holdRef.current?.apply(); // a DOM refresh during the hold
     }
     scrollPendingRef.current = false;
-  }, [current, searchVersion, scrollRef]);
+  }, [current, searchVersion, scrollRef, group]);
 
   // A hold ends with the bar, or when the document changes
   useEffect(() => () => holdRef.current?.stop(), [findOpen, activePath]);
 
-  // Clear highlights when the bar closes (or the component goes away)
+  // Clear this group's highlights when the bar closes (or the component goes away)
   useEffect(() => {
-    const clear = () => {
-      const highlights = getFindHighlights();
-      highlights?.all.clear();
-      highlights?.current.clear();
-      paintedRangesRef.current = null;
-    };
+    const clear = () => clearGroupMatches(group);
     if (!findOpen) clear();
     return clear;
-  }, [findOpen]);
+  }, [findOpen, group]);
 
   const step = useCallback((direction: 1 | -1) => {
     const total = rangesRef.current.length;

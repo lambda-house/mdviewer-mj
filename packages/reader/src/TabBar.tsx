@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { FileText, X, Pin, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileText, X, Pin, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Columns2 } from 'lucide-react';
 import { Menu, type MenuItem } from '@lambda-house/ui';
 import { useReader, useReaderContext } from './host';
 import { canNavigateBack, canNavigateForward, type Tab as TabState } from './store';
@@ -181,6 +181,7 @@ const TabBar: React.FC<{ group: string }> = ({ group }) => {
   const navigateForward = useReader((s) => s.navigateForward);
   const canGoBack = useReader((s) => canNavigateBack(s.groups[group]));
   const canGoForward = useReader((s) => canNavigateForward(s.groups[group]));
+  const splitGroup = useReader((s) => s.splitGroup);
 
   const hasTabs = tabs.length > 0;
   const stripRef = useRef<HTMLDivElement>(null);
@@ -321,6 +322,18 @@ const TabBar: React.FC<{ group: string }> = ({ group }) => {
           <ChevronRight size={14} />
         </button>
       )}
+
+      <div className="tab-bar-actions">
+        <button
+          className="tab-bar-button"
+          onClick={() => splitGroup(group, 'row')}
+          title="Split right (Ctrl+\)"
+          aria-label="Split right"
+          type="button"
+        >
+          <Columns2 size={14} />
+        </button>
+      </div>
 
       {menu && <TabContextMenu group={group} tabId={menu.tabId} x={menu.x} y={menu.y} onClose={closeMenu} />}
     </div>

@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DocumentPanel, ReaderProvider, createReaderStore, newGroup, type Reader, type ReaderHost } from './index';
+import { DocumentGroups, DocumentPanel, ReaderProvider, createReaderStore, newGroup, type Reader, type ReaderHost } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -70,5 +70,28 @@ describe('DocumentPanel', () => {
     await act(async () => root.render(<ReaderProvider reader={reader}><DocumentPanel /></ReaderProvider>));
     await flush();
     expect((host.querySelector('.markdown-body') as HTMLElement).style.zoom).toBe('1.5');
+  });
+
+  it('shows the groups side by side; a split keeps the first group mounted and focuses the new one', async () => {
+    const reader = fakeReader();
+    reader.store.getState().openDocument('/a.md', '# A');
+    await act(async () => root.render(<ReaderProvider reader={reader}><DocumentGroups /></ReaderProvider>));
+    await flush();
+    const first = host.querySelector('.document-panel[data-group="main"]');
+    expect(host.querySelector('.reader-groups.has-several')).toBeNull();
+
+    let id = '';
+    await act(async () => { id = reader.store.getState().splitGroup(); });
+    await flush();
+    const panels = [...host.querySelectorAll('.document-panel')].map((p) => p.getAttribute('data-group'));
+    expect(panels).toEqual(['main', id]);
+    expect(host.querySelector('.document-panel[data-group="main"]')).toBe(first);
+    expect(host.querySelector('.reader-groups.has-several')).not.toBeNull();
+    expect(host.querySelector('.wb-leaf.is-focused .document-panel')?.getAttribute('data-group')).toBe(id);
+    expect(host.querySelectorAll('.markdown-body h1')).toHaveLength(2);
+
+    // A click in the other group focuses it
+    await act(async () => { first?.querySelector('.markdown-body')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); });
+    expect(reader.store.getState().focusedGroup).toBe('main');
   });
 });

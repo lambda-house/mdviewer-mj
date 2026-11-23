@@ -1,4 +1,5 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
+import { closeLeaf, leaves, splitLeaf, type Leaf, type LayoutNode } from '@lambda-house/workbench';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { Heading } from './types';
 import type { ColorTheme } from './markdown';
@@ -9,8 +10,9 @@ import { sameScrollPosition, type ScrollPosition } from './scrollAnchor';
 // The reader's state: open documents, the document groups that show them
 // (tabs, zoom, find, contents), and the reader's settings (shared UI spec
 // §6.1). Each app creates one store with its storage; nothing here knows the
-// app. A group is the content of one `documents` pane; until groups can be
-// split there is one, MAIN_GROUP.
+// app. A group is the content of one `documents` pane; `layout` arranges the
+// groups (a workbench layout of `documents` panes keyed by group id, drawn by
+// DocumentGroups). There is always at least one; the first is MAIN_GROUP.
 
 // ============================================================
 // Constants
@@ -152,6 +154,8 @@ export interface ReaderState {
   /** Open documents by path; a document open in two groups is one entry. */
   documents: Record<string, ReaderDocument>;
   groups: Record<string, DocumentGroup>;
+  /** How the groups are arranged: leaves are `documents` panes, leaf id = group id. */
+  layout: LayoutNode;
   focusedGroup: string;
   recentlyClosed: ClosedTab[];
   /**
@@ -210,6 +214,12 @@ export interface ReaderState {
   setScrollPosition: (group: string, path: string, position: ScrollPosition) => void;
   getScrollPosition: (group: string, path: string) => ScrollPosition;
   focusGroup: (group: string) => void;
+  /** A new group beside `group` (the focused one), showing its document at its zoom; it takes the focus. Returns its id. */
+  splitGroup: (group?: string, dir?: 'row' | 'col') => string;
+  /** Close a group and its tabs, unless it is the only one or holds the only copy of unsaved changes. */
+  closeGroup: (group: string) => Result;
+  /** The groups' arrangement after a resize; ignored unless it holds exactly the groups. */
+  setLayout: (layout: LayoutNode) => void;
 
   // Zoom, contents
   setZoom: (zoom: number, group?: string) => void;
@@ -270,6 +280,37 @@ export function generateTabId(): string {
 
 /** The key of a document's scroll position in a group. */
 export const scrollKey = (group: string, path: string) => `${group}\n${path}`;
+
+/** A group's pane in the layout. */
+export const groupLeaf = (id: string): Leaf => ({ kind: 'leaf', id, pane: { type: 'documents', key: id } });
+
+/** The groups in layout order (left to right, top to bottom). */
+export const groupOrder = (state: Pick<ReaderState, 'layout'>): string[] => leaves(state.layout).map((leaf) => leaf.id);
+
+/** A row of the given groups, sharing the width. */
+function rowOf(ids: string[]): LayoutNode {
+  return ids.length === 1 ? groupLeaf(ids[0]) : { kind: 'split', id: 'groups', dir: 'row', children: ids.map(groupLeaf), sizes: ids.map(() => ({ fr: 1 })) };
+}
+
+/** Whether a layout shows exactly these groups, each once. */
+function layoutFits(layout: unknown, ids: string[]): layout is LayoutNode {
+  try {
+    const shown = leaves(layout as LayoutNode).map((leaf) => leaf.id);
+    return shown.length === ids.length && new Set(shown).size === ids.length && ids.every((id) => shown.includes(id));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The group whose editor edits `path`: a file is edited in one group at a
+ * time. The focused group, if it shows the file; else the first that does.
+ */
+export function editorGroupFor(state: Pick<ReaderState, 'groups' | 'layout' | 'focusedGroup'>, path: string): string | null {
+  const shows = (id: string) => activeTabOf(state.groups[id])?.path === path;
+  if (shows(state.focusedGroup)) return state.focusedGroup;
+  return groupOrder(state).find(shows) ?? null;
+}
 
 export function newGroup(id: string, zoom = 100): DocumentGroup {
   return {
@@ -362,8 +403,32 @@ function pruneDocuments(documents: Record<string, ReaderDocument>, groups: Recor
 }
 
 /**
+ * Drop the groups that have no tabs, but keep at least one, and the layout
+ * and focus with them. Called when tabs close or a session is restored.
+ */
+function dropEmptyGroups(state: Pick<ReaderState, 'groups' | 'layout' | 'focusedGroup'>): Pick<ReaderState, 'groups' | 'layout' | 'focusedGroup'> {
+  const order = groupOrder(state);
+  const empty = order.filter((id) => state.groups[id]?.tabs.length === 0);
+  if (empty.length === 0 || order.length === 1) return state;
+  const drop = empty.length === order.length ? empty.slice(1) : empty;
+  const groups = { ...state.groups };
+  let layout = state.layout;
+  for (const id of drop) {
+    delete groups[id];
+    layout = closeLeaf(layout, id);
+  }
+  const kept = order.filter((id) => groups[id]);
+  // The focus goes to the group before the one that went, else the first
+  const focusedGroup = groups[state.focusedGroup]
+    ? state.focusedGroup
+    : [...order.slice(0, order.indexOf(state.focusedGroup))].reverse().find((id) => groups[id]) ?? kept[0];
+  return { groups, layout, focusedGroup };
+}
+
+/**
  * Remove tabs from the state. The closed tabs go to the recently-closed list;
- * if a group's active tab is closed, its neighbour takes over.
+ * if a group's active tab is closed, its neighbour takes over, and a group left
+ * without tabs goes (unless it is the only one).
  */
 function removeTabs(state: ReaderState, tabIds: string[]): Partial<ReaderState> {
   const ids = new Set(tabIds);
@@ -384,6 +449,8 @@ function removeTabs(state: ReaderState, tabIds: string[]): Partial<ReaderState> 
     groups[group.id] = { ...group, tabs: group.tabs.filter((t) => !ids.has(t.id)), activeTabId };
   }
 
+  const arranged = dropEmptyGroups({ groups, layout: state.layout, focusedGroup: state.focusedGroup });
+
   const now = Date.now();
   const closedTabs: ClosedTab[] = closing
     .map((t) => ({ path: t.path, title: t.title, closedAt: now }))
@@ -391,11 +458,11 @@ function removeTabs(state: ReaderState, tabIds: string[]): Partial<ReaderState> 
   const recentlyClosed = [...closedTabs, ...state.recentlyClosed].slice(0, MAX_RECENT_CLOSED);
 
   return {
-    groups,
-    documents: pruneDocuments(state.documents, groups),
+    ...arranged,
+    documents: pruneDocuments(state.documents, arranged.groups),
     recentlyClosed,
     // Keep the offset of recently closed docs so reopening returns to it
-    scroll: pruneScroll({ scroll: state.scroll, groups, recentlyClosed }),
+    scroll: pruneScroll({ scroll: state.scroll, groups: arranged.groups, recentlyClosed }),
   };
 }
 
@@ -455,6 +522,7 @@ export function createReaderStore({ storage, name, legacy }: ReaderStoreOptions)
         return {
           documents: {},
           groups: { [MAIN_GROUP]: newGroup(MAIN_GROUP) },
+          layout: groupLeaf(MAIN_GROUP),
           focusedGroup: MAIN_GROUP,
           recentlyClosed: [],
           scroll: {},
@@ -593,17 +661,19 @@ export function createReaderStore({ storage, name, legacy }: ReaderStoreOptions)
               const activeTabId = tabs.some((t) => t.id === group.activeTabId) ? group.activeTabId : tabs[0]?.id ?? null;
               groups[group.id] = { ...group, tabs, activeTabId };
             }
-            return { groups, documents, scroll: pruneScroll({ ...state, groups }), sessionRestored: true };
+            const arranged = dropEmptyGroups({ groups, layout: state.layout, focusedGroup: state.focusedGroup });
+            return { ...arranged, documents, scroll: pruneScroll({ ...state, groups: arranged.groups }), sessionRestored: true };
           }),
 
           replaceTabs: (paths, activePath, group) => {
             const tabs: Tab[] = paths.map((path) => ({ id: generateTabId(), path, title: getFileName(path), isDirty: false }));
+            // A workspace has one group: the others close (their documents stay only if open in it)
             const active = tabs.find((t) => t.path === activePath) ?? tabs[0];
             set((state) => {
               const id = groupId(group);
-              const groups = { ...state.groups, [id]: { ...state.groups[id], tabs, activeTabId: active?.id ?? null, navHistory: [], navIndex: -1, find: newGroup(id).find } };
-              // Documents still shown elsewhere stay (with their edits); the new tabs' are read and restored
-              return { groups, documents: pruneDocuments(state.documents, groups) };
+              const groups = { [id]: { ...state.groups[id], tabs, activeTabId: active?.id ?? null, navHistory: [], navIndex: -1, find: newGroup(id).find } };
+              // Documents still shown stay (with their edits); the new tabs' are read and restored
+              return { groups, layout: groupLeaf(id), focusedGroup: id, documents: pruneDocuments(state.documents, groups) };
             });
           },
 
@@ -618,6 +688,49 @@ export function createReaderStore({ storage, name, legacy }: ReaderStoreOptions)
 
           focusGroup: (group) => {
             if (get().groups[group] && get().focusedGroup !== group) set({ focusedGroup: group });
+          },
+
+          splitGroup: (group, dir = 'row') => {
+            const state = get();
+            const from = state.groups[groupId(group)];
+            const id = `g-${generateTabId()}`;
+            const active = activeTabOf(from);
+            const tab: Tab | null = active ? { ...active, id: generateTabId(), isPreview: false } : null;
+            set({
+              groups: { ...state.groups, [id]: { ...newGroup(id, from.zoom), tabs: tab ? [tab] : [], activeTabId: tab?.id ?? null } },
+              layout: splitLeaf(state.layout, from.id, dir, 'after', groupLeaf(id), `split-${id}`),
+              focusedGroup: id,
+              // The new group starts where the old one is scrolled to
+              scroll: active && state.scroll[scrollKey(from.id, active.path)] !== undefined
+                ? { ...state.scroll, [scrollKey(id, active.path)]: state.scroll[scrollKey(from.id, active.path)] }
+                : state.scroll,
+            });
+            return id;
+          },
+
+          closeGroup: (group) => {
+            const state = get();
+            const target = state.groups[group];
+            if (!target || Object.keys(state.groups).length === 1) return { success: false, error: 'The only group stays' };
+            const elsewhere = new Set(Object.values(state.groups).filter((g) => g.id !== group).flatMap((g) => g.tabs.map((t) => t.path)));
+            const unsaved = target.tabs.filter((t) => t.isDirty && !elsewhere.has(t.path));
+            if (unsaved.length > 0) {
+              return { success: false, error: `Save or close first: ${unsaved.map((t) => t.title).join(', ')}` };
+            }
+            set(removeTabs(state, target.tabs.map((t) => t.id)));
+            // A group without tabs went with them; one whose tabs were all elsewhere is closed here
+            if (get().groups[group]) {
+              const next = get();
+              const groups = { ...next.groups };
+              delete groups[group];
+              const order = groupOrder(next).filter((id) => id !== group);
+              set({ groups, layout: closeLeaf(next.layout, group), focusedGroup: next.focusedGroup === group ? order[0] : next.focusedGroup });
+            }
+            return { success: true };
+          },
+
+          setLayout: (layout) => {
+            if (layout !== get().layout && layoutFits(layout, Object.keys(get().groups))) set({ layout });
           },
 
           setZoom: (zoom, group) => updateGroup(group, () => ({ zoom: clampZoom(zoom) })),
@@ -660,6 +773,7 @@ export function createReaderStore({ storage, name, legacy }: ReaderStoreOptions)
             // Session restore: tab identity and which one was active (documents are re-read on start)
             tabs: g.tabs.map((t) => ({ id: t.id, path: t.path, title: t.title, isDirty: false, isPreview: t.isPreview === true })),
           }])),
+          layout: state.layout,
           focusedGroup: state.focusedGroup,
           scroll: state.scroll,
           editMode: state.editMode,
@@ -678,11 +792,15 @@ export function createReaderStore({ storage, name, legacy }: ReaderStoreOptions)
             };
           }
           if (Object.keys(groups).length === 0) groups[MAIN_GROUP] = newGroup(MAIN_GROUP);
-          const focusedGroup = persisted?.focusedGroup && groups[persisted.focusedGroup] ? persisted.focusedGroup : Object.keys(groups)[0];
+          const ids = Object.keys(groups);
+          // A layout that doesn't fit the groups (an older version, an edit by hand) becomes a row of them
+          const layout = layoutFits(persisted?.layout, ids) ? persisted.layout as LayoutNode : rowOf(ids);
+          const focusedGroup = persisted?.focusedGroup && groups[persisted.focusedGroup] ? persisted.focusedGroup : leaves(layout)[0].id;
           const settings = { ...DEFAULT_READER_SETTINGS, ...persisted?.settings };
           return {
             ...current,
             groups,
+            layout,
             focusedGroup,
             scroll: persisted?.scroll ?? {},
             editMode: persisted?.editMode === true,
@@ -730,6 +848,7 @@ function fromLegacy(legacy: LegacyReaderState | null): Partial<ReaderState> | nu
         activeTabId: tabs.some((t) => t.id === legacy.activeTabId) ? legacy.activeTabId as string : tabs[0]?.id ?? null,
       },
     },
+    layout: groupLeaf(MAIN_GROUP),
     focusedGroup: MAIN_GROUP,
     scroll: Object.fromEntries(Object.entries(legacy.scrollPositions ?? {}).map(([path, position]) => [scrollKey(MAIN_GROUP, path), position])),
     editMode: legacy.editMode === true,

@@ -3,7 +3,7 @@ import { FileQuestion, AlertCircle, Save, ImageOff, FileDiff } from 'lucide-reac
 import { EmptyState as UiEmptyState, useSmoothWheelScroll } from '@lambda-house/ui';
 import clsx from 'clsx';
 import { useReader, useReaderContext, type ReaderHost } from './host';
-import { MAIN_GROUP, activeTabOf, allTabs, type ReaderStore } from './store';
+import { MAIN_GROUP, activeTabOf, allTabs, editorGroupFor, type ReaderStore } from './store';
 import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from './markdown';
 import TabBar from './TabBar';
 import FindBar from './FindBar';
@@ -591,6 +591,8 @@ export const DocumentPanel: React.FC<DocumentPanelProps> = ({ group = MAIN_GROUP
   const isDirty = useReader((s) => (activePath ? s.documents[activePath]?.isDirty ?? false : false));
   const openPathsKey = useReader((s) => allTabs(s).map((t) => t.path).join('\n'));
   const updateDocumentContent = useReader((s) => s.updateDocumentContent);
+  // A file shown in several groups is edited in one of them (the focused one, if it shows it)
+  const editsHere = useReader((s) => (activePath ? editorGroupFor(s, activePath) === group : false));
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasDocument = activePath !== null && content !== undefined;
@@ -598,7 +600,7 @@ export const DocumentPanel: React.FC<DocumentPanelProps> = ({ group = MAIN_GROUP
   // Edit mode: markdown and fb2 get the editor next to a live preview; for
   // code and plain text the preview would repeat the editor, so it is hidden
   const kind = activePath ? getFileKind(activePath).kind : 'markdown';
-  const showEditor = editMode && hasDocument;
+  const showEditor = editMode && hasDocument && editsHere;
   const showPreview = hasDocument && (!showEditor || kind === 'markdown' || kind === 'fb2');
 
   useDocumentScroll(store, group, scrollRef, activePath, showPreview);

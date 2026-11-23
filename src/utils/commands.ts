@@ -130,6 +130,26 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
           run: () => state().toggleAgentVisible(),
         },
         {
+          id: 'view.splitRight',
+          label: 'Split Document Right',
+          shortcut: { mod: true, key: '\\' },
+          run: () => { documents().splitGroup(undefined, 'row'); },
+        },
+        {
+          id: 'view.splitDown',
+          label: 'Split Document Down',
+          run: () => { documents().splitGroup(undefined, 'col'); },
+        },
+        {
+          id: 'view.closeGroup',
+          label: 'Close Document Group',
+          enabled: (s) => Object.keys(s.reader.groups).length > 1,
+          run: () => {
+            const result = documents().closeGroup(documents().focusedGroup);
+            if (!result.success && result.error) alert(result.error);
+          },
+        },
+        {
           id: 'view.toc',
           label: 'Table of Contents',
           shortcut: { mod: true, shift: true, key: 'o' },

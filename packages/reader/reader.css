@@ -1,0 +1,8 @@
+/* @lambda-house/reader: what the reader draws beyond the app's document styles.
+   Load after @lambda-house/workbench/workbench.css. */
+
+/* Several document groups: the focused one's tabs carry the focus line */
+.reader-groups.has-several .wb-leaf.is-focused .tab-bar { box-shadow: inset 0 2px 0 var(--accent); }
+
+/* The tab bar's own actions (split), at its right end */
+.tab-bar-actions { display: flex; align-items: center; gap: 2px; padding: 0 2px; border-left: 1px solid var(--line-subtle); flex-shrink: 0; }

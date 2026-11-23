@@ -6,20 +6,18 @@ import type { EditorState } from '@codemirror/state';
 /** Per-document editor state: undo history, cursor and scroll survive tab switches. */
 export const savedEditorStates = new Map<string, EditorState>();
 
-let flushPending: (() => void) | null = null;
+/** The mounted editors' flushes (one per document group that edits). */
+const flushes = new Set<() => void>();
 
-/** Register the mounted editor's flush (pending debounced changes -> store). */
-export function setEditorFlush(flush: (() => void) | null): void {
-  flushPending = flush;
+/** Register a mounted editor's flush (pending debounced changes -> store); returns its removal. */
+export function registerEditorFlush(flush: () => void): () => void {
+  flushes.add(flush);
+  return () => { flushes.delete(flush); };
 }
 
-export function getEditorFlush(): (() => void) | null {
-  return flushPending;
-}
-
-/** Push any not-yet-debounced editor changes to the store right now. */
+/** Push every editor's not-yet-debounced changes to the store right now. */
 export function flushEditorChanges(): void {
-  flushPending?.();
+  for (const flush of flushes) flush();
 }
 
 /** Forget editor states of documents that are no longer open. */

@@ -4,7 +4,7 @@ import { useStore, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, TOC_MAX_WIDT
 import { useReader } from './reader';
 import { openPath, reader } from './readerHost';
 import {
-  CloseDocumentDialog, DocumentPanel, MAIN_GROUP, ReaderProvider, SaveAllDialog, allTabs, type RestoredDocument,
+  CloseDocumentDialog, DocumentGroups, ReaderProvider, SaveAllDialog, allTabs, type RestoredDocument,
 } from '@lambda-house/reader';
 import { EmptyState, Kbd } from '@lambda-house/ui';
 import { FileQuestion } from 'lucide-react';
@@ -745,7 +745,7 @@ const App: React.FC = () => {
       files: { type: 'files', label: 'file panel', ...left, render: () => <FilePanel width={panelWidth} onAddDirectory={handleAddDirectory} /> },
       search: { type: 'search', label: 'search panel', ...left, render: () => <SearchPanel width={panelWidth} /> },
       history: { type: 'history', label: 'history panel', ...left, render: () => <HistoryPanel width={panelWidth} /> },
-      documents: { type: 'documents', label: 'document', min: { w: 200 }, render: () => <DocumentPanel group={MAIN_GROUP} empty={NO_DOCUMENT} /> },
+      documents: { type: 'documents', label: 'document', min: { w: 200 }, render: () => <DocumentGroups empty={NO_DOCUMENT} /> },
       contents: {
         type: 'contents', label: 'table of contents', collapsible: true, min: { w: TOC_MIN_WIDTH }, max: { w: TOC_MAX_WIDTH },
         render: () => <TocSidebar width={tocWidth} isVisible={tocVisible} onToggle={handleToggleToc} />,

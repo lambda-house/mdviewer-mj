@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAIN_GROUP, activeDocumentOf, activeTabOf, allTabs, canNavigateBack, canNavigateForward, createReaderStore, focusedGroupOf,
-  newGroup, scrollKey, type ReaderStore,
+  MAIN_GROUP, activeDocumentOf, activeTabOf, allTabs, canNavigateBack, canNavigateForward, createReaderStore, editorGroupFor, focusedGroupOf,
+  groupLeaf, groupOrder, newGroup, scrollKey, type ReaderStore,
 } from './index';
 
 const memory = (initial: Record<string, string> = {}) => {
@@ -16,7 +16,10 @@ const activePath = (store: ReaderStore, group = MAIN_GROUP) => activeTabOf(store
 
 /** A second group beside the main one, as a split will make. */
 function addGroup(store: ReaderStore, id: string) {
-  store.setState((s) => ({ groups: { ...s.groups, [id]: newGroup(id) } }));
+  store.setState((s) => ({
+    groups: { ...s.groups, [id]: newGroup(id) },
+    layout: { kind: 'split', id: 'test', dir: 'row', children: [s.layout, groupLeaf(id)], sizes: [{ fr: 1 }, { fr: 1 }] },
+  }));
 }
 
 describe('reader store: tabs', () => {
@@ -210,5 +213,94 @@ describe('reader store: saved state', () => {
     first.getState().closeAllTabs();
     const second = createReaderStore({ storage, name: 'r', legacy });
     expect(paths(second)).toEqual([]);
+  });
+});
+
+describe('reader store: splitting groups', () => {
+  it('splits a group: the new one shows the same document at the same zoom and scroll, and takes the focus', () => {
+    const store = fresh();
+    store.getState().openDocument('/a.md', 'a');
+    store.getState().setZoom(140);
+    store.getState().setScrollPosition('main', '/a.md', 30);
+    const id = store.getState().splitGroup();
+    const state = store.getState();
+    expect(state.focusedGroup).toBe(id);
+    expect(activePath(store, id)).toBe('/a.md');
+    expect(state.groups[id].zoom).toBe(140);
+    expect(state.getScrollPosition(id, '/a.md')).toBe(30);
+    expect(groupOrder(state)).toEqual(['main', id]);
+    // One document, shown twice
+    expect(Object.keys(state.documents)).toEqual(['/a.md']);
+  });
+
+  it('opens new documents in the focused group', () => {
+    const store = fresh();
+    store.getState().openDocument('/a.md', 'a');
+    const id = store.getState().splitGroup();
+    store.getState().openDocument('/b.md', 'b');
+    expect(paths(store, 'main')).toEqual(['/a.md']);
+    expect(paths(store, id)).toEqual(['/a.md', '/b.md']);
+  });
+
+  it('closes a group when its last tab closes, unless it is the only one; the focus goes to its neighbour', () => {
+    const store = fresh();
+    store.getState().openDocument('/a.md', 'a');
+    const id = store.getState().splitGroup();
+    store.getState().closeDocument(store.getState().groups[id].tabs[0].id);
+    expect(Object.keys(store.getState().groups)).toEqual(['main']);
+    expect(store.getState().focusedGroup).toBe('main');
+    expect(groupOrder(store.getState())).toEqual(['main']);
+    expect(store.getState().documents['/a.md']).toBeDefined();
+    store.getState().closeAllTabs();
+    expect(Object.keys(store.getState().groups)).toEqual(['main']);
+  });
+
+  it('closes a group on request, but not the only one nor the only copy of unsaved changes', () => {
+    const store = fresh();
+    store.getState().openDocument('/a.md', 'a');
+    expect(store.getState().closeGroup('main').success).toBe(false);
+    const id = store.getState().splitGroup();
+    store.getState().openDocument('/b.md', 'b');
+    store.getState().updateDocumentContent('/b.md', 'b!');
+    expect(store.getState().closeGroup(id)).toEqual({ success: false, error: 'Save or close first: b.md' });
+    store.getState().saveDocument('/b.md');
+    expect(store.getState().closeGroup(id).success).toBe(true);
+    expect(Object.keys(store.getState().groups)).toEqual(['main']);
+    expect(store.getState().documents['/b.md']).toBeUndefined();
+  });
+
+  it('edits a file shown in two groups in one of them: the focused one', () => {
+    const store = fresh();
+    store.getState().openDocument('/a.md', 'a');
+    const id = store.getState().splitGroup();
+    expect(editorGroupFor(store.getState(), '/a.md')).toBe(id);
+    store.getState().focusGroup('main');
+    expect(editorGroupFor(store.getState(), '/a.md')).toBe('main');
+    store.getState().openDocument('/b.md', 'b');
+    // The focused group shows another file now: the first that shows it edits it
+    expect(editorGroupFor(store.getState(), '/a.md')).toBe(id);
+  });
+
+  it('keeps the arrangement, and takes only one that fits the groups', () => {
+    const storage = memory();
+    const store = createReaderStore({ storage, name: 'r' });
+    store.getState().openDocument('/a.md', 'a');
+    const id = store.getState().splitGroup('main', 'col');
+    const again = createReaderStore({ storage, name: 'r' });
+    expect(again.getState().layout).toEqual(store.getState().layout);
+    expect(groupOrder(again.getState())).toEqual(['main', id]);
+    expect(again.getState().focusedGroup).toBe(id);
+    // A resize that loses a group is ignored
+    again.getState().setLayout(groupLeaf('main'));
+    expect(groupOrder(again.getState())).toEqual(['main', id]);
+  });
+
+  it('a workspace replaces all groups with one', () => {
+    const store = fresh();
+    store.getState().openDocument('/a.md', 'a');
+    store.getState().splitGroup();
+    store.getState().replaceTabs(['/x.md'], '/x.md');
+    expect(groupOrder(store.getState())).toHaveLength(1);
+    expect(paths(store, store.getState().focusedGroup)).toEqual(['/x.md']);
   });
 });

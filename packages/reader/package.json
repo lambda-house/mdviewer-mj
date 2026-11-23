@@ -5,7 +5,8 @@
   "description": "Markdown reader and editor shared by MDViewer and Agent MCR",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./reader.css": "./reader.css"
   },
   "dependencies": {
     "@lambda-house/tokens": "*",

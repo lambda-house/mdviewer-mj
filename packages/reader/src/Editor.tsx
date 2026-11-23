@@ -7,7 +7,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { isMarkdownFile } from './files';
-import { savedEditorStates as savedStates, setEditorFlush, getEditorFlush } from './editorRegistry';
+import { savedEditorStates as savedStates, registerEditorFlush } from './editorRegistry';
 
 // ============================================================
 // Tuning
@@ -158,7 +158,7 @@ const Editor: React.FC<EditorProps> = ({ path, content, zoom, onChange, onSave, 
     });
     viewRef.current = view;
     emittedRef.current = view.state.doc.toString();
-    setEditorFlush(flush);
+    const unregisterFlush = registerEditorFlush(flush);
 
     const handleScroll = () => {
       const block = view.lineBlockAtHeight(view.scrollDOM.scrollTop);
@@ -172,7 +172,7 @@ const Editor: React.FC<EditorProps> = ({ path, content, zoom, onChange, onSave, 
       view.scrollDOM.removeEventListener('scroll', handleScroll);
       view.destroy();
       viewRef.current = null;
-      if (getEditorFlush() === flush) setEditorFlush(null);
+      unregisterFlush();
     };
     // The view lives as long as the component; path/content changes are
     // handled by the effects below
