@@ -21,19 +21,21 @@ export async function openPath(path: string, options?: { preview?: boolean }): P
   });
 }
 
+// The Tauri functions are looked up when called, not when this module loads
+// (tests replace that module with only what they use).
 export const readerHost: ReaderHost = {
-  readFile,
-  writeFile,
+  readFile: (path) => readFile(path),
+  writeFile: (path, content) => writeFile(path, content),
   saveAs: async (name, content, filters, title) => { await saveFile(name, content, filters, title); },
   openPath,
-  followLocalLink,
-  openExternal,
-  revealInFolder: openInExplorer,
+  followLocalLink: (path) => followLocalLink(path),
+  openExternal: (url) => openExternal(url),
+  revealInFolder: (path) => openInExplorer(path),
   changes: {
     // Agent documents (the app store's agent entries)
     useIsTracked: (path) => useStore((s) => s.agentEntries.some((e) => e.path === path)),
-    readSnapshot,
-    markRead: markAgentFilesRead,
+    readSnapshot: (path) => readSnapshot(path),
+    markRead: (paths) => markAgentFilesRead(paths),
   },
 };
 

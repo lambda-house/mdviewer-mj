@@ -36,8 +36,11 @@ export function legacyReaderState(source: Pick<Storage, 'getItem'>): LegacyReade
 
 export const READER_STORAGE = 'mdviewer-reader';
 
+/** Not in tests that run without a DOM. */
+const browserStorage = typeof localStorage === 'undefined' ? null : localStorage;
+
 export const useReader = createReaderStore({
-  storage: documentWindowPath ? documentWindowReaderStorage(localStorage) : localStorage,
+  storage: browserStorage && (documentWindowPath ? documentWindowReaderStorage(browserStorage) : browserStorage),
   name: READER_STORAGE,
-  legacy: documentWindowPath ? undefined : () => legacyReaderState(localStorage),
+  legacy: documentWindowPath || !browserStorage ? undefined : () => legacyReaderState(browserStorage),
 });

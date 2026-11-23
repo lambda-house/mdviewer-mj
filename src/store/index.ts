@@ -101,8 +101,6 @@ export interface AppState {
   // Appearance
   theme: ColorTheme;
 
-  // Code Highlighting
-
   // Modal state
   settingsOpen: boolean;
   /** The command palette is showing. Not persisted. */
@@ -122,7 +120,7 @@ export interface AppState {
   /** Name of the workspace the current folders/tabs belong to. */
   activeWorkspace: string | null;
 
-  // Search - options are shared by find-in-document and the search panel
+  // Search panel (its options are the reader's, shared with find)
   searchVisible: boolean;
   searchQuery: string;
   searchScope: SearchScope;
@@ -164,8 +162,6 @@ export interface AppState {
 
   // Appearance
   toggleTheme: () => void;
-
-  // Code Highlighting
 
   // History
   setHistoryVisible: (visible: boolean) => void;
@@ -232,8 +228,6 @@ export const useStore = create<AppState>()(
       // Appearance
       theme: 'dark',
 
-      // Code Highlighting - default aliases
-      
       // Modal state
       settingsOpen: false,
       paletteOpen: false,
