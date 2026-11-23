@@ -1,13 +1,29 @@
-import { Fragment, useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { SplitHandle, cx } from '@lambda-house/ui';
-import { isPx, leaves, resizeAt, toggleAt, type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Split } from './layout';
+import {
+  closeLeaf, findLeaf, isPx, joinLeaves, leaves, parentOf, resizeAt, setPane, splitLeaf, swapPanes, toggleAt,
+  type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Split,
+} from './layout';
+import { PaneContextProvider } from './panes';
+
+/** A pane's own zoom (shared UI spec §5.4): Ctrl+wheel over it and the zoom commands go here. */
+export interface PaneZoom {
+  /** Percent. */
+  get: (context: PaneContext) => number;
+  /** 1 in, -1 out, 0 back to 100 %. */
+  step: (context: PaneContext, direction: 1 | -1 | 0) => void;
+  /** Where the zoom is kept tells about changes (a store); without it, it is read as the layout renders. */
+  subscribe?: (listener: () => void) => () => void;
+}
 
 /** What a pane type needs from the layout (shared UI spec §5.4). */
 export interface PaneType {
   type: string;
   /** Names the pane for its handle ("file panel"). */
   label?: string;
+  /** Its name in its header and in menus ("Files"). */
+  title?: string;
   /** Smallest width and height, px. */
   min?: { w?: number; h?: number };
   max?: { w?: number; h?: number };
@@ -18,7 +34,47 @@ export interface PaneType {
    * moved, never remounted, when the layout changes; kept while collapsed.
    */
   keepAlive?: boolean;
+  /** Its header's title is a menu of the other switchable types: choosing one shows that pane in its place. */
+  switchable?: boolean;
+  /** At most one in the layout (Files, Contents); its key is its type. */
+  singleton?: boolean;
+  /** Its menu may close it (default: yes, while it is not the only pane); a function asks each time. */
+  closable?: boolean | ((pane: PaneRef) => boolean);
+  zoom?: PaneZoom;
+  /** Split it as its owner does (a new document group), instead of adding a pane beside it to the layout. */
+  split?: (context: PaneContext, dir: 'row' | 'col') => void;
+  /** Close it as its owner does (asking about unsaved changes), instead of taking its leaf out of the layout. */
+  close?: (context: PaneContext) => void;
   render: (context: PaneContext) => ReactNode;
+}
+
+/** What a pane's menu shows while one of its items is pointed at. */
+export type PanePreview =
+  | { kind: 'split'; dir: 'row' | 'col' }
+  | { kind: 'join'; leaf: string }
+  | { kind: 'swap'; leaf: string }
+  | { kind: 'close' };
+
+/** What can be done with a pane where it is: its menu, its type menu and its zoom read this. */
+export interface PaneActions {
+  /** Its name ("Files"). */
+  title: string;
+  canSplit: boolean;
+  split: (dir: 'row' | 'col') => void;
+  canClose: boolean;
+  close: () => void;
+  /** Panes next to it in its split that it can take the room of. */
+  joinable: Array<{ leaf: string; title: string }>;
+  join: (leaf: string) => void;
+  /** The other panes, to trade places with. */
+  swappable: Array<{ leaf: string; title: string }>;
+  swap: (leaf: string) => void;
+  /** Switchable types it can turn into here. */
+  types: Array<{ type: string; title: string }>;
+  setType: (type: string) => void;
+  zoom: { get: () => number; step: (direction: 1 | -1 | 0) => void; subscribe?: (listener: () => void) => () => void } | null;
+  /** Show what an item would do (null: stop). */
+  preview: (preview: PanePreview | null) => void;
 }
 
 export interface PaneContext {
@@ -28,11 +84,14 @@ export interface PaneContext {
   focused: boolean;
   /** In a leaf that is not collapsed. */
   visible: boolean;
+  /** Replace the pane's own state (`PaneRef.state`). */
+  setState: (state: unknown) => void;
+  actions: PaneActions;
 }
 
 export interface LayoutViewProps {
   layout: Layout;
-  /** Handles were dragged, stepped or toggled. */
+  /** Handles were dragged, stepped or toggled; a pane was split, closed, joined, swapped or switched. */
   onChange: (layout: Layout) => void;
   paneTypes: Record<string, PaneType>;
   /** A leaf without a pane. */
@@ -45,6 +104,9 @@ export interface LayoutViewProps {
 }
 
 const DEFAULT_MIN = 80;
+
+let counter = 0;
+const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(++counter).toString(36)}`;
 
 /** A leaf's slot for a kept-alive pane: the pane's own element is moved in while it is here. */
 function KeepAliveSlot({ element, parking }: { element: HTMLElement; parking: () => HTMLElement | null }) {
@@ -60,18 +122,30 @@ function KeepAliveSlot({ element, parking }: { element: HTMLElement; parking: ()
   return <div ref={slot} className="wb-slot" />;
 }
 
+/** Where a preview is drawn: over the leaf, or the half of it a split would give the new pane. */
+function previewBox(rect: DOMRect, part: 'all' | 'right' | 'bottom'): CSSProperties {
+  if (part === 'right') return { top: rect.top, left: rect.left + rect.width / 2, width: rect.width / 2, height: rect.height };
+  if (part === 'bottom') return { top: rect.top + rect.height / 2, left: rect.left, width: rect.width, height: rect.height / 2 };
+  return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+}
+
 /**
  * Draws a layout tree: splits as flex rows and columns with a SplitHandle
  * between children, leaves with their pane. Pixel children keep their width
  * when the window changes; fractional ones share the rest down to their
- * minimum.
+ * minimum. Every pane gets its context (usePane): its menu's actions on this
+ * layout, its zoom. Ctrl+wheel over a pane zooms it.
  */
 export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLeaf, onFocusLeaf, retain = [], className }: LayoutViewProps) {
   const childRefs = useRef(new Map<string, HTMLElement>());
+  const leafRefs = useRef(new Map<string, HTMLElement>());
+  const rootRef = useRef<HTMLDivElement>(null);
   const parkingRef = useRef<HTMLDivElement>(null);
   const parking = useCallback(() => parkingRef.current, []);
   const [elements] = useState(() => new Map<string, HTMLElement>());
   const drag = useRef<{ base: Layout; measured: number[] } | null>(null);
+  const [preview, setPreview] = useState<{ leaf: string; what: PanePreview } | null>(null);
+  const viewId = useId();
 
   const elementFor = (key: string) => {
     let element = elements.get(key);
@@ -104,17 +178,152 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
     return { flex: `${size.fr} 1 0px`, [split.dir === 'row' ? 'minWidth' : 'minHeight']: child.kind === 'leaf' ? min : undefined };
   };
 
+  // ============================================================
+  // Panes: their context and what their menus do
+  // ============================================================
+
+  const allLeaves = leaves(layout.root);
+  const titleOf = (pane: PaneRef | null) => (pane ? paneTypes[pane.type]?.title ?? paneTypes[pane.type]?.label ?? pane.type : 'Empty');
+  /** Leaf titles, numbered where two read the same. */
+  const titles = new Map<string, string>();
+  {
+    const seen = new Map<string, number>();
+    for (const leaf of allLeaves) seen.set(titleOf(leaf.pane), (seen.get(titleOf(leaf.pane)) ?? 0) + 1);
+    const count = new Map<string, number>();
+    for (const leaf of allLeaves) {
+      const title = titleOf(leaf.pane);
+      const n = (count.get(title) ?? 0) + 1;
+      count.set(title, n);
+      titles.set(leaf.id, (seen.get(title) ?? 0) > 1 ? `${title} ${n}` : title);
+    }
+  }
+  const change = (root: LayoutNode) => { if (root !== layout.root) onChange({ ...layout, root }); };
+
+  /** The pane a split adds: another switchable one not shown yet, or one more of a type that may repeat. */
+  const nextPane = (pane: PaneRef): PaneRef | null => {
+    const type = paneTypes[pane.type];
+    const shown = new Set(allLeaves.map((leaf) => leaf.pane?.type));
+    if (type?.switchable) {
+      const other = Object.values(paneTypes).find((t) => t.switchable && !(t.singleton && shown.has(t.type)));
+      return other ? { type: other.type, key: other.singleton ? other.type : newId(other.type) } : null;
+    }
+    return type && !type.singleton ? { type: type.type, key: newId(type.type) } : null;
+  };
+
+  const isClosable = (pane: PaneRef): boolean => {
+    const closable = paneTypes[pane.type]?.closable;
+    return typeof closable === 'function' ? closable(pane) : closable !== false;
+  };
+
+  const contextFor = (pane: PaneRef, leaf: Leaf | null): PaneContext => {
+    const type = paneTypes[pane.type];
+    const focused = !!leaf && leaf.id === focusedLeaf;
+    const visible = !!leaf && !leaf.collapsed;
+    const context: PaneContext = { pane, leaf, focused, visible, setState: () => {}, actions: undefined as unknown as PaneActions };
+    context.setState = (state) => { if (leaf) change(setPane(layout.root, leaf.id, { ...pane, state })); };
+    const place = leaf ? parentOf(layout.root, leaf.id) : undefined;
+    const neighbours = place ? [place.index - 1, place.index + 1]
+      .map((i) => place.split.children[i])
+      .filter((node): node is Leaf => node?.kind === 'leaf' && !!node.pane && isClosable(node.pane)) : [];
+    const shownTypes = new Set(allLeaves.filter((l) => l !== leaf).map((l) => l.pane?.type));
+    const fresh = leaf ? nextPane(pane) : null;
+    const canClose = !!leaf && allLeaves.length > 1 && isClosable(pane);
+    const closeOther = (other: Leaf) => {
+      const otherType = other.pane ? paneTypes[other.pane.type] : undefined;
+      if (otherType?.close && other.pane) otherType.close(contextFor(other.pane, other));
+      else if (leaf) change(joinLeaves(layout.root, leaf.id, other.id));
+    };
+    context.actions = {
+      title: leaf ? titles.get(leaf.id) ?? titleOf(pane) : titleOf(pane),
+      canSplit: !!leaf && (!!type?.split || !!fresh),
+      split: (dir) => {
+        if (!leaf) return;
+        if (type?.split) { type.split(context, dir); return; }
+        if (!fresh) return;
+        const id = newId('leaf');
+        change(splitLeaf(layout.root, leaf.id, dir, 'after', { kind: 'leaf', id, pane: fresh }, newId('split')));
+        onFocusLeaf?.(id);
+      },
+      canClose,
+      close: () => {
+        if (!canClose || !leaf) return;
+        if (type?.close) type.close(context);
+        else change(closeLeaf(layout.root, leaf.id));
+      },
+      joinable: neighbours.map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane) })),
+      join: (other) => {
+        const target = neighbours.find((n) => n.id === other);
+        if (target) closeOther(target);
+      },
+      swappable: leaf ? allLeaves.filter((other) => other !== leaf).map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane) })) : [],
+      swap: (other) => { if (leaf) change(swapPanes(layout.root, leaf.id, other)); },
+      types: leaf && type?.switchable
+        ? Object.values(paneTypes)
+          .filter((t) => t.switchable && t.type !== pane.type && !(t.singleton && shownTypes.has(t.type)))
+          .map((t) => ({ type: t.type, title: t.title ?? t.label ?? t.type }))
+        : [],
+      setType: (next) => {
+        const nextType = paneTypes[next];
+        if (!leaf || !nextType?.switchable) return;
+        change(setPane(layout.root, leaf.id, { type: next, key: nextType.singleton ? next : newId(next) }));
+      },
+      zoom: type?.zoom ? {
+        get: () => type.zoom!.get(context),
+        step: (direction) => type.zoom!.step(context, direction),
+        subscribe: type.zoom.subscribe,
+      } : null,
+      preview: (what) => setPreview(what && leaf ? { leaf: leaf.id, what } : null),
+    };
+    return context;
+  };
+
+  // The menu of a pane that is gone takes its preview with it
+  useEffect(() => {
+    if (preview && !findLeaf(layout.root, preview.leaf)) setPreview(null);
+  }, [layout.root, preview]);
+
+  // Ctrl+wheel zooms the pane under the pointer (an inner layout's pane first)
+  const latest = useRef({ layout, contextFor });
+  latest.current = { layout, contextFor };
+  useEffect(() => {
+    const element = rootRef.current;
+    if (!element) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.deltaY === 0) return;
+      // The nearest leaf of this layout (an inner layout's leaves carry its own id)
+      let leafElement = e.target instanceof Element ? e.target : null;
+      while (leafElement && leafElement !== element && leafElement.getAttribute('data-layout') !== viewId) leafElement = leafElement.parentElement;
+      const leaf = leafElement && leafElement !== element ? findLeaf(latest.current.layout.root, leafElement.getAttribute('data-leaf') ?? '') : undefined;
+      const zoom = leaf?.pane && latest.current.contextFor(leaf.pane, leaf).actions.zoom;
+      if (!zoom) return;
+      e.preventDefault();
+      e.stopPropagation();
+      zoom.step(e.deltaY < 0 ? 1 : -1);
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [viewId]);
+
+  // ============================================================
+  // Drawing
+  // ============================================================
+
   const renderLeaf = (leaf: Leaf) => {
     const focused = leaf.id === focusedLeaf;
     const type = leaf.pane ? paneTypes[leaf.pane.type] : undefined;
     let content: ReactNode = null;
     if (!leaf.pane || !type) content = leaf.collapsed ? null : renderEmpty?.(leaf, focused) ?? null;
     else if (type.keepAlive) content = <KeepAliveSlot element={elementFor(leaf.pane.key)} parking={parking} />;
-    else if (!leaf.collapsed) content = type.render({ pane: leaf.pane, leaf, focused, visible: true });
+    else if (!leaf.collapsed) {
+      const context = contextFor(leaf.pane, leaf);
+      content = <PaneContextProvider value={context}>{type.render(context)}</PaneContextProvider>;
+    }
     return (
       <div
         className={cx('wb-leaf', focused && 'is-focused', leaf.collapsed && 'is-collapsed')}
         data-leaf={leaf.id}
+        data-layout={viewId}
+        ref={(element) => { if (element) leafRefs.current.set(leaf.id, element); else leafRefs.current.delete(leaf.id); }}
         onPointerDownCapture={() => { if (!focused) onFocusLeaf?.(leaf.id); }}
         onFocusCapture={() => { if (!focused) onFocusLeaf?.(leaf.id); }}
       >
@@ -174,7 +383,7 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   };
 
   // Every kept-alive pane: the ones in leaves, and the retained ones
-  const shown = leaves(layout.root).filter((leaf) => leaf.pane && paneTypes[leaf.pane.type]?.keepAlive);
+  const shown = allLeaves.filter((leaf) => leaf.pane && paneTypes[leaf.pane.type]?.keepAlive);
   const kept = new Map<string, { pane: PaneRef; leaf: Leaf | null }>();
   for (const leaf of shown) kept.set(leaf.pane!.key, { pane: leaf.pane!, leaf });
   for (const pane of retain) if (!kept.has(pane.key) && paneTypes[pane.type]?.keepAlive) kept.set(pane.key, { pane, leaf: null });
@@ -188,21 +397,36 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
     }
   });
 
+  // What a pane's menu item would do, drawn over the panes it concerns
+  const overlays = useMemo(() => {
+    if (!preview) return [];
+    const rect = (id: string) => leafRefs.current.get(id)?.getBoundingClientRect();
+    const { leaf, what } = preview;
+    const own = rect(leaf);
+    if (!own) return [];
+    if (what.kind === 'split') return [{ key: 'split', className: 'wb-preview--add', style: previewBox(own, what.dir === 'row' ? 'right' : 'bottom') }];
+    if (what.kind === 'close') return [{ key: 'close', className: 'wb-preview--remove', style: previewBox(own, 'all') }];
+    const other = rect(what.leaf);
+    if (!other) return [];
+    return what.kind === 'join'
+      ? [{ key: 'join', className: 'wb-preview--remove', style: previewBox(other, 'all') }, { key: 'keep', className: 'wb-preview--add', style: previewBox(own, 'all') }]
+      : [{ key: 'a', className: 'wb-preview--swap', style: previewBox(own, 'all') }, { key: 'b', className: 'wb-preview--swap', style: previewBox(other, 'all') }];
+  }, [preview]);
+
   // The parking is beside the tree, not in it: a class given to the layout covers only what is shown
   return (
     <>
-      <div className={cx('wb-layout', className)}>{renderNode(layout.root)}</div>
+      <div ref={rootRef} className={cx('wb-layout', className)}>{renderNode(layout.root)}</div>
       <div ref={parkingRef} className="wb-parking" aria-hidden="true" />
-      {[...kept.entries()].map(([key, { pane, leaf }]) => createPortal(
-        paneTypes[pane.type].render({
-          pane,
-          leaf,
-          focused: !!leaf && leaf.id === focusedLeaf,
-          visible: !!leaf && !leaf.collapsed,
-        }),
-        elementFor(key),
-        key,
-      ))}
+      {overlays.map((overlay) => <div key={overlay.key} className={cx('wb-preview', overlay.className)} style={overlay.style} aria-hidden="true" />)}
+      {[...kept.entries()].map(([key, { pane, leaf }]) => {
+        const context = contextFor(pane, leaf);
+        return createPortal(
+          <PaneContextProvider value={context}>{paneTypes[pane.type].render(context)}</PaneContextProvider>,
+          elementFor(key),
+          key,
+        );
+      })}
     </>
   );
 }

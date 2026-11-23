@@ -20,10 +20,27 @@ export function DocumentGroups({ empty }: { empty?: ReactNode }) {
   const layout = useMemo<Layout>(() => ({ version: 1, root }), [root]);
   const paneTypes = useMemo<Record<string, PaneType>>(() => ({
     documents: {
-      type: 'documents', label: 'documents', keepAlive: true, min: { w: 200 },
+      type: 'documents', label: 'documents', title: 'Documents', keepAlive: true, min: { w: 200 },
+      // A group zooms itself (Ctrl+wheel over it), splits into a new group and closes as the store does
+      zoom: {
+        get: ({ pane }) => store.getState().groups[pane.key]?.zoom ?? 100,
+        step: ({ pane }, direction) => {
+          const state = store.getState();
+          if (direction === 0) state.resetZoom(pane.key);
+          else if (direction > 0) state.zoomIn(pane.key);
+          else state.zoomOut(pane.key);
+        },
+        subscribe: store.subscribe,
+      },
+      split: ({ pane }, dir) => { store.getState().splitGroup(pane.key, dir); },
+      closable: () => Object.keys(store.getState().groups).length > 1,
+      close: ({ pane }) => {
+        const result = store.getState().closeGroup(pane.key);
+        if (!result.success && result.error) window.alert(result.error);
+      },
       render: ({ pane }) => <DocumentPanel group={pane.key} empty={empty} />,
     },
-  }), [empty]);
+  }), [empty, store]);
   const onChange = useCallback((next: Layout) => store.getState().setLayout(next.root), [store]);
   const onFocusLeaf = useCallback((id: string) => store.getState().focusGroup(id), [store]);
 

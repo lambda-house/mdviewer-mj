@@ -39,7 +39,10 @@ describe('the reader takes over the old saved tabs', () => {
     // The app keeps its own part, and saves it without the reader's
     expect(useStore.getState().directories).toEqual(['/work']);
     const app = JSON.parse(localStorage.getItem('mdviewer-storage') as string);
-    expect(app.version).toBe(5);
+    expect(app.version).toBe(6);
+    // and keeps its panels as the Documents layout
+    expect(app.state.documentsLayout?.kind).toBe('split');
+    expect(app.state.panelWidth).toBeUndefined();
     expect([app.state.tabs, app.state.zoom, app.state.smoothScroll]).toEqual([undefined, undefined, undefined]);
     expect(JSON.parse(localStorage.getItem('mdviewer-reader') as string).state.groups.main.tabs).toHaveLength(2);
   };

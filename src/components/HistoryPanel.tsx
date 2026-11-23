@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useRef, useMemo } from 'react';
 import { Trash2, RefreshCw } from 'lucide-react';
-import { Button, PaneFrame } from '@lambda-house/ui';
+import { Button } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore } from '../store';
 import { readHistory, clearHistory, readFile, isTauri } from '../utils/tauri';
 import { renderMarkdown } from '@lambda-house/reader';
@@ -10,11 +11,7 @@ import { useReader } from '../reader';
 // History Panel Component
 // ============================================================
 
-interface HistoryPanelProps {
-  width: number;
-}
-
-const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
+const HistoryPanel: React.FC = () => {
   const historyContent = useStore((s) => s.historyContent);
   const setHistoryContent = useStore((s) => s.setHistoryContent);
   const openDocument = useReader((s) => s.openDocument);
@@ -99,10 +96,9 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
   }, [openDocument, renderedHtml]);
 
   return (
-    <PaneFrame
+    <Pane
       as="aside"
       className="history-panel"
-      style={{ width }}
       title="History"
       tools={<>
         <Button variant="ghost" size="xs" icon={<RefreshCw size={16} />} onClick={loadHistory} title="Refresh history" aria-label="Refresh history" disabled={isLoading} busy={isLoading} />
@@ -116,7 +112,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
       </div>
-    </PaneFrame>
+    </Pane>
   );
 };
 

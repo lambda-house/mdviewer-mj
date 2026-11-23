@@ -9,7 +9,7 @@ import { JournalDetail, Metric } from './JournalDetail';
 import { JournalList } from './JournalList';
 import { MemoryBrowser } from './MemoryBrowser';
 import { compact, filterSessions, NO_FILTERS, origin, sessionKey, sumUsage, totalTokens } from './sessions';
-import { DETAIL_PANE, detailPanes, LIST_PANE } from './store';
+import { DETAIL_PANE, detailPanes, LIST_PANE, listPanes } from './store';
 
 /** How often the snapshot is asked for while the journal is shown (ms). */
 export const REFRESH_INTERVAL = 5000;
@@ -86,9 +86,22 @@ export function JournalView({ active = true, tools = {} }: JournalViewProps) {
 
   const layout = useMemo<Layout>(() => ({ version: 1, root }), [root]);
   const paneTypes = useMemo<Record<string, PaneType>>(() => ({
-    [LIST_PANE]: { type: LIST_PANE, label: 'session list', collapsible: true, min: { w: 240 }, render: ({ pane }) => <JournalList pane={pane.key} /> },
-    [DETAIL_PANE]: { type: DETAIL_PANE, label: 'session', min: { w: 320 }, render: ({ pane }) => <JournalDetail pane={pane.key} active={active} /> },
-  }), [active]);
+    // Split and close go through the store, which keeps a list and a detail pane
+    [LIST_PANE]: {
+      type: LIST_PANE, label: 'session list', title: 'Sessions', collapsible: true, min: { w: 240 },
+      split: ({ pane }, dir) => { store.getState().splitPane(pane.key, dir); },
+      closable: () => listPanes(store.getState()).length > 1,
+      close: ({ pane }) => store.getState().closePane(pane.key),
+      render: ({ pane }) => <JournalList pane={pane.key} />,
+    },
+    [DETAIL_PANE]: {
+      type: DETAIL_PANE, label: 'session', title: 'Session', min: { w: 320 },
+      split: ({ pane }, dir) => { store.getState().splitPane(pane.key, dir); },
+      closable: () => detailPanes(store.getState()).length > 1,
+      close: ({ pane }) => store.getState().closePane(pane.key),
+      render: ({ pane }) => <JournalDetail pane={pane.key} active={active} />,
+    },
+  }), [active, store]);
   const onChange = useCallback((next: Layout) => store.getState().setLayout(next.root), [store]);
   const onFocusLeaf = useCallback((id: string) => store.getState().focus(id), [store]);
 

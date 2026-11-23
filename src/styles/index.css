@@ -786,21 +786,6 @@ a:hover {
   flex-shrink: 0;
 }
 
-/* Side panel zoom (Ctrl + wheel over the panel) */
-.panel-zoom-badge {
-  padding: 0 4px;
-  height: 18px;
-  align-self: center;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  color: var(--text-accent);
-  background: var(--surface-input);
-}
-
-.panel-zoom-badge:hover {
-  color: var(--text-primary);
-}
-
 /* Context Menu */
 .context-menu {
   position: fixed;

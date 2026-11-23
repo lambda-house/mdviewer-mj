@@ -419,3 +419,28 @@
 .wb-surface[hidden] { display: none; }
 .wb-view { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .wb-view[hidden] { display: none; }
+
+/* ============================================================
+   Pane headers: the type menu, the zoom badge (spec §5.4)
+   ============================================================ */
+
+/* A switchable pane's title: the title itself, with a chevron, opening the type menu */
+.wb-pane-type {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 100%;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+}
+.wb-pane-type:hover, .wb-pane-type[aria-expanded='true'] { color: var(--text); }
+.wb-pane-type:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
+
+/* A pane's own zoom (Ctrl + wheel over it) while it is not 100 % */
+.wb-zoom-badge {
+  padding: 0 4px; height: 18px; align-self: center; border: 0; cursor: pointer;
+  border-radius: var(--r-sm); font-size: var(--fs-11); color: var(--accent); background: var(--input);
+}
+.wb-zoom-badge:hover { color: var(--text); }
+
+/* What a pane menu item would do, over the panes it concerns */
+.wb-preview { position: fixed; z-index: 30; pointer-events: none; border: 2px dashed var(--accent); background: var(--accent-bg); }
+.wb-preview--remove { border-color: var(--danger); background: var(--danger-bg); opacity: .6; }
+.wb-preview--swap { border-style: dotted; }

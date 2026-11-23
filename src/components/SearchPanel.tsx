@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { X, ChevronRight, FileText } from 'lucide-react';
-import { Button, PaneFrame } from '@lambda-house/ui';
+import { Button } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore, type FileNode, type SearchScope } from '../store';
 import { buildSearchRegex, findLineMatches, type LineMatch } from '@lambda-house/reader';
 import { getFileName } from '@lambda-house/reader';
@@ -113,7 +114,7 @@ function collectFiles(nodes: FileNode[]): string[] {
  * Text search over the open tabs or the open folders (Ctrl+Shift+F).
  * Clicking a result opens the document and jumps to the match with the find bar.
  */
-const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
+const SearchPanel: React.FC = () => {
   const query = useStore((s) => s.searchQuery);
   const scope = useStore((s) => s.searchScope);
   const options = useReader((s) => s.settings.searchOptions);
@@ -273,10 +274,9 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
   ];
 
   return (
-    <PaneFrame
+    <Pane
       as="aside"
       className="search-panel file-panel"
-      style={{ width }}
       title="Search"
       tools={<Button variant="ghost" size="xs" icon={<X size={16} />} onClick={() => setSearchVisible(false)} title="Close search" aria-label="Close search" />}
     >
@@ -327,7 +327,7 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
           />
         ))}
       </div>
-    </PaneFrame>
+    </Pane>
   );
 };
 

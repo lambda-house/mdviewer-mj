@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Activity, ArrowUpRight, Bot, Copy, Link2, Play, Square, Terminal, X, Zap } from 'lucide-react';
 import { Button, Tabs } from '@lambda-house/ui';
+import { PaneMenu } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext } from './host';
 import { MemoryBrowser } from './MemoryBrowser';
 import { SessionTree } from './SessionTree';
@@ -69,7 +70,7 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
   }, [selected, sessions, active, host]);
 
   const chosen = detail && sessionKey(detail) === selected ? detail : sessions.find((s) => sessionKey(s) === selected);
-  const close = several ? <button className="sc-detail-close" aria-label="Close session pane" title="Close this pane" onClick={() => store.getState().closePane(pane)}><X size={14} /></button> : null;
+  const close = <span className="sc-detail-tools"><PaneMenu />{several && <button className="sc-detail-close" aria-label="Close session pane" title="Close this pane" onClick={() => store.getState().closePane(pane)}><X size={14} /></button>}</span>;
   if (!chosen) {
     return <main className="sc-detail">{close}<div className="sc-empty"><Bot size={32} /><h2>Select a session</h2><p>Inspect its activity, agents and linked work.</p></div></main>;
   }

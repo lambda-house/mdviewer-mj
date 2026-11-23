@@ -87,6 +87,33 @@ export function findPane(node: LayoutNode, key: string): Leaf | undefined {
   return leaves(node).find((leaf) => leaf.pane?.key === key);
 }
 
+/** The leaf showing a pane of this type (the first one). */
+export function findPaneOfType(node: LayoutNode, type: string): Leaf | undefined {
+  return leaves(node).find((leaf) => leaf.pane?.type === type);
+}
+
+/**
+ * Put a pane into the layout beside a leaf, in the row of the top split
+ * (a side panel), with its own size; the layout keeps the order given by
+ * `side`. When the root is a leaf it becomes a row of both.
+ */
+export function placePane(root: LayoutNode, beside: string, side: 'before' | 'after', leaf: Leaf, size: Size, splitId = 'root'): LayoutNode {
+  if (root.kind === 'leaf') {
+    const children = side === 'before' ? [leaf, root] : [root, leaf];
+    const sizes: Size[] = side === 'before' ? [size, { fr: 1 }] : [{ fr: 1 }, size];
+    return normalize({ kind: 'split', id: splitId, dir: 'row', children, sizes });
+  }
+  // The top-level child that holds `beside`
+  const index = root.children.findIndex((child) => child.id === beside || (child.kind === 'split' && !!findLeaf(child, beside)));
+  if (index === -1) return root;
+  const children = [...root.children];
+  const sizes = [...root.sizes];
+  const at = side === 'before' ? index : index + 1;
+  children.splice(at, 0, leaf);
+  sizes.splice(at, 0, size);
+  return normalize({ ...root, children, sizes });
+}
+
 /** The smallest room a node needs along `dir`: a sum along its own direction, the largest child across it. */
 export function minAlong(node: LayoutNode, dir: 'row' | 'col', limitsOf: (leaf: Leaf, dir: 'row' | 'col') => Limits, handle = 4): number {
   if (node.kind === 'leaf') return node.collapsed ? 0 : limitsOf(node, dir).min;

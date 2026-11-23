@@ -2,7 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import { cx } from './cx';
 
 export type MenuItem =
-  | { label: ReactNode; onSelect: () => void; icon?: ReactNode; disabled?: boolean; key?: string }
+  | {
+      label: ReactNode; onSelect: () => void; icon?: ReactNode; disabled?: boolean; key?: string;
+      /** The item is pointed at or focused (true), or no longer (false): to preview what it does. */
+      onHover?: (on: boolean) => void;
+    }
   | 'separator';
 
 export interface MenuProps {
@@ -50,10 +54,14 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, focus
   }, [at.top, at.left, at.right]);
 
   // An item takes the focus; the focus goes back where it was on close
+  // The item focused on opening is not "pointed at": it previews nothing
+  const openingFocus = useRef(false);
   useEffect(() => {
     const previous = document.activeElement;
     const enabled = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)');
+    openingFocus.current = true;
     enabled?.[Math.min(focusIndex, enabled.length - 1)]?.focus();
+    openingFocus.current = false;
     return () => {
       const inside = menuRef.current?.contains(document.activeElement) || document.activeElement === document.body;
       if (inside && previous instanceof HTMLElement && previous.isConnected) previous.focus();
@@ -117,7 +125,11 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, focus
             role="menuitem"
             className="ui-menu__item"
             disabled={item.disabled}
-            onClick={() => { onClose(); item.onSelect(); }}
+            onClick={() => { item.onHover?.(false); onClose(); item.onSelect(); }}
+            onMouseEnter={item.onHover && (() => item.onHover?.(true))}
+            onMouseLeave={item.onHover && (() => item.onHover?.(false))}
+            onFocus={item.onHover && (() => { if (!openingFocus.current) item.onHover?.(true); })}
+            onBlur={item.onHover && (() => item.onHover?.(false))}
           >
             {item.icon && <span className="ui-menu__icon" aria-hidden="true">{item.icon}</span>}
             <span className="ui-menu__label">{item.label}</span>

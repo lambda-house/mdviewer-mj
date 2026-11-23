@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { Activity, FileText, Upload } from 'lucide-react';
-import { useStore, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, TOC_MAX_WIDTH } from './store';
+import { useStore, panelShown, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, TOC_MAX_WIDTH, type ZoomPanel } from './store';
 import { useReader } from './reader';
 import { openPath, reader } from './readerHost';
 import {
@@ -8,7 +8,7 @@ import {
 } from '@lambda-house/reader';
 import { EmptyState, Kbd } from '@lambda-house/ui';
 import { FileQuestion } from 'lucide-react';
-import { LayoutView, MainMenu, Shell, findLeaf, isPx, type Layout, type PaneType, type ShellSurface } from '@lambda-house/workbench';
+import { LayoutView, MainMenu, Shell, type Layout, type PaneType, type ShellSurface } from '@lambda-house/workbench';
 import {
   scanDirectories,
   isTauri,
@@ -97,37 +97,29 @@ const App: React.FC = () => {
   const [journalVisible, setJournalVisible] = useState(!documentWindowPath && import.meta.env.VITE_MDVIEWER_SESSIONS_PREVIEW === '1');
   // Subscribe field by field so that high frequency updates (scroll offsets,
   // active heading) do not re-render the whole application.
-  const panelWidth = useStore((s) => s.panelWidth);
-  const tocWidth = useStore((s) => s.tocWidth);
-  const tocVisible = useStore((s) => s.tocVisible);
-  const historyVisible = useStore((s) => s.historyVisible);
+  const documentsLayoutRoot = useStore((s) => s.documentsLayout);
+  const setDocumentsLayout = useStore((s) => s.setDocumentsLayout);
+  const historyVisible = panelShown({ documentsLayout: documentsLayoutRoot }, 'history');
   const agentVisible = useStore((s) => s.agentVisible);
   const toggleAgentVisible = useStore((s) => s.toggleAgentVisible);
   const agentEntries = useStore((s) => s.agentEntries);
   const hasAgentTabs = useReader((s) => allTabs(s).some((t) => agentEntries.some((e) => e.path === t.path)));
   const openedDirectories = useStore((s) => s.directories);
 
-  const setPanelWidth = useStore((s) => s.setPanelWidth);
-  const setTocWidth = useStore((s) => s.setTocWidth);
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const toggleHistoryVisible = useStore((s) => s.toggleHistoryVisible);
   const setFiles = useStore((s) => s.setFiles);
   const activateTabByIndex = useReader((s) => s.activateTabByIndex);
   const navigateBack = useReader((s) => s.navigateBack);
   const navigateForward = useReader((s) => s.navigateForward);
-  const zoomIn = useReader((s) => s.zoomIn);
-  const zoomOut = useReader((s) => s.zoomOut);
-  const zoomPanel = useStore((s) => s.zoomPanel);
   const reopenClosedTab = useReader((s) => s.reopenClosedTab);
   const addDirectory = useStore((s) => s.addDirectory);
   const restoreSession = useReader((s) => s.restoreSession);
   const sessionRestored = useReader((s) => s.sessionRestored);
   
-  const filePanelVisible = useStore((s) => s.filePanelVisible);
-  const setFilePanelVisible = useStore((s) => s.setFilePanelVisible);
-  const setHistoryVisible = useStore((s) => s.setHistoryVisible);
-  const setTocVisible = useStore((s) => s.setTocVisible);
-  const searchVisible = useStore((s) => s.searchVisible);
+  const filePanelVisible = panelShown({ documentsLayout: documentsLayoutRoot }, 'files');
+  const showPanel = useStore((s) => s.showPanel);
+  const searchVisible = panelShown({ documentsLayout: documentsLayoutRoot }, 'search');
   const setSearchVisible = useStore((s) => s.setSearchVisible);
   const openSearch = useStore((s) => s.openSearch);
   const revealPath = useStore((s) => s.revealPath);
@@ -298,18 +290,6 @@ const App: React.FC = () => {
     }
   }, [setFiles]);
   
-  // Search and history temporarily replace the Files panel. Global agent files
-  // are a root inside Files and keep their own visibility when the panel hides.
-  const leftPanelVisible = searchVisible || historyVisible || filePanelVisible;
-  const setLeftPanelVisible = useCallback((visible: boolean) => {
-    if (visible) {
-      if (!historyVisible && !searchVisible) setFilePanelVisible(true);
-    } else {
-      setSearchVisible(false);
-      setHistoryVisible(false);
-      setFilePanelVisible(false);
-    }
-  }, [historyVisible, searchVisible, setFilePanelVisible, setHistoryVisible, setSearchVisible]);
 
   // Agent files change while agents work: rescan while the global root or an
   // agent file is open, when the backend reports a change and when the window
@@ -393,9 +373,7 @@ const App: React.FC = () => {
       .map(({ dir }) => normalizeDirPath(dir));
     // A folder can already be open, and another panel may be covering Files.
     // Always bring the requested folder into view after the picker closes.
-    setSearchVisible(false);
-    setHistoryVisible(false);
-    setFilePanelVisible(true);
+    showPanel('files');
     useStore.getState().setFilterQuery('');
     revealPath(normalizeDirPath(dirs[dirs.length - 1]));
     if (added.length === 0) return;
@@ -413,7 +391,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Failed to open first markdown file:', error);
     }
-  }, [addDirectory, setFiles, setSearchVisible, setHistoryVisible, setFilePanelVisible, revealPath, openPath]);
+  }, [addDirectory, setFiles, showPanel, revealPath, openPath]);
 
   // Handle add directory - opens native picker
   const handleAddDirectory = useCallback(async () => {
@@ -527,11 +505,8 @@ const App: React.FC = () => {
     toggleTocVisible();
   }, [toggleTocVisible]);
   
-  // Toggle file panel
-  const handleToggleFilePanel = useCallback(() => {
-    const state = useStore.getState();
-    setFilePanelVisible(state.searchVisible || state.historyVisible || !state.filePanelVisible);
-  }, [setFilePanelVisible]);
+  // Toggle file panel (from Search or History it shows Files)
+  const handleToggleFilePanel = useCallback(() => useStore.getState().togglePanel('files'), []);
 
   // Toggle history panel
   const handleToggleHistory = useCallback(() => {
@@ -675,84 +650,41 @@ const App: React.FC = () => {
   // Ctrl+Scroll for zoom
   // ============================================================
   
-  // Zooms whatever is under the cursor: the file panel and the TOC have their
-  // own zoom, everywhere else it is the document zoom.
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.deltaY === 0) return;
-      e.preventDefault();
-
-      const direction = e.deltaY < 0 ? 1 : -1;
-      const panel = (e.target as Element | null)
-        ?.closest?.('[data-zoom-panel]')
-        ?.getAttribute('data-zoom-panel');
-
-      // A document group under the cursor zooms itself; anywhere else, the focused one
-      const group = (e.target as Element | null)?.closest?.('.document-panel[data-group]')?.getAttribute('data-group') ?? undefined;
-      if (panel === 'files' || panel === 'toc') {
-        zoomPanel(panel, direction);
-      } else if (direction > 0) {
-        zoomIn(group);
-      } else {
-        zoomOut(group);
-      }
-    };
-    
-    window.addEventListener('wheel', handleWheel, { passive: false });
-    return () => window.removeEventListener('wheel', handleWheel);
-  }, [zoomIn, zoomOut, zoomPanel]);
+  // Ctrl+wheel zooms the pane under the pointer: the workbench's LayoutView does it (each pane type's zoom)
   
 
 
   // ============================================================
-  // Documents: the side panels and the document on the workbench layout.
-  // The store keeps which left panel is shown and the widths (its rules for
-  // the left slot stay where they are); the layout is drawn from them, and
-  // what its handles change goes back through the same setters.
+  // Documents: the left panel (Files, Search or History), the document groups
+  // and the contents, on the workbench layout the store keeps
+  // (store/documentsLayout.ts). Its handles and pane menus change it there.
   // ============================================================
 
-  const leftType = searchVisible ? 'search' : historyVisible ? 'history' : 'files';
-  const documentsLayout = useMemo<Layout>(() => ({
-    version: 1,
-    root: {
-      kind: 'split', id: 'documents', dir: 'row',
-      children: [
-        { kind: 'leaf', id: 'left', pane: { type: leftType, key: 'left' }, collapsed: !leftPanelVisible },
-        { kind: 'leaf', id: 'main', pane: { type: 'documents', key: 'main' } },
-        { kind: 'leaf', id: 'right', pane: { type: 'contents', key: 'contents' }, collapsed: !tocVisible },
-      ],
-      sizes: [{ px: panelWidth }, { fr: 1 }, { px: tocWidth }],
-    },
-  }), [leftType, leftPanelVisible, tocVisible, panelWidth, tocWidth]);
-
-  const applyDocumentsLayout = useCallback((next: Layout) => {
-    const split = next.root.kind === 'split' ? next.root : null;
-    const width = (id: string) => {
-      const size = split?.sizes[split.children.findIndex((child) => child.id === id)];
-      return size && isPx(size) ? size.px : undefined;
-    };
-    const left = findLeaf(next.root, 'left');
-    const right = findLeaf(next.root, 'right');
-    if (left && !left.collapsed !== leftPanelVisible) setLeftPanelVisible(!left.collapsed);
-    if (right && !right.collapsed !== tocVisible) setTocVisible(!right.collapsed);
-    const leftWidth = width('left'), rightWidth = width('right');
-    if (leftWidth !== undefined && leftWidth !== panelWidth) setPanelWidth(leftWidth);
-    if (rightWidth !== undefined && rightWidth !== tocWidth) setTocWidth(rightWidth);
-  }, [leftPanelVisible, tocVisible, panelWidth, tocWidth, setLeftPanelVisible, setTocVisible, setPanelWidth, setTocWidth]);
+  const documentsLayout = useMemo<Layout>(() => ({ version: 1, root: documentsLayoutRoot }), [documentsLayoutRoot]);
+  const applyDocumentsLayout = useCallback((next: Layout) => setDocumentsLayout(next.root), [setDocumentsLayout]);
 
   const documentPanes = useMemo<Record<string, PaneType>>(() => {
-    const left = { collapsible: true, min: { w: PANEL_MIN_WIDTH }, max: { w: PANEL_MAX_WIDTH } };
+    const left = { collapsible: true, switchable: true, singleton: true, min: { w: PANEL_MIN_WIDTH }, max: { w: PANEL_MAX_WIDTH } };
+    const zoomOf = (panel: ZoomPanel) => ({
+      get: () => useStore.getState().panelZoom[panel],
+      step: (_: unknown, direction: 1 | -1 | 0) => useStore.getState().zoomPanel(panel, direction),
+      subscribe: useStore.subscribe,
+    });
     return {
-      files: { type: 'files', label: 'file panel', ...left, render: () => <FilePanel width={panelWidth} onAddDirectory={handleAddDirectory} /> },
-      search: { type: 'search', label: 'search panel', ...left, render: () => <SearchPanel width={panelWidth} /> },
-      history: { type: 'history', label: 'history panel', ...left, render: () => <HistoryPanel width={panelWidth} /> },
-      documents: { type: 'documents', label: 'document', min: { w: 200 }, render: () => <DocumentGroups empty={NO_DOCUMENT} /> },
+      files: { type: 'files', label: 'file panel', title: 'Files', ...left, zoom: zoomOf('files'), render: () => <FilePanel onAddDirectory={handleAddDirectory} /> },
+      search: { type: 'search', label: 'search panel', title: 'Search', ...left, render: () => <SearchPanel /> },
+      history: { type: 'history', label: 'history panel', title: 'History', ...left, render: () => <HistoryPanel /> },
+      documents: {
+        type: 'documents', label: 'document', title: 'Documents', singleton: true, closable: false, keepAlive: true, min: { w: 200 },
+        render: () => <DocumentGroups empty={NO_DOCUMENT} />,
+      },
       contents: {
-        type: 'contents', label: 'table of contents', collapsible: true, min: { w: TOC_MIN_WIDTH }, max: { w: TOC_MAX_WIDTH },
-        render: () => <TocSidebar width={tocWidth} isVisible={tocVisible} onToggle={handleToggleToc} />,
+        type: 'contents', label: 'table of contents', title: 'Contents', singleton: true, collapsible: true,
+        min: { w: TOC_MIN_WIDTH }, max: { w: TOC_MAX_WIDTH }, zoom: zoomOf('toc'),
+        render: () => <TocSidebar onToggle={handleToggleToc} />,
       },
     };
-  }, [panelWidth, tocWidth, tocVisible, handleAddDirectory, handleToggleToc]);
+  }, [handleAddDirectory, handleToggleToc]);
 
   // The window's surfaces under one top bar (the workbench Shell). Documents is mounted only while shown;
   // the Journal stays mounted once opened. A memory window has Documents only.
@@ -763,7 +695,7 @@ const App: React.FC = () => {
         <>
           <Toolbar
             onAddDirectory={handleAddDirectory}
-            filePanelVisible={filePanelVisible && !searchVisible && !historyVisible}
+            filePanelVisible={filePanelVisible}
             onToggleFilePanel={handleToggleFilePanel}
             historyVisible={historyVisible}
             onToggleHistory={handleToggleHistory}

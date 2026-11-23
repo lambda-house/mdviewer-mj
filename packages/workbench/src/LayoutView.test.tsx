@@ -2,7 +2,7 @@
 import { act, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LayoutView, closeLeaf, findLeaf, splitLeaf, swapPanes, type Layout, type PaneType } from './index';
+import { LayoutView, Pane, closeLeaf, findLeaf, leaves, splitLeaf, swapPanes, type Layout, type LayoutNode, type PaneType } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -101,5 +101,120 @@ describe('LayoutView', () => {
     act(() => { host.querySelector('[data-leaf="b"]')!.dispatchEvent(new Event('pointerdown', { bubbles: true })); });
     expect(onFocusLeaf).toHaveBeenCalledWith('b');
     expect(host.querySelector('[data-leaf="a"]')?.className).toContain('is-focused');
+  });
+
+  describe('panes', () => {
+    /** Left panes that take turns, a document that can't close, contents that zoom. */
+    let zoom = 100;
+    const sidePanes: Record<string, PaneType> = {
+      files: { type: 'files', title: 'Files', switchable: true, singleton: true, collapsible: true, min: { w: 200 }, render: () => <Pane title="Files"><p data-files /></Pane> },
+      search: { type: 'search', title: 'Search', switchable: true, singleton: true, collapsible: true, min: { w: 200 }, render: () => <Pane title="Search"><p data-search /></Pane> },
+      history: { type: 'history', title: 'History', switchable: true, singleton: true, render: () => <Pane title="History" /> },
+      documents: { type: 'documents', title: 'Documents', closable: false, render: () => <div data-documents /> },
+      contents: {
+        type: 'contents', title: 'Contents', singleton: true,
+        zoom: { get: () => zoom, step: (_c, d) => { zoom = d === 0 ? 100 : zoom + d * 10; } },
+        render: () => <Pane title="Contents"><p data-contents /></Pane>,
+      },
+    };
+    const view: LayoutNode = {
+      kind: 'split', id: 'documents', dir: 'row',
+      children: [
+        { kind: 'leaf', id: 'left', pane: { type: 'files', key: 'files' } },
+        { kind: 'leaf', id: 'main', pane: { type: 'documents', key: 'main' } },
+        { kind: 'leaf', id: 'right', pane: { type: 'contents', key: 'contents' } },
+      ],
+      sizes: [{ px: 280 }, { fr: 1 }, { px: 220 }],
+    };
+    let current: LayoutNode = view;
+    function Host() {
+      const [layout, setLayout] = useState<Layout>({ version: 1, root: view });
+      current = layout.root;
+      return <LayoutView layout={layout} onChange={setLayout} paneTypes={sidePanes} />;
+    }
+    const menuOf = (leaf: string) => host.querySelector<HTMLButtonElement>(`[data-leaf="${leaf}"] button[aria-haspopup="menu"][aria-label$="pane menu"]`)!;
+    const items = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    const choose = (label: string) => act(() => items().find((b) => b.textContent === label)!.click());
+    const types = () => leaves(current).map((l) => l.pane?.type);
+    /** Ctrl+wheel (happy-dom's WheelEvent drops ctrlKey). */
+    const ctrlWheel = (deltaY: number) => {
+      const event = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'ctrlKey', { value: true });
+      return event;
+    };
+
+    beforeEach(() => { zoom = 100; act(() => root.render(<Host />)); });
+
+    it('offers what can be done with a pane where it is', () => {
+      act(() => menuOf('left').click());
+      expect(items().map((b) => `${b.textContent}${b.disabled ? ' (off)' : ''}`)).toEqual([
+        'Split Right', 'Split Down', 'Join with Documents (off)'.replace(' (off)', ''), 'Swap with Documents', 'Swap with Contents', 'Close Pane',
+      ].filter((label) => label !== 'Join with Documents'));
+    });
+
+    it('splits a switchable pane into one that is not shown yet, and closes it again', () => {
+      act(() => menuOf('left').click());
+      choose('Split Down');
+      expect(types()).toEqual(['files', 'search', 'documents', 'contents']);
+      expect(host.querySelector('[data-search]')).not.toBeNull();
+      const search = leaves(current).find((l) => l.pane?.type === 'search')!.id;
+      act(() => menuOf(search).click());
+      choose('Close Pane');
+      expect(types()).toEqual(['files', 'documents', 'contents']);
+    });
+
+    it('turns a switchable pane into another from its title', () => {
+      act(() => host.querySelector<HTMLButtonElement>('[data-leaf="left"] .wb-pane-type')!.click());
+      expect(items().map((b) => b.textContent)).toEqual(['Search', 'History']);
+      choose('History');
+      expect(types()).toEqual(['history', 'documents', 'contents']);
+      // Contents is not switchable: a plain title
+      expect(host.querySelector('[data-leaf="right"] .wb-pane-type')).toBeNull();
+    });
+
+    it('joins a neighbour that may close, and swaps any two', () => {
+      act(() => menuOf('right').click());
+      expect(items().some((b) => b.textContent === 'Join with Documents')).toBe(false);
+      choose('Swap with Files');
+      expect(types()).toEqual(['contents', 'documents', 'files']);
+      // Files, now on the right, splits down into Search; Search takes its room back
+      act(() => menuOf('right').click());
+      choose('Split Down');
+      expect(types()).toEqual(['contents', 'documents', 'files', 'search']);
+      const search = leaves(current)[3].id;
+      act(() => menuOf(search).click());
+      choose('Join with Files');
+      expect(types()).toEqual(['contents', 'documents', 'search']);
+    });
+
+    it('zooms the pane under the pointer with Ctrl+wheel and shows its zoom', () => {
+      const target = host.querySelector('[data-contents]')!;
+      act(() => { target.dispatchEvent(ctrlWheel(-1)); });
+      expect(zoom).toBe(110);
+      act(() => root.render(<Host />));
+      expect(host.querySelector('[data-leaf="right"] .wb-zoom-badge')?.textContent).toBe('110%');
+      act(() => host.querySelector<HTMLButtonElement>('[data-leaf="right"] .wb-zoom-badge')!.click());
+      expect(zoom).toBe(100);
+      // A pane without zoom leaves the wheel alone
+      const plain = ctrlWheel(-1);
+      act(() => { host.querySelector('[data-files]')!.dispatchEvent(plain); });
+      expect(plain.defaultPrevented).toBe(false);
+    });
+
+    it('lets an inner layout zoom its own pane first', () => {
+      let inner = 100;
+      const innerTypes: Record<string, PaneType> = {
+        group: { type: 'group', zoom: { get: () => inner, step: (_c, d) => { inner += d; } }, render: () => <p data-group /> },
+      };
+      const outerTypes: Record<string, PaneType> = {
+        host: {
+          type: 'host', zoom: { get: () => 100, step: () => { throw new Error('the outer pane zoomed'); } },
+          render: () => <LayoutView layout={{ version: 1, root: { kind: 'leaf', id: 'main', pane: { type: 'group', key: 'g' } } }} onChange={() => {}} paneTypes={innerTypes} />,
+        },
+      };
+      act(() => root.render(<LayoutView layout={{ version: 1, root: { kind: 'leaf', id: 'main', pane: { type: 'host', key: 'h' } } }} onChange={() => {}} paneTypes={outerTypes} />));
+      act(() => { host.querySelector('[data-group]')!.dispatchEvent(ctrlWheel(1)); });
+      expect(inner).toBe(99);
+    });
   });
 });

@@ -7,6 +7,14 @@ import type { ColorTheme } from '@lambda-house/reader';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
 import type { AgentEntry, UpdateInfo } from '../utils/tauri';
 import { documentWindowPath, documentWindowStorage } from '../utils/documentWindow';
+import type { LayoutNode } from '@lambda-house/workbench';
+import {
+  defaultDocumentsLayout, documentsLayoutFrom, hidePane, isDocumentsLayout, isPaneShown, showPane, togglePane, type DocumentsPane,
+} from './documentsLayout';
+
+export {
+  PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, TOC_MAX_WIDTH, DOCUMENTS_LEAF, LEFT_PANES, type DocumentsPane,
+} from './documentsLayout';
 
 // ============================================================
 // Constants
@@ -14,10 +22,6 @@ import { documentWindowPath, documentWindowStorage } from '../utils/documentWind
 
 /** Panel zoom in/out is multiplicative, like the document's. */
 const ZOOM_STEP = 1.1;
-export const PANEL_MIN_WIDTH = 200;
-export const PANEL_MAX_WIDTH = 400;
-export const TOC_MIN_WIDTH = 180;
-export const TOC_MAX_WIDTH = 320;
 
 /** Side panels that zoom on their own (Ctrl + wheel over the panel). */
 export type ZoomPanel = 'files' | 'toc';
@@ -82,10 +86,11 @@ export interface AppState {
   
   
   // UI State
-  panelWidth: number;
-  filePanelVisible: boolean;
-  tocWidth: number;
-  tocVisible: boolean;
+  /**
+   * The Documents view: the left panel (Files, Search or History), the
+   * document groups and the contents, as a workbench layout (documentsLayout.ts).
+   */
+  documentsLayout: LayoutNode;
   /** Zoom of the file panel and the TOC, independent of the document zoom. */
   panelZoom: Record<ZoomPanel, number>;
   statusBarVisible: boolean;
@@ -107,7 +112,6 @@ export interface AppState {
   paletteOpen: boolean;
 
   // History
-  historyVisible: boolean;
   historyContent: string;
 
   // Whether the global agent files root is shown in the Files panel.
@@ -121,7 +125,6 @@ export interface AppState {
   activeWorkspace: string | null;
 
   // Search panel (its options are the reader's, shared with find)
-  searchVisible: boolean;
   searchQuery: string;
   searchScope: SearchScope;
   /** Bumped to (re)focus the search panel input. */
@@ -144,9 +147,13 @@ export interface AppState {
   
   
   // Actions - UI
-  setPanelWidth: (width: number) => void;
+  /** The Documents layout after a resize or a pane menu; ignored unless MDViewer can draw it. */
+  setDocumentsLayout: (layout: LayoutNode) => void;
+  /** Show or hide a panel of the Documents view, by its rules (documentsLayout.ts). */
+  showPanel: (panel: DocumentsPane) => void;
+  hidePanel: (panel: DocumentsPane) => void;
+  togglePanel: (panel: DocumentsPane) => void;
   setFilePanelVisible: (visible: boolean) => void;
-  setTocWidth: (width: number) => void;
   setTocVisible: (visible: boolean) => void;
   toggleTocVisible: () => void;
   /** Step a panel's zoom in (1) or out (-1), or reset it to 100% (0). */
@@ -213,10 +220,7 @@ export const useStore = create<AppState>()(
       // Initial State - Documents
       
       // Initial State - UI
-      panelWidth: 280,
-      filePanelVisible: true,
-      tocWidth: 220,
-      tocVisible: true,
+      documentsLayout: defaultDocumentsLayout(),
       panelZoom: DEFAULT_PANEL_ZOOM,
       statusBarVisible: false,
       statusBarPinned: false,
@@ -233,12 +237,10 @@ export const useStore = create<AppState>()(
       paletteOpen: false,
 
       // History
-      historyVisible: false,
       agentVisible: true,
       agentEntries: [],
       workspaces: [],
       activeWorkspace: null,
-      searchVisible: false,
       searchQuery: '',
       searchScope: 'folders',
       searchFocusNonce: 0,
@@ -317,23 +319,16 @@ export const useStore = create<AppState>()(
       // Actions - UI
       // ============================================================
       
-      setPanelWidth: (width) => set({ 
-        panelWidth: Math.round(Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, width))) 
-      }),
+      setDocumentsLayout: (layout) => {
+        if (layout !== get().documentsLayout && isDocumentsLayout(layout)) set({ documentsLayout: layout });
+      },
+      showPanel: (panel) => set((state) => ({ documentsLayout: showPane(state.documentsLayout, panel) })),
+      hidePanel: (panel) => set((state) => ({ documentsLayout: hidePane(state.documentsLayout, panel) })),
+      togglePanel: (panel) => set((state) => ({ documentsLayout: togglePane(state.documentsLayout, panel) })),
 
-      setFilePanelVisible: (visible) => set((state) => ({
-        filePanelVisible: visible,
-        historyVisible: visible ? false : state.historyVisible,
-        searchVisible: visible ? false : state.searchVisible,
-      })),
-      
-      setTocWidth: (width) => set({ 
-        tocWidth: Math.round(Math.max(TOC_MIN_WIDTH, Math.min(TOC_MAX_WIDTH, width))) 
-      }),
-      
-      setTocVisible: (visible) => set({ tocVisible: visible }),
-      
-      toggleTocVisible: () => set((state) => ({ tocVisible: !state.tocVisible })),
+      setFilePanelVisible: (visible) => (visible ? get().showPanel('files') : get().hidePanel('files')),
+      setTocVisible: (visible) => (visible ? get().showPanel('contents') : get().hidePanel('contents')),
+      toggleTocVisible: () => get().togglePanel('contents'),
       
 
       zoomPanel: (panel, direction) => set((state) => {
@@ -368,29 +363,20 @@ export const useStore = create<AppState>()(
 
 
       // History
-      setHistoryVisible: (visible) => set((state) => ({
-        historyVisible: visible,
-        searchVisible: visible ? false : state.searchVisible,
-      })),
+      // History, Search and Files take turns on the left (documentsLayout.ts)
+      setHistoryVisible: (visible) => (visible ? get().showPanel('history') : get().hidePanel('history')),
+      toggleHistoryVisible: () => get().togglePanel('history'),
 
-      toggleHistoryVisible: () => set((state) => ({
-        historyVisible: !state.historyVisible,
-        // History and search share the left slot with Files
-        searchVisible: state.historyVisible ? state.searchVisible : false,
-      })),
-
-      setAgentVisible: (visible) => set((state) => ({
-        agentVisible: visible,
-        filePanelVisible: visible ? true : state.filePanelVisible,
-        historyVisible: visible ? false : state.historyVisible,
-        searchVisible: visible ? false : state.searchVisible,
-      })),
+      setAgentVisible: (visible) => {
+        set({ agentVisible: visible });
+        if (visible) get().showPanel('files');
+      },
 
       toggleAgentVisible: () => {
         const state = get();
         // From Search, History or a hidden left column, the shortcut reveals
         // the root instead of hiding an entry the user cannot see.
-        get().setAgentVisible(!state.agentVisible || !state.filePanelVisible || state.searchVisible || state.historyVisible);
+        get().setAgentVisible(!state.agentVisible || !isPaneShown(state.documentsLayout, 'files'));
       },
 
       setAgentEntries: (entries) => set({ agentEntries: entries }),
@@ -445,14 +431,10 @@ export const useStore = create<AppState>()(
 
 
 
-      setSearchVisible: (visible) => set((state) => ({
-        searchVisible: visible,
-        historyVisible: visible ? false : state.historyVisible,
-      })),
+      setSearchVisible: (visible) => (visible ? get().showPanel('search') : get().hidePanel('search')),
 
       openSearch: (query) => set((state) => ({
-        searchVisible: true,
-        historyVisible: false,
+        documentsLayout: showPane(state.documentsLayout, 'search'),
         searchQuery: query ?? state.searchQuery,
         searchFocusNonce: state.searchFocusNonce + 1,
       })),
@@ -465,17 +447,14 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'mdviewer-storage',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => documentWindowPath ? documentWindowStorage(localStorage) : localStorage),
       partialize: (state) => ({
         // Only persist these fields
         directories: state.directories,
         expandedPaths: state.expandedPaths,
-        panelWidth: state.panelWidth,
-        filePanelVisible: state.filePanelVisible,
+        documentsLayout: state.documentsLayout,
         agentVisible: state.agentVisible,
-        tocWidth: state.tocWidth,
-        tocVisible: state.tocVisible,
         panelZoom: state.panelZoom,
         statusBarPinned: state.statusBarPinned,
         autoRefresh: state.autoRefresh,
@@ -500,6 +479,11 @@ export const useStore = create<AppState>()(
         // The old flag meant "open the separate agent panel". The new root
         // starts visible (collapsed) for existing users too.
         if (version < 4) persisted.agentVisible = true;
+        // v6: the side panels' widths and visibility are the Documents layout
+        if (version < 6) {
+          persisted.documentsLayout = documentsLayoutFrom(persisted as Record<string, unknown>);
+          for (const key of ['panelWidth', 'filePanelVisible', 'tocWidth', 'tocVisible']) delete persisted[key];
+        }
         return persisted;
       },
       merge: (persistedState, currentState) => {
@@ -508,12 +492,16 @@ export const useStore = create<AppState>()(
         return {
           ...currentState,
           ...persisted,
+          documentsLayout: isDocumentsLayout(persisted.documentsLayout) ? persisted.documentsLayout : currentState.documentsLayout,
           panelZoom: { ...DEFAULT_PANEL_ZOOM, ...persisted.panelZoom },
         };
       },
     }
   )
 );
+
+/** Whether a panel of the Documents view shows. */
+export const panelShown = (state: Pick<AppState, 'documentsLayout'>, panel: DocumentsPane): boolean => isPaneShown(state.documentsLayout, panel);
 
 // The reader renders in the app's theme
 useReader.getState().setTheme(useStore.getState().theme);

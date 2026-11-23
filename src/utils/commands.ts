@@ -4,7 +4,7 @@ import {
   activeTabOf, allTabs, canNavigateBack, canNavigateForward, exportActiveDocument, focusedGroupOf, requestSaveAll, saveActiveDocument,
   type ReaderState,
 } from '@lambda-house/reader';
-import { useStore, type AppState } from '../store';
+import { useStore, panelShown, type AppState } from '../store';
 import { useReader } from '../reader';
 import { reader } from '../readerHost';
 
@@ -112,14 +112,14 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
           id: 'view.filePanel',
           label: 'File Panel',
           shortcut: { mod: true, key: 'b' },
-          checked: (s) => s.filePanelVisible,
-          run: () => state().setFilePanelVisible(!state().filePanelVisible),
+          checked: (s) => panelShown(s, 'files'),
+          run: () => state().togglePanel('files'),
         },
         {
           id: 'view.history',
           label: 'History',
           shortcut: { mod: true, key: 'h' },
-          checked: (s) => s.historyVisible,
+          checked: (s) => panelShown(s, 'history'),
           run: () => state().toggleHistoryVisible(),
         },
         {
@@ -153,7 +153,7 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
           id: 'view.toc',
           label: 'Table of Contents',
           shortcut: { mod: true, shift: true, key: 'o' },
-          checked: (s) => s.tocVisible,
+          checked: (s) => panelShown(s, 'contents'),
           run: () => state().toggleTocVisible(),
         },
         {

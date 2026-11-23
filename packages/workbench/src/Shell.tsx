@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Segmented, cx } from '@lambda-house/ui';
 
@@ -37,6 +37,13 @@ export function Shell({ surfaces, active, onActivate, menu, end, className }: Sh
   const [targets, setTargets] = useState<Targets>({ views: null, start: null, end: null });
   const visited = useRef(new Set<string>());
   visited.current.add(active);
+
+  // Ctrl+wheel zooms a pane (LayoutView), never the whole window
+  useEffect(() => {
+    const keep = (e: WheelEvent) => { if (e.ctrlKey || e.metaKey) e.preventDefault(); };
+    window.addEventListener('wheel', keep, { passive: false });
+    return () => window.removeEventListener('wheel', keep);
+  }, []);
 
   const viewsRef = useCallback((element: HTMLElement | null) => setTargets((t) => (t.views === element ? t : { ...t, views: element })), []);
   const startRef = useCallback((element: HTMLElement | null) => setTargets((t) => (t.start === element ? t : { ...t, start: element })), []);

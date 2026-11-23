@@ -11,13 +11,13 @@ import {
   ExternalLink,
   X,
 } from 'lucide-react';
-import { Button, EmptyState as UiEmptyState, PaneFrame, Segmented } from '@lambda-house/ui';
+import { Button, EmptyState as UiEmptyState, Segmented } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore, type FileNode } from '../store';
 import { getFileKind } from '@lambda-house/reader';
 import { agentFilesToTree, filterFiles } from '../utils/files';
 import { readFile, scanDirectories, scanProjectAgentFiles, isTauri, openInExplorer, appendToHistory } from '../utils/tauri';
 import clsx from 'clsx';
-import PanelZoomBadge from './PanelZoomBadge';
 import { useSmoothWheelScroll } from '@lambda-house/ui';
 import AgentPanel from './AgentPanel';
 import { useReader } from '../reader';
@@ -311,11 +311,10 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onAddDirectory }) => (
 // ============================================================
 
 interface FilePanelProps {
-  width: number;
   onAddDirectory?: () => void;
 }
 
-const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
+const FilePanel: React.FC<FilePanelProps> = ({ onAddDirectory }) => {
   const files = useStore((s) => s.files);
   // Deferred: typing in the filter box stays responsive while the (possibly
   // large) filtered tree renders in the background, interruptibly
@@ -381,14 +380,11 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   }, [agentFilter, directories, setFiles, isRefreshing, refreshAgents]);
 
   return (
-    <PaneFrame
+    <Pane
       as="aside"
       className="file-panel"
-      style={{ width }}
-      data-zoom-panel="files"
       title="Files"
       tools={<>
-        <PanelZoomBadge panel="files" />
         <Button variant="ghost" size="xs" icon={<FolderPlus size={16} />} onClick={handleAddDirectory} title="Add Directory" aria-label="Add Directory" />
         <Button variant="ghost" size="xs" icon={<RefreshCw size={16} />} onClick={handleRefresh} title="Refresh" aria-label="Refresh" disabled={isRefreshing} busy={isRefreshing} />
       </>}
@@ -427,7 +423,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
           </div>
         </nav>
       )}
-    </PaneFrame>
+    </Pane>
   );
 };
 

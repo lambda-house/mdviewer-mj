@@ -10,11 +10,12 @@ export {
 export { MainMenu, type MainMenuProps } from './MainMenu';
 export { Palette, commandItems, matchesQuery, type PaletteItem, type PaletteProps } from './Palette';
 export {
-  closeLeaf, COLLAPSE_FRACTION, findLeaf, findPane, findSplit, isPx, joinLeaves, leaves, minAlong, normalize, parentOf, resizeAt,
+  closeLeaf, COLLAPSE_FRACTION, findPaneOfType, placePane, findLeaf, findPane, findSplit, isPx, joinLeaves, leaves, minAlong, normalize, parentOf, resizeAt,
   setCollapsed, setPane, setSize, splitLeaf, swapPanes, toggleAt,
   type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Size, type Split,
 } from './layout';
-export { LayoutView, type LayoutViewProps, type PaneContext, type PaneType } from './LayoutView';
+export { LayoutView, type LayoutViewProps, type PaneActions, type PaneContext, type PanePreview, type PaneType, type PaneZoom } from './LayoutView';
+export { Pane, PaneMenu, PaneTitle, PaneZoomBadge, paneMenuItems, usePane, usePaneZoom } from './panes';
 export { Shell, ShellTools, ShellViews, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
 export {
   PluginRegistry, createPlugin, usePlugins,

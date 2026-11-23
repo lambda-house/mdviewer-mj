@@ -15,7 +15,7 @@ import {
   Bot,
   FileSearch,
 } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore, panelShown } from '../store';
 import { useReader } from '../reader';
 import { reader } from '../readerHost';
 import { MIN_ZOOM, MAX_ZOOM, activeTabOf, exportActiveDocument, focusedGroupOf } from '@lambda-house/reader';
@@ -118,7 +118,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   searchVisible,
   onToggleSearch,
 }) => {
-  const tocVisible = useStore((s) => s.tocVisible);
+  const tocVisible = useStore((s) => panelShown(s, 'contents'));
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const filterQuery = useStore((s) => s.filterQuery);
   const setFilterQuery = useStore((s) => s.setFilterQuery);
@@ -212,9 +212,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <History size={16} />
         </button>
         <button
-          className={clsx('toolbar-button', agentVisible && filePanelVisible && !searchVisible && !historyVisible && 'active')}
+          className={clsx('toolbar-button', agentVisible && filePanelVisible && 'active')}
           onClick={onToggleAgent}
-          title={agentVisible && filePanelVisible && !searchVisible && !historyVisible
+          title={agentVisible && filePanelVisible
             ? 'Hide global agent files (Ctrl+Shift+A)' : 'Show global agent files (Ctrl+Shift+A)'}
         >
           <Bot size={16} />

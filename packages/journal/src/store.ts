@@ -73,6 +73,8 @@ export interface JournalState {
   inspect: (key: string, event: SessionEvent) => void;
   clearEvidence: (detail: string) => void;
   setDetail: (detail: string, state: Partial<DetailState>) => void;
+  /** A copy of a pane beside it: a list with the same filters, a detail pane on the same session. Returns the new pane. */
+  splitPane: (pane: string, dir: 'row' | 'col') => string | null;
   /** Close a pane; the last list and the last detail pane stay. */
   closePane: (pane: string) => void;
   focus: (pane: string) => void;
@@ -245,6 +247,20 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
             return { details: { ...state.details, [detail]: { ...current, ...update } }, evidence };
           }),
 
+          splitPane: (pane, dir) => {
+            const state = get();
+            const list = state.lists[pane];
+            const detail = state.details[pane];
+            if (!list && !detail) return null;
+            const id = newId(list ? 'list' : 'detail');
+            const leaf = list ? listLeaf(id) : detailLeaf(id);
+            set({
+              ...(list ? { lists: { ...state.lists, [id]: { ...list } }, lastList: id } : { details: { ...state.details, [id]: { ...detail } }, lastDetail: id }),
+              layout: splitLeaf(state.layout, pane, dir, 'after', leaf, `split-${id}`),
+              focused: id,
+            });
+            return id;
+          },
           closePane: (pane) => {
             const state = get();
             const isList = !!state.lists[pane];

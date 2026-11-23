@@ -1,11 +1,11 @@
 import React, { useCallback, useRef } from 'react';
 import { X, List } from 'lucide-react';
-import { Button, EmptyState, PaneFrame } from '@lambda-house/ui';
+import { Button, EmptyState } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore } from '../store';
 import { useReader } from '../reader';
 import { focusedGroupOf, type Heading } from '@lambda-house/reader';
 import clsx from 'clsx';
-import PanelZoomBadge from './PanelZoomBadge';
 import { useSmoothWheelScroll } from '@lambda-house/ui';
 
 // ============================================================
@@ -55,38 +55,25 @@ const TocItem: React.FC<TocItemProps> = ({ heading, isActive, group }) => {
 // ============================================================
 
 interface TocSidebarProps {
-  width: number;
-  isVisible: boolean;
   onToggle: () => void;
 }
 
 /** The contents of the focused document group. */
-const TocSidebar: React.FC<TocSidebarProps> = ({
-  width,
-  isVisible,
-  onToggle,
-}) => {
+const TocSidebar: React.FC<TocSidebarProps> = ({ onToggle }) => {
   const group = useReader((s) => focusedGroupOf(s).id);
   const headings = useReader((s) => focusedGroupOf(s).headings);
   const activeHeadingId = useReader((s) => focusedGroupOf(s).activeHeadingId);
   const zoom = useStore((s) => s.panelZoom.toc);
   const smoothScroll = useReader((s) => s.settings.smoothScroll);
   const listRef = useRef<HTMLElement>(null);
-  useSmoothWheelScroll(listRef, smoothScroll, isVisible && headings.length > 0);
-  
-  if (!isVisible) {
-    return null;
-  }
+  useSmoothWheelScroll(listRef, smoothScroll, headings.length > 0);
   
   return (
-    <PaneFrame
+    <Pane
       as="aside"
-      className={clsx('toc-sidebar', !isVisible && 'collapsed')}
-      style={{ width: isVisible ? width : 0 }}
-      data-zoom-panel="toc"
+      className="toc-sidebar"
       title="Contents"
       tools={<>
-        <PanelZoomBadge panel="toc" />
         <Button variant="ghost" size="xs" icon={<X size={16} />} onClick={onToggle} title="Close Table of Contents" aria-label="Close Table of Contents" />
       </>}
     >
@@ -106,7 +93,7 @@ const TocSidebar: React.FC<TocSidebarProps> = ({
       ) : (
         <EmptyState icon={<List size={24} />}>No headings found</EmptyState>
       )}
-    </PaneFrame>
+    </Pane>
   );
 };
 
