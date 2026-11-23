@@ -126,3 +126,315 @@
 .ss-row-text .sc-provider { margin-right: 2px; vertical-align: 1px; }
 .sc-session.selected .ss-row-text strong { font-weight: 600; }
 .ss-row > small { flex: 0 0 auto; color: var(--text-muted); font-size: 10.5px; }
+
+/* The journal's memories and agent access inside the workbench's Settings dialog */
+.settings-modal .settings-embedded-host {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: auto;
+  background: transparent;
+  overflow: visible;
+  color: var(--text);
+  font-size: var(--fs-13);
+}
+
+.settings-modal .settings-embedded-host p {
+  margin: 0;
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.settings-modal .settings-embedded-host code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--layer-2);
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-modal .settings-embedded-host .sc-memory-browser h3 {
+  display: none;
+}
+
+.settings-modal .settings-embedded-host .sc-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 0;
+}
+
+.settings-modal .settings-embedded-host .sc-section-row:empty,
+.settings-modal .settings-embedded-host .sc-section-row:not(:has(button)) {
+  display: none;
+}
+
+/* Not the shared controls (ui-*), which keep their own look */
+.settings-modal .settings-embedded-host button:where(:not([class^="ui-"],[class*=" ui-"])) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+  color: var(--text);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+
+.settings-modal .settings-embedded-host button:where(:not([class^="ui-"],[class*=" ui-"])):hover:not(:disabled) {
+  background: var(--layer-hover);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-scopes {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  background: var(--segmented-track);
+  border-radius: var(--r-md);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-scopes button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-scopes button:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+.settings-modal .settings-embedded-host .sc-memory-scopes button.active {
+  background: var(--segmented-thumb);
+  color: var(--text);
+  box-shadow: var(--segmented-thumb-shadow);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.settings-modal .settings-embedded-host .sc-memory-list button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--layer-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-list button:hover:not(:disabled) {
+  background: var(--layer-hover);
+  border-color: var(--line-strong);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-list strong {
+  font-size: var(--fs-13);
+  color: var(--text);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-list span,
+.settings-modal .settings-embedded-host .sc-memory-list small {
+  color: var(--text-muted);
+  font-size: var(--fs-12);
+  margin-top: 4px;
+}
+
+.settings-modal .settings-embedded-host .sc-memory-document {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-modal .settings-embedded-host .sc-memory-document h3 {
+  display: block;
+  margin: 0;
+  font-size: var(--fs-14);
+}
+
+.settings-modal .settings-embedded-host .sc-memory-document pre,
+.settings-modal .settings-embedded-host .sc-analysis-result {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--layer-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+}
+
+/* Agent access embedded layout */
+.settings-modal .settings-embedded-host .sc-embedded-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--layer-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-state strong {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-state span {
+  font-size: var(--fs-12);
+  color: var(--text-muted);
+}
+
+.settings-modal .settings-embedded-host label:not(.sc-analysis-check) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-soft);
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-13);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+
+.settings-modal .settings-embedded-host input:not([type="checkbox"]),
+.settings-modal .settings-embedded-host select {
+  height: 32px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.settings-modal .settings-embedded-host .sc-command {
+  background: var(--layer-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-modal .settings-embedded-host .sc-command code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-audit {
+  background: var(--layer-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 0 14px;
+  max-height: 200px;
+  overflow: auto;
+  font-size: var(--fs-12);
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-audit > div {
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-modal .settings-embedded-host .sc-analysis-audit > div:last-child {
+  border-bottom: 0;
+}
+
+.settings-modal .settings-embedded-host h3 {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text);
+  margin: 6px 0 0;
+}
+
+.settings-modal .settings-embedded-host [role="alert"] {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-line);
+  color: var(--danger);
+  font-size: var(--fs-12);
+}
+
+.settings-modal .settings-embedded-host [role="status"] {
+  color: var(--text-muted);
+  font-size: var(--fs-12);
+}
+
+@media (max-width: 680px) {
+  .settings-modal {
+    width: 96vw;
+    height: 88vh;
+  }
+
+  .settings-modal .settings-sidebar {
+    width: 164px;
+    min-width: 164px;
+  }
+}

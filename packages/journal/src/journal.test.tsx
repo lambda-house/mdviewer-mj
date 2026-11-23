@@ -6,6 +6,7 @@ import { AgentAccess } from './AgentAccess';
 import { JournalProvider, type JournalHost, type SessionRowProps } from './host';
 import { JournalView } from './JournalView';
 import { MemoryBrowser } from './MemoryBrowser';
+import { journalSettingsTabs } from './JournalSettings';
 import { createJournalStore, detailPanes, MAIN_DETAIL } from './store';
 import type { Session } from './sessions';
 
@@ -251,5 +252,21 @@ describe('agent access', () => {
   it('is not there without the host’s analysis', async () => {
     await render(fakeHost(), <AgentAccess close={() => {}} directory="" inspect={() => {}} />);
     expect(container.textContent).toBe('');
+  });
+});
+
+describe('settings', () => {
+  it('turns session access on and off from its tab', async () => {
+    const host = fakeHost({ access: vi.fn(async () => false) });
+    const store = createJournalStore({ storage: null, name: 'journal' });
+    store.getState().setEnabled(false);
+    const [access] = journalSettingsTabs({ store, host });
+    await act(async () => root.render(<>{access.render()}</>));
+    await act(async () => button('enable session access').click());
+    expect(host.enable).toHaveBeenCalled();
+    expect(store.getState().enabled).toBe(true);
+    await act(async () => button('revoke session access').click());
+    expect(host.disable).toHaveBeenCalled();
+    expect(store.getState().enabled).toBe(false);
   });
 });

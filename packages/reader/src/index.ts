@@ -23,3 +23,4 @@ export { DocumentStatus, truncatePath } from './DocumentStatus';
 export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
 export { SearchOptionToggles } from './FindBar';
 export { readerCommands, selectedText, type ReaderCommands } from './commands';
+export { DocumentSettings, readerSettingsTab } from './ReaderSettings';

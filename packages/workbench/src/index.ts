@@ -26,3 +26,4 @@ export { layoutCommands, zoomCommands, type ZoomFallback } from './paneCommands'
 export {
   canResetLayout, focusNextPane, focusedPane, focusedPaneVersion, focusedZoom, resetLayout, setFocusedPane, subscribeFocusedPane,
 } from './focus';
+export { SettingsDialog, SettingsSection, SettingsToggle, appearanceTab, pluginsTab, shortcutsTab, type SettingsDialogProps, type SettingsTab } from './settings';

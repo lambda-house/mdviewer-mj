@@ -5,11 +5,11 @@ import { useStore, panelShown, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, 
 import { useReader } from './reader';
 import { openPath, reader } from './readerHost';
 import {
-  CloseDocumentDialog, DocumentGroups, ReaderProvider, SaveAllDialog, allTabs, type RestoredDocument,
+  CloseDocumentDialog, DocumentGroups, ReaderProvider, SaveAllDialog, allTabs, readerSettingsTab, type RestoredDocument,
 } from '@lambda-house/reader';
 import { EmptyState, Kbd } from '@lambda-house/ui';
 import { FileQuestion } from 'lucide-react';
-import { LayoutView, MainMenu, Shell, type Layout, type PaneType, type ShellSurface } from '@lambda-house/workbench';
+import { LayoutView, MainMenu, SettingsDialog, Shell, appearanceTab, shortcutsTab, type Layout, type PaneType, type SettingsTab, type ShellSurface } from '@lambda-house/workbench';
 import {
   scanDirectories,
   isTauri,
@@ -33,12 +33,12 @@ import Toolbar, { ToolbarEnd } from './components/Toolbar';
 import { flushEditorChanges } from '@lambda-house/reader';
 import FilePanel from './components/FilePanel';
 import TocSidebar from './components/TocSidebar';
-import SettingsModal from './components/SettingsModal';
+import { appSettingsTabs } from './components/SettingsTabs';
 import HistoryPanel from './components/HistoryPanel';
 import SearchPanel from './components/SearchPanel';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import UpdateBanner from './components/UpdateBanner';
-import { JournalProvider, JournalView } from '@lambda-house/journal';
+import { JournalProvider, JournalView, journalSettingsTabs } from '@lambda-house/journal';
 import { journal } from './journal';
 import CommandPalette from './components/CommandPalette';
 import { documentWindowPath } from './utils/documentWindow';
@@ -97,6 +97,9 @@ const App: React.FC = () => {
   // The shown surface is the store's: commands of the other one wait
   const surface = useStore((s) => s.surface);
   const statusBarPinned = useStore((s) => s.statusBarPinned);
+  const settingsOpen = useStore((s) => s.settingsOpen);
+  const theme = useStore((s) => s.theme);
+  const closeSettings = useCallback(() => useStore.getState().setSettingsOpen(false), []);
   const setStatusBarPinned = useStore((s) => s.setStatusBarPinned);
   const setSurface = useStore((s) => s.setSurface);
   const journalVisible = surface === 'journal';
@@ -548,6 +551,15 @@ const App: React.FC = () => {
   // The command palette lists the same commands
   useEffect(() => appMenu.set(menu), [menu]);
 
+  // One Settings dialog: the workbench's tabs, the reader's, the journal's and MDViewer's
+  const settingsTabs = useMemo<SettingsTab[]>(() => [
+    appearanceTab({ theme, setTheme: (next) => { if (useStore.getState().theme !== next) useStore.getState().toggleTheme(); } }),
+    shortcutsTab(() => appMenu.get()),
+    readerSettingsTab(),
+    ...journalSettingsTabs(journal),
+    ...appSettingsTabs(),
+  ], [theme]);
+
   // The system menu uses the same commands as the toolbar menu.
   useEffect(() => {
     if (!isTauri()) return;
@@ -753,7 +765,7 @@ const App: React.FC = () => {
         menu={<MainMenu items={menu} useCommandContext={useCommandContext} onOpen={flushEditorChanges} buttonClassName="toolbar-button" surface={surface} />}
         end={<ToolbarEnd />}
       />
-      <SettingsModal />
+      <SettingsDialog open={settingsOpen} onClose={closeSettings} tabs={settingsTabs} />
       <SaveAllDialog />
       <CloseDocumentDialog />
       <CommandPalette openFile={(path) => { openPath(path).catch((error) => alert(`Could not open ${path}:\n${errorText(error)}`)); }} />

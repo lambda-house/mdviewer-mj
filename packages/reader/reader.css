@@ -6,3 +6,150 @@
 
 /* The tab bar's own actions (split), at its right end */
 .tab-bar-actions { display: flex; align-items: center; gap: 2px; padding: 0 2px; border-left: 1px solid var(--line-subtle); flex-shrink: 0; }
+
+/* The Documents tab of Settings: language aliases, text colours */
+.settings-alias-list {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.settings-alias-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-disabled);
+  font-size: var(--font-size-sm);
+}
+
+.settings-alias-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-alias-item:last-child {
+  border-bottom: none;
+}
+
+.settings-alias-item:hover {
+  background: var(--hover-bg);
+}
+
+.settings-alias-key,
+.settings-alias-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: 2px 6px;
+  background: var(--surface-input);
+  border-radius: var(--radius-sm);
+}
+
+.settings-alias-key {
+  color: var(--text-accent);
+  min-width: 60px;
+}
+
+.settings-alias-value {
+  color: var(--text-primary);
+}
+
+.settings-alias-arrow {
+  color: var(--text-disabled);
+  font-size: var(--font-size-sm);
+}
+
+.settings-alias-remove {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+.settings-alias-item:hover .settings-alias-remove {
+  opacity: 1;
+}
+
+.settings-alias-remove:hover {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.settings-alias-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-alias-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.settings-alias-input:focus {
+  outline: none;
+  border-color: var(--border-active);
+}
+
+.settings-alias-input::placeholder {
+  color: var(--text-disabled);
+}
+
+.settings-alias-add-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+
+.settings-alias-add-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--border-active);
+}
+
+.settings-alias-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Color Input */
+.settings-color-input {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.settings-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
