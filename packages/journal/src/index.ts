@@ -6,7 +6,7 @@
 export * from './sessions';
 export * from './store';
 export * from './host';
-export { JournalView, REFRESH_INTERVAL, refreshJournal, type JournalViewProps } from './JournalView';
+export { JournalView, REFRESH_INTERVAL, journalCommands, refreshJournal, type JournalViewProps } from './JournalView';
 export { JournalList } from './JournalList';
 export { JournalDetail, Metric } from './JournalDetail';
 export { SessionTree, SessionRow, type SessionTreeProps } from './SessionTree';

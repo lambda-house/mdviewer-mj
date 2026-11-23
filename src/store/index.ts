@@ -106,6 +106,10 @@ export interface AppState {
   // Appearance
   theme: ColorTheme;
 
+  /** The shown surface of the window ('documents', 'journal'): commands of another one wait. Not persisted. */
+  surface: string;
+  setSurface: (surface: string) => void;
+
   // Modal state
   settingsOpen: boolean;
   /** The command palette is showing. Not persisted. */
@@ -221,6 +225,7 @@ export const useStore = create<AppState>()(
       
       // Initial State - UI
       documentsLayout: defaultDocumentsLayout(),
+      surface: !documentWindowPath && import.meta.env.VITE_MDVIEWER_SESSIONS_PREVIEW === '1' ? 'journal' : 'documents',
       panelZoom: DEFAULT_PANEL_ZOOM,
       statusBarVisible: false,
       statusBarPinned: false,
@@ -346,6 +351,7 @@ export const useStore = create<AppState>()(
       setStatusBarPinned: (pinned) => set({ statusBarPinned: pinned }),
       
 
+      setSurface: (surface) => set({ surface }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setPaletteOpen: (open) => set({ paletteOpen: open }),
 

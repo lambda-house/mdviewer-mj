@@ -6,6 +6,7 @@ import {
   type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Split,
 } from './layout';
 import { PaneContextProvider } from './panes';
+import { registerLayoutView, setFocusedPane } from './focus';
 
 /** A pane's own zoom (shared UI spec §5.4): Ctrl+wheel over it and the zoom commands go here. */
 export interface PaneZoom {
@@ -100,6 +101,8 @@ export interface LayoutViewProps {
   onFocusLeaf?: (leafId: string) => void;
   /** Kept-alive panes to keep mounted although no leaf shows them (a terminal not in a pane); they wait in a hidden element beside the layout. */
   retain?: PaneRef[];
+  /** Put the layout back as it first was (the layout.reset command); without it, the command looks to a layout around this one. */
+  onReset?: () => void;
   className?: string;
 }
 
@@ -136,7 +139,7 @@ function previewBox(rect: DOMRect, part: 'all' | 'right' | 'bottom'): CSSPropert
  * minimum. Every pane gets its context (usePane): its menu's actions on this
  * layout, its zoom. Ctrl+wheel over a pane zooms it.
  */
-export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLeaf, onFocusLeaf, retain = [], className }: LayoutViewProps) {
+export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLeaf, onFocusLeaf, retain = [], onReset, className }: LayoutViewProps) {
   const childRefs = useRef(new Map<string, HTMLElement>());
   const leafRefs = useRef(new Map<string, HTMLElement>());
   const rootRef = useRef<HTMLDivElement>(null);
@@ -283,8 +286,18 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   }, [layout.root, preview]);
 
   // Ctrl+wheel zooms the pane under the pointer (an inner layout's pane first)
-  const latest = useRef({ layout, contextFor });
-  latest.current = { layout, contextFor };
+  const latest = useRef({ layout, contextFor, onReset });
+  latest.current = { layout, contextFor, onReset };
+
+  // Commands find the focused pane through the window's focus registry
+  const hasReset = !!onReset;
+  useEffect(() => registerLayoutView(viewId, {
+    resolve: (id) => {
+      const leaf = findLeaf(latest.current.layout.root, id);
+      return leaf?.pane ? latest.current.contextFor(leaf.pane, leaf) : null;
+    },
+    reset: hasReset ? () => latest.current.onReset?.() : undefined,
+  }), [viewId, hasReset]);
   useEffect(() => {
     const element = rootRef.current;
     if (!element) return;
@@ -324,8 +337,8 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
         data-leaf={leaf.id}
         data-layout={viewId}
         ref={(element) => { if (element) leafRefs.current.set(leaf.id, element); else leafRefs.current.delete(leaf.id); }}
-        onPointerDownCapture={() => { if (!focused) onFocusLeaf?.(leaf.id); }}
-        onFocusCapture={() => { if (!focused) onFocusLeaf?.(leaf.id); }}
+        onPointerDownCapture={() => { setFocusedPane(viewId, leaf.id); if (!focused) onFocusLeaf?.(leaf.id); }}
+        onFocusCapture={() => { setFocusedPane(viewId, leaf.id); if (!focused) onFocusLeaf?.(leaf.id); }}
       >
         {content}
       </div>
@@ -416,7 +429,7 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   // The parking is beside the tree, not in it: a class given to the layout covers only what is shown
   return (
     <>
-      <div ref={rootRef} className={cx('wb-layout', className)}>{renderNode(layout.root)}</div>
+      <div ref={rootRef} className={cx('wb-layout', className)} data-view={viewId}>{renderNode(layout.root)}</div>
       <div ref={parkingRef} className="wb-parking" aria-hidden="true" />
       {overlays.map((overlay) => <div key={overlay.key} className={cx('wb-preview', overlay.className)} style={overlay.style} aria-hidden="true" />)}
       {[...kept.entries()].map(([key, { pane, leaf }]) => {

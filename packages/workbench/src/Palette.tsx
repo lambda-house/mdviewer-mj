@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEve
 import { createPortal } from 'react-dom';
 import { Search, TerminalSquare, X } from 'lucide-react';
 import { Kbd, ScrollArea, cx } from '@lambda-house/ui';
-import { formatShortcut, menuEntries, type MenuItem } from './commands';
+import { formatShortcut, menuEntries, type MenuItem, onSurface } from './commands';
 
 export interface PaletteItem {
   id: string;
@@ -237,9 +237,9 @@ export function matchesQuery(query: string, ...texts: Array<string | undefined>)
  * The menu's commands as palette items: those the palette may list and that
  * are enabled now, matching the query by label or submenu.
  */
-export function commandItems<C>(menu: MenuItem<C>[], context: C, query: string, group = 'Commands'): PaletteItem[] {
+export function commandItems<C>(menu: MenuItem<C>[], context: C, query: string, group = 'Commands', surface?: string): PaletteItem[] {
   return menuEntries(menu)
-    .filter(({ command }) => command.palette !== false && command.enabled?.(context) !== false)
+    .filter(({ command }) => command.palette !== false && onSurface(command, surface) && command.enabled?.(context) !== false)
     .filter(({ command, submenu }) => matchesQuery(query, command.label, submenu))
     .map(({ command, submenu }) => ({
       id: `command:${command.id}`,

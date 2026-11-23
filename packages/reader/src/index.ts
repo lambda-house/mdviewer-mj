@@ -21,3 +21,4 @@ export { DocumentPanel, MarkdownViewer, ErrorBoundary, type DocumentPanelProps }
 export { DocumentGroups } from './DocumentGroups';
 export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
 export { SearchOptionToggles } from './FindBar';
+export { readerCommands, selectedText, type ReaderCommands } from './commands';

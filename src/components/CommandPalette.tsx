@@ -57,7 +57,7 @@ function PaletteContent({ openFile }: { openFile: (path: string) => void }) {
           run: () => openFile(file.path),
         }))
       : [];
-    return [...tabs, ...found, ...commandItems(menu, { ...state, reader }, query)];
+    return [...tabs, ...found, ...commandItems(menu, { ...state, reader }, query, 'Commands', state.surface)];
   }, [state, reader, menu, files, query, openFile]);
 
   return (

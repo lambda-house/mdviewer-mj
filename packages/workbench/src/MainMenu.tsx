@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Menu as MenuIcon } from 'lucide-react';
 import { cx } from '@lambda-house/ui';
-import { formatShortcut, isSubmenu, type Command, type MenuItem } from './commands';
+import { formatShortcut, isSubmenu, type Command, type MenuItem, onSurface } from './commands';
 
 /**
  * How long an open submenu stays when the pointer moves to another row (ms):
@@ -19,6 +19,8 @@ interface MenuPopupProps<C> {
   /** Opened from the keyboard: the first row starts highlighted. */
   highlightFirst: boolean;
   onClose: () => void;
+  /** The shown surface: another surface's commands are disabled. */
+  surface?: string;
 }
 
 /**
@@ -26,7 +28,7 @@ interface MenuPopupProps<C> {
  * input), so it is still there once the menu closes; keys are caught on the
  * window instead.
  */
-function MenuPopup<C>({ items, context, highlightFirst, onClose }: MenuPopupProps<C>) {
+function MenuPopup<C>({ items, context, highlightFirst, onClose, surface }: MenuPopupProps<C>) {
   /** Highlighted row (-1: none). */
   const [activeIndex, setActiveIndex] = useState(highlightFirst ? 0 : -1);
   /** Row whose submenu is open. */
@@ -35,7 +37,7 @@ function MenuPopup<C>({ items, context, highlightFirst, onClose }: MenuPopupProp
   const [submenuActiveIndex, setSubmenuActiveIndex] = useState(-1);
   const switchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const isDisabled = (command: Command<C>) => command.enabled?.(context) === false;
+  const isDisabled = (command: Command<C>) => !onSurface(command, surface) || command.enabled?.(context) === false;
   const canHighlight = (item: MenuItem<C>) =>
     item !== 'separator' && (isSubmenu(item) || !isDisabled(item));
 
@@ -243,10 +245,12 @@ export interface MainMenuProps<C> {
   onOpen?: () => void;
   /** Class of the menu button, to match the toolbar it sits in; `active` is added while open. */
   buttonClassName?: string;
+  /** The shown surface: another surface's commands are disabled. */
+  surface?: string;
 }
 
 /** The menu button: every command of the app, grouped, with its keyboard shortcut. */
-export function MainMenu<C>({ items, useCommandContext, onOpen, buttonClassName }: MainMenuProps<C>) {
+export function MainMenu<C>({ items, useCommandContext, onOpen, buttonClassName, surface }: MainMenuProps<C>) {
   const [open, setOpen] = useState(false);
   const [openedByKeyboard, setOpenedByKeyboard] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -298,7 +302,7 @@ export function MainMenu<C>({ items, useCommandContext, onOpen, buttonClassName 
         <MenuIcon size={16} />
       </button>
 
-      {open && <LivePopup items={items} useCommandContext={useCommandContext} highlightFirst={openedByKeyboard} onClose={close} />}
+      {open && <LivePopup items={items} useCommandContext={useCommandContext} highlightFirst={openedByKeyboard} onClose={close} surface={surface} />}
     </div>
   );
 }

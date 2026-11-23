@@ -80,6 +80,8 @@ export interface JournalState {
   focus: (pane: string) => void;
   /** The panes' arrangement after a resize; ignored unless it holds exactly the panes. */
   setLayout: (layout: LayoutNode) => void;
+  /** One list beside one detail pane again, keeping the filters and the session used last. */
+  resetLayout: () => void;
 }
 
 export interface JournalStoreOptions {
@@ -288,6 +290,18 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
             if (state.details[pane] && state.lastDetail !== pane) update.lastDetail = pane;
             if (state.lists[pane] && state.lastList !== pane) update.lastList = pane;
             if (Object.keys(update).length) set(update);
+          },
+          resetLayout: () => {
+            const state = get();
+            set({
+              layout: defaultLayout(),
+              lists: { [MAIN_LIST]: state.lists[state.lastList] ?? NO_FILTERS },
+              details: { [MAIN_DETAIL]: state.details[state.lastDetail] ?? newDetail() },
+              evidence: {},
+              focused: MAIN_LIST,
+              lastList: MAIN_LIST,
+              lastDetail: MAIN_DETAIL,
+            });
           },
           setLayout: (layout) => {
             const state = get();

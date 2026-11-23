@@ -4,7 +4,7 @@
 // Phase 3: commands, the main menu and the command palette. Phase 4: the layout tree, the shell, the plugin registry.
 
 export {
-  ariaShortcut, commandForKey, createMenuStore, formatShortcut, isSubmenu, matchesShortcut, menuCommands, menuEntries, useMenu,
+  ariaShortcut, commandForKey, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface, useMenu,
   type Command, type MenuItem, type MenuStore, type Shortcut, type Submenu,
 } from './commands';
 export { MainMenu, type MainMenuProps } from './MainMenu';
@@ -21,3 +21,7 @@ export {
   PluginRegistry, createPlugin, usePlugins,
   type Plugin, type PluginApi, type PluginStorage, type WorkbenchEvents, type WorkbenchPoints, type WorkbenchSlots,
 } from './plugins';
+export { layoutCommands, zoomCommands, type ZoomFallback } from './paneCommands';
+export {
+  canResetLayout, focusNextPane, focusedPane, focusedPaneVersion, focusedZoom, resetLayout, setFocusedPane, subscribeFocusedPane,
+} from './focus';

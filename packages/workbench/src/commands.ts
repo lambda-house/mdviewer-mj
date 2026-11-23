@@ -94,6 +94,22 @@ export interface Command<C = unknown> {
   run: () => void;
   /** Listed in the command palette (default: yes). */
   palette?: boolean;
+  /**
+   * The surface it belongs to (shared UI spec §5.5): its shortcut works and
+   * the palette lists it only while that surface is shown; the menu shows
+   * it disabled elsewhere. Without it, everywhere.
+   */
+  surface?: string;
+}
+
+/** Whether a command can be used on the shown surface. */
+export function onSurface<C>(command: Command<C>, surface?: string): boolean {
+  return !command.surface || !surface || command.surface === surface;
+}
+
+/** The same commands, belonging to one surface. */
+export function forSurface<C>(surface: string, commands: Array<Command<C> | 'separator'>): Array<Command<C> | 'separator'> {
+  return commands.map((command) => (command === 'separator' ? command : { ...command, surface }));
 }
 
 export interface Submenu<C = unknown> {
@@ -123,13 +139,14 @@ export function menuEntries<C>(items: MenuItem<C>[], within = ''): Array<{ comma
   });
 }
 
-/** The command a key press runs, if any: the first whose shortcut or alias matches. */
-export function commandForKey<C>(commands: Command<C>[], e: KeyboardEvent): Command<C> | undefined {
+/** The command a key press runs, if any: the first on the shown surface whose shortcut or alias matches. */
+export function commandForKey<C>(commands: Command<C>[], e: KeyboardEvent, surface?: string): Command<C> | undefined {
   // The webview's autofill sends keydown events without a key
   if (!e.key) return undefined;
 
   return commands.find((command) =>
-    [command.shortcut, ...(command.aliases ?? [])].some((shortcut) => shortcut && matchesShortcut(e, shortcut))
+    onSurface(command, surface)
+    && [command.shortcut, ...(command.aliases ?? [])].some((shortcut) => shortcut && matchesShortcut(e, shortcut))
   );
 }
 

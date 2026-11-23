@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bot, ChevronRight, RefreshCw, Settings2, Shield, X } from 'lucide-react';
 import { Button, cx, formatAge } from '@lambda-house/ui';
-import { LayoutView, ShellTools, type Layout, type PaneType } from '@lambda-house/workbench';
+import { LayoutView, ShellTools, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext, type Journal } from './host';
 import { AgentAccess } from './AgentAccess';
 import { ConnectionsDialog } from './ConnectionsDialog';
@@ -157,6 +157,7 @@ export function JournalView({ active = true, tools = {} }: JournalViewProps) {
           paneTypes={paneTypes}
           focusedLeaf={focused}
           onFocusLeaf={onFocusLeaf}
+          onReset={() => store.getState().resetLayout()}
         />
         <footer className="sc-footer">
           <span title={snapshot.cachePath || 'No persistent cache'}><i className="sc-local-dot" /> {snapshot.cachePath ? 'SQLite index' : 'In-memory index'} · {snapshot.restoredFiles || 0} restored · {snapshot.pendingFiles ? `${snapshot.pendingFiles} files still indexing · totals partial` : 'history indexed'} · {compact(snapshot.bytesRead || 0)} bytes read this scan · {snapshot.errors.length} warnings</span>
@@ -183,4 +184,19 @@ export function JournalView({ active = true, tools = {} }: JournalViewProps) {
       )}
     </section>
   );
+}
+
+/** The journal's commands (shared UI spec §5.5), for the app's menu. */
+export function journalCommands(journal: Journal): { refresh: Command; newList: Command } {
+  const enabled = () => journal.store.getState().enabled === true;
+  return {
+    refresh: { id: 'journal.refresh', label: 'Refresh Sessions', enabled, run: () => { void refreshJournal(journal); } },
+    newList: {
+      id: 'journal.newList', label: 'New Session List', enabled,
+      run: () => {
+        const state = journal.store.getState();
+        state.splitPane(state.lastList, 'col');
+      },
+    },
+  };
 }
