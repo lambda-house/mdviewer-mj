@@ -6,7 +6,7 @@ import { isTauri, openExternal } from '../utils/tauri';
 import { formatAge } from '../utils/agent';
 import '../styles/sessions.css';
 import SessionTree from './SessionTree';
-import WorkspaceSwitch from './WorkspaceSwitch';
+import { ShellTools } from '@lambda-house/workbench';
 import SessionDirectoryMap from './SessionDirectoryMap';
 import SessionMemoryBrowser from './SessionMemoryBrowser';
 import SessionAgentAccess from './SessionAgentAccess';
@@ -36,7 +36,7 @@ function ContextResult({ value }: { value: unknown }) {
   if (v?.fields) return <><h3>{v.fields.summary}</h3><p>{v.fields.status?.name} · {v.fields.assignee?.displayName || 'Unassigned'}</p><details><summary>Full issue details</summary><pre>{JSON.stringify(value,null,2)}</pre></details></>;
   return <pre>{v?.result?.content?.map(c => c.text).filter(Boolean).join('\n') || JSON.stringify(value,null,2)}</pre>;
 }
-export default function SessionWorkspace({ onClose, active = true }: { onClose: () => void; active?: boolean }) {
+export default function SessionWorkspace({ active = true }: { active?: boolean }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [data, setData] = useState<Snapshot>(empty);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
@@ -105,8 +105,8 @@ export default function SessionWorkspace({ onClose, active = true }: { onClose: 
     catch(e) { setControlMessage(err(e)); } finally {setControlBusy(false);}
   };
   return <section className="session-cockpit">
-    <header className="sc-topbar">
-      <WorkspaceSwitch active="sessions" onChange={workspace => { if (workspace === 'documents') onClose(); }}/>
+    {/* Its tools are in the window's top bar, outside the cockpit; .sc-bar gives them the cockpit's type */}
+    <ShellTools side="end"><div className="sc-bar">
       <div className="sc-top-actions">
         {enabled && <><Button variant="ghost" size="sm" icon={<RefreshCw size={14}/>} onClick={() => void refresh()} disabled={busy} aria-label="Refresh sessions" title={busy ? 'Indexing transcripts…' : `Refresh · updated ${formatAge(data.indexedAt)}`}/><Button variant="ghost" size="sm" icon={<Settings2 size={14}/>} onClick={() => setConnections(true)}>Connections</Button><Button variant="ghost" size="sm" onClick={() => setUserMemories(true)}>User memories</Button><Button variant="ghost" size="sm" onClick={() => setAgentAccess(true)}>Agent access</Button></>}
       </div>
@@ -120,7 +120,7 @@ export default function SessionWorkspace({ onClose, active = true }: { onClose: 
           {data.pendingFiles > 0 && <p>History is still indexing; totals are partial.</p>}
         </div>
       </details>}
-    </header>
+    </div></ShellTools>
     {error && <div className="sc-banner" role="alert">{error}</div>}
     {!enabled ? <div className="sc-welcome"><div className="sc-logo"><Bot size={36}/></div><p className="sc-eyebrow">YOUR AGENTIC LANDSCAPE</p><h1>See the work.<br/>Follow every agent.</h1><p>Codex and Claude sessions, their agents, models, tokens, tools and linked work. One view across all recorded workspaces on this machine.</p>
       <Button variant="primary" disabled={!isTauri() || enabled === null} onClick={async () => { try { setEnabled(await sessionApi.enable()); } catch(e) {setError(err(e));} }}><Shield size={16}/>{isTauri() ? 'Enable session access' : 'Open the desktop app to connect local sessions'}</Button><small>Local transcripts · no transcript edits · remote connections on demand</small></div> : <>

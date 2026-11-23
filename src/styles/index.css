@@ -187,8 +187,6 @@ a:hover {
 }
 
 /* Documents and Sessions: both stay mounted, so returning restores the selected session/tab */
-.workspace-surface { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
-.workspace-surface[hidden] { display: none; }
 
 .main-content {
   display: flex;
@@ -198,23 +196,8 @@ a:hover {
 }
 
 /* ============================================================
-   Toolbar
+   Toolbar: the Documents tools in the workbench's top bar (.wb-topbar)
    ============================================================ */
-
-.toolbar {
-  position: relative;
-  z-index: 20;
-  height: var(--toolbar-height);
-  min-height: var(--toolbar-height);
-  background: var(--surface-elevated);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  gap: 4px;
-  user-select: none;
-  -webkit-app-region: drag;
-}
 
 .toolbar-group {
   display: flex;
@@ -229,10 +212,6 @@ a:hover {
   height: 16px;
   background: var(--border-default);
   margin: 0 4px;
-}
-
-.toolbar-spacer {
-  flex: 1;
 }
 
 .toolbar-button {

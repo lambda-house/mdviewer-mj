@@ -379,3 +379,41 @@
 .wb-leaf > *, .wb-slot > *, .wb-keepalive > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
 .wb-slot, .wb-keepalive { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
 .wb-parking { display: none; }
+
+/* ============================================================
+   Shell: one top bar for every surface, the surfaces under it (spec §5.1)
+   ============================================================ */
+
+.wb-shell { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+
+.wb-topbar {
+  position: relative;
+  z-index: 20;
+  height: var(--toolbar-height);
+  min-height: var(--toolbar-height);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  gap: var(--sp-1);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.wb-topbar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* A surface's tools are the bar's own items: an empty slot takes no room and no gap */
+.wb-topbar__tools { display: contents; }
+.wb-topbar__tools > * { -webkit-app-region: no-drag; }
+
+.wb-topbar__spacer { flex: 1; }
+
+.wb-surface { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.wb-surface[hidden] { display: none; }

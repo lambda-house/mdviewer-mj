@@ -1,7 +1,7 @@
 // @lambda-house/workbench: the window shell's parts shared by MDViewer and
 // Agent MCR. Styles are in ../workbench.css (import
 // '@lambda-house/workbench/workbench.css' after the ui styles). Shared UI spec §5.
-// Phase 3: commands, the main menu and the command palette. Phase 4: the layout tree.
+// Phase 3: commands, the main menu and the command palette. Phase 4: the layout tree, the shell, the plugin registry.
 
 export {
   ariaShortcut, commandForKey, createMenuStore, formatShortcut, isSubmenu, matchesShortcut, menuCommands, menuEntries, useMenu,
@@ -15,3 +15,8 @@ export {
   type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Size, type Split,
 } from './layout';
 export { LayoutView, type LayoutViewProps, type PaneContext, type PaneType } from './LayoutView';
+export { Shell, ShellTools, type ShellProps, type ShellSurface } from './Shell';
+export {
+  PluginRegistry, createPlugin, usePlugins,
+  type Plugin, type PluginApi, type PluginStorage, type WorkbenchEvents, type WorkbenchPoints, type WorkbenchSlots,
+} from './plugins';

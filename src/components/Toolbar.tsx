@@ -17,12 +17,9 @@ import {
 } from 'lucide-react';
 import { useStore, MIN_ZOOM, MAX_ZOOM } from '../store';
 import { exportActiveDocument } from '../utils/export';
-import type { MenuItem } from '../utils/commands';
 import clsx from 'clsx';
-import { MainMenu } from '@lambda-house/workbench';
-import { flushEditorChanges } from '../utils/editorRegistry';
+import { ShellTools } from '@lambda-house/workbench';
 import WorkspaceMenu from './WorkspaceMenu';
-import WorkspaceSwitch from './WorkspaceSwitch';
 
 // ============================================================
 // Zoom Control Component
@@ -93,10 +90,9 @@ const ZoomControl: React.FC = () => {
 // Toolbar Component
 // ============================================================
 
+// The Documents surface's tools in the window's top bar (the workbench Shell):
+// after the main menu, and at the right before settings and theme (ToolbarEnd).
 interface ToolbarProps {
-  onOpenSessions?: () => void;
-  /** The main menu (see utils/commands.ts). */
-  menu: MenuItem[];
   onAddDirectory?: () => void;
   filePanelVisible?: boolean;
   onToggleFilePanel?: () => void;
@@ -109,8 +105,6 @@ interface ToolbarProps {
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
-  menu,
-  onOpenSessions,
   onAddDirectory,
   filePanelVisible,
   onToggleFilePanel,
@@ -125,12 +119,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const filterQuery = useStore((s) => s.filterQuery);
   const setFilterQuery = useStore((s) => s.setFilterQuery);
-  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const activeTab = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId) ?? null);
-  const theme = useStore((s) => s.theme);
   const editMode = useStore((s) => s.editMode);
   const toggleEditMode = useStore((s) => s.toggleEditMode);
-  const toggleTheme = useStore((s) => s.toggleTheme);
   const [isExporting, setIsExporting] = useState(false);
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,11 +131,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const handleToggleToc = useCallback(() => {
     toggleTocVisible();
   }, [toggleTocVisible]);
-
-
-  const handleOpenSettings = useCallback(() => {
-    setSettingsOpen(true);
-  }, [setSettingsOpen]);
 
   const handleExportHtml = useCallback(async () => {
     setIsExporting(true);
@@ -156,11 +142,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   }, []);
 
   return (
-    <header className="toolbar">
-      {/* Left Section */}
+    <>
+    <ShellTools>
       <div className="toolbar-group">
-        {onOpenSessions && <WorkspaceSwitch active="documents" onChange={workspace => { if (workspace === 'sessions') onOpenSessions(); }} />}
-        <MainMenu items={menu} useCommandContext={useStore} onOpen={flushEditorChanges} buttonClassName="toolbar-button" />
         <button
           className={clsx('toolbar-button', filePanelVisible && 'active')}
           onClick={onToggleFilePanel}
@@ -233,10 +217,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <Bot size={16} />
         </button>
       </div>
-      
-      <div className="toolbar-spacer" />
-      
-      {/* Right Section */}
+    </ShellTools>
+
+    <ShellTools side="end">
       <div className="toolbar-group">
         <ZoomControl />
       </div>
@@ -251,22 +234,34 @@ const Toolbar: React.FC<ToolbarProps> = ({
         >
           <List size={16} />
         </button>
-        <button
-          className="toolbar-button"
-          onClick={handleOpenSettings}
-          title="Settings"
-        >
-          <Settings size={16} />
-        </button>
-        <button
-          className="toolbar-button"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
       </div>
-    </header>
+    </ShellTools>
+    </>
+  );
+};
+
+/** At the right end of the top bar on every surface: settings and the theme. */
+export const ToolbarEnd: React.FC = () => {
+  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+  const theme = useStore((s) => s.theme);
+  const toggleTheme = useStore((s) => s.toggleTheme);
+  return (
+    <>
+      <button
+        className="toolbar-button"
+        onClick={() => setSettingsOpen(true)}
+        title="Settings"
+      >
+        <Settings size={16} />
+      </button>
+      <button
+        className="toolbar-button"
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      >
+        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+      </button>
+    </>
   );
 };
 

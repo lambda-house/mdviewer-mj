@@ -16,14 +16,14 @@ beforeEach(() => { vi.resetAllMocks(); Object.assign(globalThis,{IS_REACT_ACT_EN
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 describe('Sessions workspace', () => {
   it('renders actual session details as text and loads linked work only on request', async () => {
-    await act(async () => root.render(<SessionWorkspace onClose={() => {}}/>)); await flush();
+    await act(async () => root.render(<SessionWorkspace/>)); await flush();
     expect(host.textContent).toContain('Fix CORE-123');expect(host.textContent).toContain('<script>untrusted()</script>');expect(host.querySelector('script')).toBeNull();expect(sessionApi.context).not.toHaveBeenCalled();
     await act(async () => button('linked work').click());expect(host.textContent).toContain('CORE-123');
     vi.mocked(sessionApi.context).mockRejectedValue('No Jira credentials');
     await act(async () => (host.querySelector('.sc-ticket-list button') as HTMLButtonElement).click());expect(host.textContent).toContain('No Jira credentials');
   });
   it('opens tickets at the configured site and reports an absent connection', async () => {
-    await act(async () => root.render(<SessionWorkspace onClose={() => {}}/>)); await flush();
+    await act(async () => root.render(<SessionWorkspace/>)); await flush();
     await act(async () => button('linked work').click());
     vi.mocked(sessionApi.connections).mockResolvedValue({ jiraSite: 'https://example.atlassian.net/', jiraReady: true, memoryUrl: '', memoryReady: false });
     await act(async () => (host.querySelector('[aria-label="Open CORE-123 in Jira"]') as HTMLButtonElement).click());
@@ -36,10 +36,10 @@ describe('Sessions workspace', () => {
   });
   it('does not read transcripts before access is enabled', async () => {
     vi.mocked(sessionApi.access).mockResolvedValue(false);
-    await act(async () => root.render(<SessionWorkspace onClose={() => {}}/>));await flush();expect(host.textContent).toContain('Enable session access');expect(sessionApi.snapshot).not.toHaveBeenCalled();
+    await act(async () => root.render(<SessionWorkspace/>));await flush();expect(host.textContent).toContain('Enable session access');expect(sessionApi.snapshot).not.toHaveBeenCalled();
   });
   it('shows control failures without claiming delivery', async () => {
-    await act(async () => root.render(<SessionWorkspace onClose={() => {}}/>));await flush();await act(async () => button('direct').click());vi.mocked(sessionApi.control).mockRejectedValue('Daemon unavailable');
+    await act(async () => root.render(<SessionWorkspace/>));await flush();await act(async () => button('direct').click());vi.mocked(sessionApi.control).mockRejectedValue('Daemon unavailable');
     await act(async () => button('inspect live').click());expect(host.textContent).toContain('Daemon unavailable');expect(host.textContent).not.toContain('Instruction accepted');
   });
 });
