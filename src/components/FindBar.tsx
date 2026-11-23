@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from 'lucide-react';
 import { useStore } from '../store';
-import { buildSearchRegex, iterateMatches } from '../utils/search';
-import { holdScroll } from '../utils/scrollHold';
+import { buildSearchRegex, iterateMatches } from '@lambda-house/reader';
+import { holdScroll } from '@lambda-house/reader';
 import clsx from 'clsx';
 
 // ============================================================

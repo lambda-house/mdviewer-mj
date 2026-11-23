@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { X, ChevronRight, FileText } from 'lucide-react';
 import { Button, PaneFrame } from '@lambda-house/ui';
 import { useStore, type FileNode, type SearchScope } from '../store';
-import { buildSearchRegex, findLineMatches, type LineMatch } from '../utils/search';
-import { flattenFiles, getFileName } from '../utils/files';
+import { buildSearchRegex, findLineMatches, type LineMatch } from '@lambda-house/reader';
+import { getFileName } from '@lambda-house/reader';
+import { flattenFiles } from '../utils/files';
 import { readFile } from '../utils/tauri';
 import { SearchOptionToggles } from './FindBar';
-import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { useSmoothWheelScroll } from '@lambda-house/ui';
 import clsx from 'clsx';
 
 // ============================================================

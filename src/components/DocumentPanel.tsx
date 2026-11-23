@@ -2,19 +2,19 @@ import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { FileQuestion, AlertCircle, Save, ImageOff, FileDiff } from 'lucide-react';
 import { ConfirmDialog, EmptyState as UiEmptyState, Kbd } from '@lambda-house/ui';
 import { useStore } from '../store';
-import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from '../utils/markdown';
+import { renderFile, renderMermaid, highlightCodeBlocks, loadRemoteImages, type RenderResult } from '@lambda-house/reader';
 import clsx from 'clsx';
 import TabBar from './TabBar';
 import FindBar from './FindBar';
-import { pruneEditorStates } from '../utils/editorRegistry';
+import { pruneEditorStates } from '@lambda-house/reader';
 
 // CodeMirror is only loaded once edit mode is first used
 const Editor = React.lazy(() => import('./Editor'));
-import { getFileKind, getFileName } from '../utils/files';
+import { getFileKind, getFileName } from '@lambda-house/reader';
 import { saveActiveDocument } from '../utils/save';
-import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
-import { holdScroll } from '../utils/scrollHold';
-import { applyScrollPosition, captureScrollPosition } from '../utils/scrollAnchor';
+import { useSmoothWheelScroll } from '@lambda-house/ui';
+import { holdScroll } from '@lambda-house/reader';
+import { applyScrollPosition, captureScrollPosition } from '@lambda-house/reader';
 import { readSnapshot } from '../utils/tauri';
 import { CHANGED_CLASS, diffContent, formatAge, markAgentFilesRead, markChangedBlocks, markLeftDocumentRead } from '../utils/agent';
 

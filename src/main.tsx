@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { setImageUrl } from '@lambda-house/reader';
 import { useStore } from './store';
 // Fonts are bundled, not fetched: the app must work offline
 import '@fontsource/inter/400.css';
@@ -24,6 +26,9 @@ applyTheme(useStore.getState().theme);
 useStore.subscribe((state, prev) => {
   if (state.theme !== prev.theme) applyTheme(state.theme);
 });
+
+// Local images in documents are served by the backend's localfile protocol
+if ('__TAURI_INTERNALS__' in window) setImageUrl((path) => convertFileSrc(path, 'localfile'));
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

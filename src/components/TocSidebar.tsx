@@ -4,7 +4,7 @@ import { Button, EmptyState, PaneFrame } from '@lambda-house/ui';
 import { useStore, type Heading } from '../store';
 import clsx from 'clsx';
 import PanelZoomBadge from './PanelZoomBadge';
-import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { useSmoothWheelScroll } from '@lambda-house/ui';
 
 // ============================================================
 // TOC Item Component

@@ -17,7 +17,7 @@ import {
   markAgentFilesRead,
   refreshAgentWorkspace,
 } from '../utils/agent';
-import { getFileName } from '../utils/files';
+import { getFileName } from '@lambda-house/reader';
 
 // ============================================================
 // Agent Panel: instructions, rules, memory, plans and skills of coding agents

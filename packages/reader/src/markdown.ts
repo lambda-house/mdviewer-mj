@@ -1,6 +1,5 @@
 import MarkdownIt from 'markdown-it';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import type { Heading } from '../store';
+import type { Heading } from './types';
 import { getFileKind } from './files';
 import { fb2ToMarkdown } from './fb2';
 
@@ -152,6 +151,17 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
 };
 
 // Custom image renderer to resolve relative paths via the localfile protocol
+/**
+ * A local image's URL, from its absolute path. The app sets it (Tauri:
+ * `convertFileSrc(path, 'localfile')`, which is localfile://localhost/<path> on
+ * macOS and Linux, http://localfile.localhost/<path> on Windows).
+ */
+let imageUrl = (absolutePath: string): string => `localfile://localhost/${encodeURIComponent(absolutePath)}`;
+
+export function setImageUrl(url: (absolutePath: string) => string): void {
+  imageUrl = url;
+}
+
 md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
   const token = tokens[idx];
   const srcIndex = token.attrIndex('src');
@@ -191,11 +201,7 @@ md.renderer.rules.image = (tokens, idx, _options, env, _self) => {
       }
       absolutePath = parts.join('/');
     }
-    // localfile://localhost/<path> on macOS/Linux,
-    // http://localfile.localhost/<path> on Windows
-    src = '__TAURI_INTERNALS__' in window
-      ? convertFileSrc(absolutePath, 'localfile')
-      : `localfile://localhost/${encodeURIComponent(absolutePath)}`;
+    src = imageUrl(absolutePath);
   }
 
   // Remote images are not fetched until the user allows it: loading them tells
@@ -500,6 +506,12 @@ export async function initMermaid(theme: ColorTheme = 'dark'): Promise<void> {
       startOnLoad: false,
       theme: theme === 'dark' ? 'dark' : 'default',
       securityLevel: 'strict', // SECURITY: Enable strict mode
+      // What a diagram may not set for itself (init directive or frontmatter):
+      // Mermaid's own list, plus the settings that go into its stylesheet as
+      // written, where a url() would fetch from the network without the
+      // "Load images" consent. themeVariables stay: Mermaid drops any value
+      // that could hold an address.
+      secure: ['secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'suppressErrorRendering', 'maxEdges', 'themeCSS', 'fontFamily', 'altFontFamily'],
       themeVariables: MERMAID_THEME_VARIABLES[theme],
       flowchart: {
         curve: 'basis',

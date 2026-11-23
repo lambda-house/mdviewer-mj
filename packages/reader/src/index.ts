@@ -1,4 +1,12 @@
-// @lambda-house/reader: Markdown reader and editor shared by MDViewer and Agent MCR.
-// Empty until phase 5 (§6.1) of the shared UI spec.
+// @lambda-house/reader: the Markdown reader and editor shared by MDViewer and
+// Agent MCR (shared UI spec §6.1). Phase 5 part 1: rendering, file kinds and
+// links, find, scroll anchoring and holding, the editor state registry.
 
-export {};
+export * from './types';
+export * from './files';
+export * from './markdown';
+export * from './fb2';
+export * from './search';
+export * from './scrollAnchor';
+export * from './scrollHold';
+export * from './editorRegistry';

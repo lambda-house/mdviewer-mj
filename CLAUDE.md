@@ -32,34 +32,35 @@ Frontend unit tests are Vitest files next to the code (`src/utils/*.test.ts`; DO
   - `MainMenu` (from `@lambda-house/workbench`) - Toolbar menu (top left): every command, grouped, with its shortcut
   - `CommandPalette.tsx` - Ctrl+Shift+P (⇧⌘P): the workbench `Palette` with open tabs, files of the opened folders and the commands
   - `FilePanel.tsx` - Left sidebar file tree browser
-  - `DocumentPanel.tsx` - Center markdown renderer with ErrorBoundary. Scroll positions per document are anchored to the block at the top of the view (`utils/scrollAnchor.ts`), so late Mermaid output doesn't move the restored text
+  - `DocumentPanel.tsx` - Center markdown renderer with ErrorBoundary. Scroll positions per document are anchored to the block at the top of the view (`scrollAnchor.ts` in `@lambda-house/reader`), so late Mermaid output doesn't move the restored text
   - `TabBar.tsx` - Tab strip: preview tab, context menu, back/forward, overflow scrolling
   - `TocSidebar.tsx` - Right sidebar table of contents
   - `AgentPanel.tsx` - Agent workspace panel (shares the left slot with search and history)
-  - `FindBar.tsx` - Ctrl+F find in document (CSS Custom Highlight API; highlights are changed in place, WebKitGTK doesn't repaint replaced ones). A jump and the scroll restore both use `utils/scrollHold.ts` to keep their offset while late output changes the layout
+  - `FindBar.tsx` - Ctrl+F find in document (CSS Custom Highlight API; highlights are changed in place, WebKitGTK doesn't repaint replaced ones). A jump and the scroll restore both use `holdScroll` (`@lambda-house/reader`) to keep their offset while late output changes the layout
   - `SearchPanel.tsx` - Ctrl+Shift+F text search in open tabs / folders
-  - `Editor.tsx` - CodeMirror 6 source editor (Ctrl+E), lazy-loaded; per-document state lives in `utils/editorRegistry.ts`, saving in `utils/save.ts`
+  - `Editor.tsx` - CodeMirror 6 source editor (Ctrl+E), lazy-loaded; per-document state lives in `editorRegistry.ts` (`@lambda-house/reader`), saving in `utils/save.ts`
   - `WorkspaceMenu.tsx` - Saved workspaces (folders + tabs)
   - `Toolbar.tsx` - The Documents tools in the top bar, put there with `ShellTools` (search, panels, zoom, contents); `ToolbarEnd` is settings and theme, on every surface. A surface's tools go into the bar the same way from anywhere in its tree (`SessionWorkspace` does it for Refresh, Connections and the summary; `.sc-bar` gives them the cockpit's type, since they render outside `.session-cockpit`)
   - Shared controls come from `@lambda-house/ui` (`packages/ui`): `Button`, `ConfirmDialog` (buttons in the platform's order; `SaveAllDialog.tsx` and the unsaved-changes question use it), `Dialog`, `SplitHandle` (separators: drag to resize, drag to the edge or double-click to hide/show, arrows step), `Segmented` (the Files/Agents filter; the Shell's surface switch uses it too), `Tabs`, `Menu` (the tab context menu), `PaneFrame` (the header of Files, Search, History, Contents), `EmptyState`, `Kbd`, `Badge`, `Notice`. `WorkspaceMenu` still draws its own menu (`.context-menu`)
   - `StatusBar.tsx` - Bottom status bar (auto-hides)
 
-- **Hooks** (`src/hooks/`): `useSmoothWheelScroll` - velocity-based wheel scrolling shared by the document, file panel and TOC
+- **Smooth scrolling**: `useSmoothWheelScroll` (`@lambda-house/ui`) - velocity-based wheel scrolling shared by the document, file panel, search and TOC
 
 - **Commands** (`src/utils/commands.ts`): `buildMenu` is the one list of commands (label, shortcut, `enabled`/`checked`, `run`; the types and `commandForKey`/`formatShortcut` are `@lambda-house/workbench`'s, typed with `AppState`). The menu renders it, the command palette lists it (through `appMenu`, set in `App.tsx`; `palette: false` keeps a command out), the native menu's events run it by id (`utils/nativeMenu.test.ts` fails if an item in `main.rs` has no command) and the key handler in `App.tsx` matches key presses against it, so a new command or shortcut goes there, not into either of them. `run` must be safe when `enabled` is false (shortcuts don't check it)
 
-- **Markdown Processing** (`src/utils/markdown.ts`):
+- **Markdown Processing** (`packages/reader/src/markdown.ts`, imported from `@lambda-house/reader`, like the file kinds, `resolveLinkPath`, find's `search.ts`, scroll anchoring and the editor registry):
   - markdown-it with `html: false` (raw HTML is escaped; every custom renderer rule must escape what it emits with `escapeHtml`)
   - Shiki for syntax highlighting (15+ languages)
   - Mermaid for diagrams with unique ID generation per render
   - HeadingIdGenerator for automatic anchor links
-  - `renderFile` dispatches by type (`getFileKind` in `utils/files.ts`): markdown, fb2 (converted via `utils/fb2.ts`), code (one highlighted fence), plain text
+  - `renderFile` dispatches by type (`getFileKind` in the reader's `files.ts`): markdown, fb2 (converted via `fb2.ts`), code (one highlighted fence), plain text
+  - Local images get their URL from `setImageUrl`, which `main.tsx` points at `convertFileSrc(path, 'localfile')`. Mermaid's `secure` list keeps diagrams from setting `themeCSS`/fonts (a `url()` there would fetch without the "Load images" consent)
   - Block elements carry `data-line` (0-based source line, frontmatter included) to map search results to the rendered DOM
 
 ### Backend (src-tauri/)
 
 Rust backend provides Tauri commands:
-- `scan_directories` - Recursive file discovery (markdown, plus other text files with `includeTextFiles`; extension lists mirrored in `utils/files.ts`)
+- `scan_directories` - Recursive file discovery (markdown, plus other text files with `includeTextFiles`; extension lists mirrored in `packages/reader/src/files.ts`)
 - `read_file` / `write_file` - File I/O; `read_file` decodes UTF-16 BOM and XML-declared encodings, `write_file` encodes back the same way (refuses unknown encodings) and replaces the file atomically (temp file + rename, `atomic_write`)
 - `pick_directory` / `pick_files` / `export_file` - Native folder picker, file picker (Open File) and save dialog, opened from Rust (the JS dialog plugin isn't exposed)
 - `get_file_info` - File metadata

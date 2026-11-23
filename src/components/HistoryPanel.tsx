@@ -3,7 +3,7 @@ import { Trash2, RefreshCw } from 'lucide-react';
 import { Button, PaneFrame } from '@lambda-house/ui';
 import { useStore } from '../store';
 import { readHistory, clearHistory, readFile, isTauri } from '../utils/tauri';
-import { renderMarkdown } from '../utils/markdown';
+import { renderMarkdown } from '@lambda-house/reader';
 
 // ============================================================
 // History Panel Component

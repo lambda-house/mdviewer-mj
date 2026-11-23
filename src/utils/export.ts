@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import { saveFile } from './tauri';
-import { escapeHtml, fileToMarkdown, loadRemoteImages } from './markdown';
-import { flushEditorChanges } from './editorRegistry';
+import { escapeHtml, fileToMarkdown, loadRemoteImages } from '@lambda-house/reader';
+import { flushEditorChanges } from '@lambda-house/reader';
 
 export type ExportFormat = 'markdown' | 'html';
 

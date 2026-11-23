@@ -13,11 +13,12 @@ import {
 } from 'lucide-react';
 import { Button, EmptyState as UiEmptyState, PaneFrame, Segmented } from '@lambda-house/ui';
 import { useStore, type FileNode } from '../store';
-import { agentFilesToTree, filterFiles, getFileKind } from '../utils/files';
+import { getFileKind } from '@lambda-house/reader';
+import { agentFilesToTree, filterFiles } from '../utils/files';
 import { readFile, scanDirectories, scanProjectAgentFiles, isTauri, openInExplorer, appendToHistory } from '../utils/tauri';
 import clsx from 'clsx';
 import PanelZoomBadge from './PanelZoomBadge';
-import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { useSmoothWheelScroll } from '@lambda-house/ui';
 import AgentPanel from './AgentPanel';
 
 // ============================================================

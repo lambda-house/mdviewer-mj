@@ -11,5 +11,12 @@
     "@lambda-house/tokens": "*",
     "@lambda-house/ui": "*",
     "@lambda-house/workbench": "*"
+  },
+  "peerDependencies": {
+    "@codemirror/state": "^6.7.6",
+    "markdown-it": "^14.0.0",
+    "mermaid": "^11.17.2",
+    "react": "^19.3.1",
+    "shiki": "^1.0.0"
   }
 }

@@ -1,10 +1,11 @@
 import { create } from 'zustand';
+import type { Heading } from '@lambda-house/reader';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from '../utils/search';
-import type { ColorTheme } from '../utils/markdown';
+import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from '@lambda-house/reader';
+import type { ColorTheme } from '@lambda-house/reader';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
 import type { AgentEntry, UpdateInfo } from '../utils/tauri';
-import { sameScrollPosition, type ScrollPosition } from '../utils/scrollAnchor';
+import { sameScrollPosition, type ScrollPosition } from '@lambda-house/reader';
 import { documentWindowPath, documentWindowStorage } from '../utils/documentWindow';
 
 // ============================================================
@@ -63,11 +64,7 @@ export interface Document {
   isDirty: boolean;
 }
 
-export interface Heading {
-  id: string;
-  text: string;
-  level: number;
-}
+export type { Heading } from '@lambda-house/reader';
 
 export interface Tab {
   id: string;

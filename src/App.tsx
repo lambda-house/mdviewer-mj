@@ -22,9 +22,10 @@ import {
   onAgentFilesChanged,
 } from './utils/tauri';
 import { appMenu, buildMenu, menuCommands, commandForKey } from './utils/commands';
-import { isViewableFile, getFileName, normalizeDirPath, findFirstMarkdown, resolveLinkPath } from './utils/files';
+import { isViewableFile, getFileName, resolveLinkPath } from '@lambda-house/reader';
+import { normalizeDirPath, findFirstMarkdown } from './utils/files';
 import Toolbar, { ToolbarEnd } from './components/Toolbar';
-import { flushEditorChanges } from './utils/editorRegistry';
+import { flushEditorChanges } from '@lambda-house/reader';
 import FilePanel from './components/FilePanel';
 import DocumentPanel from './components/DocumentPanel';
 import TocSidebar from './components/TocSidebar';

@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { writeFile } from './tauri';
-import { flushEditorChanges } from './editorRegistry';
+import { flushEditorChanges } from '@lambda-house/reader';
 
 /**
  * Write a document's current text to disk and mark it saved.
