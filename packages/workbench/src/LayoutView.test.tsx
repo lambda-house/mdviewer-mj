@@ -86,6 +86,7 @@ describe('LayoutView', () => {
     const only: Layout = { version: 1, root: { kind: 'leaf', id: 'a', pane: { type: 'terminal', key: 't1' } } };
     act(() => root.render(<LayoutView layout={only} onChange={() => {}} paneTypes={paneTypes} retain={[{ type: 'terminal', key: 't2' }]} />));
     expect(host.querySelector('.wb-parking [data-terminal="t2"]')?.getAttribute('data-visible')).toBe('false');
+    expect(host.querySelector('.wb-layout [data-terminal="t2"]')).toBeNull();
     act(() => root.render(<LayoutView layout={only} onChange={() => {}} paneTypes={paneTypes} />));
     expect(unmounts).toHaveBeenCalledWith('t2');
     expect(unmounts).not.toHaveBeenCalledWith('t1');

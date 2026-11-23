@@ -39,7 +39,7 @@ export interface LayoutViewProps {
   renderEmpty?: (leaf: Leaf, focused: boolean) => ReactNode;
   focusedLeaf?: string;
   onFocusLeaf?: (leafId: string) => void;
-  /** Kept-alive panes to keep mounted although no leaf shows them (a terminal not in a pane). */
+  /** Kept-alive panes to keep mounted although no leaf shows them (a terminal not in a pane); they wait in a hidden element beside the layout. */
   retain?: PaneRef[];
   className?: string;
 }
@@ -188,9 +188,10 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
     }
   });
 
+  // The parking is beside the tree, not in it: a class given to the layout covers only what is shown
   return (
-    <div className={cx('wb-layout', className)}>
-      {renderNode(layout.root)}
+    <>
+      <div className={cx('wb-layout', className)}>{renderNode(layout.root)}</div>
       <div ref={parkingRef} className="wb-parking" aria-hidden="true" />
       {[...kept.entries()].map(([key, { pane, leaf }]) => createPortal(
         paneTypes[pane.type].render({
@@ -202,6 +203,6 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
         elementFor(key),
         key,
       ))}
-    </div>
+    </>
   );
 }
