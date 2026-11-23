@@ -365,3 +365,17 @@
 .cmd-body--list { grid-template-columns: minmax(0, 1fr); }
 .cmd-panel:has(.cmd-body--list) { width: min(640px, 94vw); }
 .cmd-preview__text { margin: 0; font-size: var(--fs-12); color: var(--text-muted); }
+
+/* ============================================================
+   Layout (LayoutView.tsx): splits as flex rows and columns
+   ============================================================ */
+
+.wb-layout { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
+.wb-split { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.wb-split--row { flex-direction: row; }
+.wb-split--col { flex-direction: column; }
+.wb-split__child { display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+.wb-leaf { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.wb-leaf > *, .wb-slot > *, .wb-keepalive > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.wb-slot, .wb-keepalive { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.wb-parking { display: none; }

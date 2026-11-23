@@ -28,7 +28,7 @@ Frontend unit tests are Vitest files next to the code (`src/utils/*.test.ts`; DO
   - State includes: file tree, documents/tabs, UI panels, zoom level (document `zoom` plus per-panel `panelZoom`)
 
 - **Components** (`src/components/`):
-  - `App.tsx` - Main shell; its key handler runs the commands of `utils/commands.ts`
+  - `App.tsx` - Main shell; its key handler runs the commands of `utils/commands.ts`. The Documents view is a `LayoutView` (`@lambda-house/workbench`) of three leaves: the left panel (`files`, `search` or `history`), the document and the contents. The layout is drawn from the store's `panelWidth`/`tocWidth` and visibility flags, and its handles write back through their setters (the store keeps the left slot's rules)
   - `MainMenu` (from `@lambda-house/workbench`) - Toolbar menu (top left): every command, grouped, with its shortcut
   - `CommandPalette.tsx` - Ctrl+Shift+P (⇧⌘P): the workbench `Palette` with open tabs, files of the opened folders and the commands
   - `FilePanel.tsx` - Left sidebar file tree browser
@@ -41,7 +41,7 @@ Frontend unit tests are Vitest files next to the code (`src/utils/*.test.ts`; DO
   - `Editor.tsx` - CodeMirror 6 source editor (Ctrl+E), lazy-loaded; per-document state lives in `utils/editorRegistry.ts`, saving in `utils/save.ts`
   - `WorkspaceMenu.tsx` - Saved workspaces (folders + tabs)
   - `Toolbar.tsx` - Top bar with search, zoom, theme controls
-  - Shared controls come from `@lambda-house/ui` (`packages/ui`): `Button`, `ConfirmDialog` (buttons in the platform's order; `SaveAllDialog.tsx` and the unsaved-changes question use it), `Dialog`, `Splitter` (panel separators: drag to resize, drag to the edge or double-click to hide/show), `Segmented` (`WorkspaceSwitch.tsx`, the Files/Agents filter), `Tabs`, `Menu` (the tab context menu), `PaneFrame` (the header of Files, Search, History, Contents), `EmptyState`, `Kbd`, `Badge`, `Notice`. `WorkspaceMenu` still draws its own menu (`.context-menu`)
+  - Shared controls come from `@lambda-house/ui` (`packages/ui`): `Button`, `ConfirmDialog` (buttons in the platform's order; `SaveAllDialog.tsx` and the unsaved-changes question use it), `Dialog`, `SplitHandle` (separators: drag to resize, drag to the edge or double-click to hide/show, arrows step), `Segmented` (`WorkspaceSwitch.tsx`, the Files/Agents filter), `Tabs`, `Menu` (the tab context menu), `PaneFrame` (the header of Files, Search, History, Contents), `EmptyState`, `Kbd`, `Badge`, `Notice`. `WorkspaceMenu` still draws its own menu (`.context-menu`)
   - `StatusBar.tsx` - Bottom status bar (auto-hides)
 
 - **Hooks** (`src/hooks/`): `useSmoothWheelScroll` - velocity-based wheel scrolling shared by the document, file panel and TOC

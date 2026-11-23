@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { Upload } from 'lucide-react';
-import { useStore, PANEL_MIN_WIDTH, TOC_MIN_WIDTH, type Heading, type RestoredDocument } from './store';
-import { Splitter } from '@lambda-house/ui';
+import { useStore, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, TOC_MAX_WIDTH, type Heading, type RestoredDocument } from './store';
+import { LayoutView, findLeaf, isPx, type Layout, type PaneType } from '@lambda-house/workbench';
 import {
   scanDirectories,
   isTauri,
@@ -752,6 +752,56 @@ const App: React.FC = () => {
   
 
 
+  // ============================================================
+  // Documents: the side panels and the document on the workbench layout.
+  // The store keeps which left panel is shown and the widths (its rules for
+  // the left slot stay where they are); the layout is drawn from them, and
+  // what its handles change goes back through the same setters.
+  // ============================================================
+
+  const leftType = searchVisible ? 'search' : historyVisible ? 'history' : 'files';
+  const documentsLayout = useMemo<Layout>(() => ({
+    version: 1,
+    root: {
+      kind: 'split', id: 'documents', dir: 'row',
+      children: [
+        { kind: 'leaf', id: 'left', pane: { type: leftType, key: 'left' }, collapsed: !leftPanelVisible },
+        { kind: 'leaf', id: 'main', pane: { type: 'documents', key: 'main' } },
+        { kind: 'leaf', id: 'right', pane: { type: 'contents', key: 'contents' }, collapsed: !tocVisible },
+      ],
+      sizes: [{ px: panelWidth }, { fr: 1 }, { px: tocWidth }],
+    },
+  }), [leftType, leftPanelVisible, tocVisible, panelWidth, tocWidth]);
+
+  const applyDocumentsLayout = useCallback((next: Layout) => {
+    const split = next.root.kind === 'split' ? next.root : null;
+    const width = (id: string) => {
+      const size = split?.sizes[split.children.findIndex((child) => child.id === id)];
+      return size && isPx(size) ? size.px : undefined;
+    };
+    const left = findLeaf(next.root, 'left');
+    const right = findLeaf(next.root, 'right');
+    if (left && !left.collapsed !== leftPanelVisible) setLeftPanelVisible(!left.collapsed);
+    if (right && !right.collapsed !== tocVisible) setTocVisible(!right.collapsed);
+    const leftWidth = width('left'), rightWidth = width('right');
+    if (leftWidth !== undefined && leftWidth !== panelWidth) setPanelWidth(leftWidth);
+    if (rightWidth !== undefined && rightWidth !== tocWidth) setTocWidth(rightWidth);
+  }, [leftPanelVisible, tocVisible, panelWidth, tocWidth, setLeftPanelVisible, setTocVisible, setPanelWidth, setTocWidth]);
+
+  const documentPanes = useMemo<Record<string, PaneType>>(() => {
+    const left = { collapsible: true, min: { w: PANEL_MIN_WIDTH }, max: { w: PANEL_MAX_WIDTH } };
+    return {
+      files: { type: 'files', label: 'file panel', ...left, render: () => <FilePanel width={panelWidth} onAddDirectory={handleAddDirectory} /> },
+      search: { type: 'search', label: 'search panel', ...left, render: () => <SearchPanel width={panelWidth} /> },
+      history: { type: 'history', label: 'history panel', ...left, render: () => <HistoryPanel width={panelWidth} /> },
+      documents: { type: 'documents', label: 'document', min: { w: 200 }, render: () => <DocumentPanel onHeadingsChange={handleHeadingsChange} /> },
+      contents: {
+        type: 'contents', label: 'table of contents', collapsible: true, min: { w: TOC_MIN_WIDTH }, max: { w: TOC_MAX_WIDTH },
+        render: () => <TocSidebar headings={headings} width={tocWidth} isVisible={tocVisible} onToggle={handleToggleToc} />,
+      },
+    };
+  }, [panelWidth, tocWidth, tocVisible, headings, handleAddDirectory, handleHeadingsChange, handleToggleToc]);
+
   return (
     <div className="app-container">
       <div className="workspace-surface" hidden={!sessionsVisible}>
@@ -775,47 +825,7 @@ const App: React.FC = () => {
       <UpdateBanner />
 
       <div className="main-content">
-        {searchVisible && <SearchPanel width={panelWidth} />}
-
-        {historyVisible && !searchVisible && <HistoryPanel width={panelWidth} />}
-
-        {filePanelVisible && !historyVisible && !searchVisible && (
-          <FilePanel
-            width={panelWidth}
-            onAddDirectory={handleAddDirectory}
-          />
-        )}
-
-        <Splitter
-          side="left"
-          width={panelWidth}
-          minWidth={PANEL_MIN_WIDTH}
-          visible={leftPanelVisible}
-          onWidthChange={setPanelWidth}
-          onVisibleChange={setLeftPanelVisible}
-          label={searchVisible ? 'search panel' : historyVisible ? 'history panel' : 'file panel'}
-        />
-
-        <DocumentPanel onHeadingsChange={handleHeadingsChange} />
-
-        <Splitter
-          side="right"
-          width={tocWidth}
-          minWidth={TOC_MIN_WIDTH}
-          visible={tocVisible}
-          onWidthChange={setTocWidth}
-          onVisibleChange={setTocVisible}
-          label="table of contents"
-        />
-
-        {tocVisible && (
-          <TocSidebar
-            headings={headings}
-            width={tocWidth}
-            isVisible={tocVisible}
-            onToggle={handleToggleToc}
-          />
-        )}
+        <LayoutView layout={documentsLayout} onChange={applyDocumentsLayout} paneTypes={documentPanes} />
       </div>
 
       <StatusBar />

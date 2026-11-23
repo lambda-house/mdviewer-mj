@@ -175,34 +175,44 @@
 .ui-dialog__actions { display: flex; gap: 12px; justify-content: flex-end; }
 
 /* ============================================================
-   Splitter: the separator of a side panel
+   SplitHandle: the separator between two panes
    ============================================================ */
 
-.ui-splitter {
-  flex: 0 0 auto; width: 4px; position: relative; z-index: 10;
-  cursor: col-resize; background: transparent; transition: background var(--dur-fast) ease-out;
+.ui-split-handle {
+  flex: 0 0 auto; position: relative; z-index: 10;
+  background: transparent; transition: background var(--dur-fast) ease-out;
 }
-.ui-splitter:hover,
-.ui-splitter.is-active { background: var(--accent-fill); }
-/* A wider grab area than the visible line */
-.ui-splitter::before { content: ''; position: absolute; top: 0; bottom: 0; left: -4px; right: -4px; }
-.ui-splitter.is-collapsed { background: var(--line-subtle); }
-.ui-splitter.is-collapsed::before { left: 0; right: 0; }
-.ui-splitter--left.is-collapsed::before { right: -8px; }
-.ui-splitter--right.is-collapsed::before { left: -8px; }
-.ui-splitter.is-revealed { background: var(--accent-fill); }
-.ui-splitter:focus-visible { outline: 2px solid var(--focus); outline-offset: -1px; }
+.ui-split-handle--vertical { width: 4px; cursor: col-resize; }
+.ui-split-handle--horizontal { height: 4px; cursor: row-resize; }
+.ui-split-handle:hover,
+.ui-split-handle.is-active,
+.ui-split-handle.is-revealed { background: var(--accent-fill); }
+.ui-split-handle:focus-visible { outline: 2px solid var(--focus); outline-offset: -1px; }
 
-.ui-splitter__grip {
-  position: absolute; top: 50%; width: 14px; height: 48px; margin-top: -24px;
-  display: flex; align-items: center; justify-content: center;
+/* A wider grab area than the visible line; toward the open side only while collapsed */
+.ui-split-handle::before { content: ""; position: absolute; }
+.ui-split-handle--vertical::before { top: 0; bottom: 0; left: -4px; right: -4px; }
+.ui-split-handle--horizontal::before { left: 0; right: 0; top: -4px; bottom: -4px; }
+.ui-split-handle--collapsed-before,
+.ui-split-handle--collapsed-after { background: var(--line-subtle); }
+.ui-split-handle--vertical.ui-split-handle--collapsed-before::before { left: 0; right: -8px; }
+.ui-split-handle--vertical.ui-split-handle--collapsed-after::before { left: -8px; right: 0; }
+.ui-split-handle--horizontal.ui-split-handle--collapsed-before::before { top: 0; bottom: -8px; }
+.ui-split-handle--horizontal.ui-split-handle--collapsed-after::before { top: -8px; bottom: 0; }
+
+.ui-split-handle__grip {
+  position: absolute; display: flex; align-items: center; justify-content: center;
   background: var(--surface-2); border: 1px solid var(--line); color: var(--text-muted); box-shadow: var(--shadow-md);
   opacity: 0; pointer-events: none;
   transition: opacity var(--dur-normal) ease-out, transform var(--dur-normal) ease-out;
 }
-.ui-splitter--left .ui-splitter__grip { left: 0; border-left: none; border-radius: 0 var(--r-md) var(--r-md) 0; transform: translateX(-100%); }
-.ui-splitter--right .ui-splitter__grip { right: 0; border-right: none; border-radius: var(--r-md) 0 0 var(--r-md); transform: translateX(100%); }
-.ui-splitter.is-revealed .ui-splitter__grip { opacity: 1; pointer-events: auto; cursor: pointer; transform: translateX(0); }
+.ui-split-handle--vertical .ui-split-handle__grip { top: 50%; width: 14px; height: 48px; margin-top: -24px; }
+.ui-split-handle--horizontal .ui-split-handle__grip { left: 50%; width: 48px; height: 14px; margin-left: -24px; }
+.ui-split-handle--vertical.ui-split-handle--collapsed-before .ui-split-handle__grip { left: 0; border-left: none; border-radius: 0 var(--r-md) var(--r-md) 0; transform: translateX(-100%); }
+.ui-split-handle--vertical.ui-split-handle--collapsed-after .ui-split-handle__grip { right: 0; border-right: none; border-radius: var(--r-md) 0 0 var(--r-md); transform: translateX(100%); }
+.ui-split-handle--horizontal.ui-split-handle--collapsed-before .ui-split-handle__grip { top: 0; border-top: none; border-radius: 0 0 var(--r-md) var(--r-md); transform: translateY(-100%); }
+.ui-split-handle--horizontal.ui-split-handle--collapsed-after .ui-split-handle__grip { bottom: 0; border-bottom: none; border-radius: var(--r-md) var(--r-md) 0 0; transform: translateY(100%); }
+.ui-split-handle.is-revealed .ui-split-handle__grip { opacity: 1; pointer-events: auto; cursor: pointer; transform: none; }
 
 /* ============================================================
    Segmented: Documents | Sessions, Files | Agents

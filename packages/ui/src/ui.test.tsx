@@ -2,7 +2,7 @@
 import { act, createRef, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Button, ConfirmDialog, EmptyState, Menu, PaneFrame, Segmented, Splitter, Tabs, ACTION_BUTTON_FIRST } from './index';
+import { Button, ConfirmDialog, EmptyState, Menu, PaneFrame, Segmented, SplitHandle, Tabs, ACTION_BUTTON_FIRST } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -178,26 +178,37 @@ describe('ConfirmDialog', () => {
   });
 });
 
-describe('Splitter', () => {
-  it('hides the panel when dragged below half its minimum, shows it on a click', () => {
-    const onWidthChange = vi.fn();
-    const onVisibleChange = vi.fn();
-    render(<Splitter side="left" width={280} minWidth={200} visible onWidthChange={onWidthChange} onVisibleChange={onVisibleChange} label="file panel" />);
-    const splitter = document.querySelector<HTMLElement>('[role="separator"]')!;
-    act(() => { splitter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 280 })); });
+describe('SplitHandle', () => {
+  it('reports the drag from its start, steps on arrow keys and toggles on Enter and double-click', () => {
+    const onDrag = vi.fn(), onStep = vi.fn(), onToggle = vi.fn(), onDragEnd = vi.fn();
+    render(<SplitHandle orientation="vertical" onDrag={onDrag} onDragEnd={onDragEnd} onStep={onStep} onToggle={onToggle} label="file panel" />);
+    const handle = document.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(handle.getAttribute('aria-orientation')).toBe('vertical');
+    act(() => { handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 280 })); });
     act(() => { document.dispatchEvent(new MouseEvent('mousemove', { clientX: 300 })); });
-    expect(onWidthChange).toHaveBeenLastCalledWith(300);
-    act(() => { document.dispatchEvent(new MouseEvent('mousemove', { clientX: 90 })); });
-    expect(onVisibleChange).toHaveBeenLastCalledWith(false);
+    act(() => { document.dispatchEvent(new MouseEvent('mousemove', { clientX: 250 })); });
+    expect(onDrag.mock.calls.map((c) => c[0])).toEqual([20, -30]);
     act(() => { document.dispatchEvent(new MouseEvent('mouseup', {})); });
+    expect(onDragEnd).toHaveBeenCalledTimes(1);
+    key(handle, 'ArrowLeft');
+    key(handle, 'ArrowRight', { shiftKey: true });
+    expect(onStep.mock.calls.map((c) => c[0])).toEqual([-16, 64]);
+    key(handle, 'Enter');
+    act(() => { handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+    expect(onToggle).toHaveBeenCalledTimes(2);
+  });
 
-    onVisibleChange.mockClear();
-    render(<Splitter side="left" width={280} minWidth={200} visible={false} onWidthChange={onWidthChange} onVisibleChange={onVisibleChange} label="file panel" />);
-    const hidden = document.querySelector<HTMLElement>('[role="separator"]')!;
-    act(() => { hidden.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0 })); });
+  it('next to a collapsed panel, shows it on a click and draws a grip toward it', () => {
+    const onToggle = vi.fn();
+    render(<SplitHandle orientation="horizontal" collapsed="after" onDrag={() => {}} onToggle={onToggle} label="terminal" />);
+    const handle = document.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(handle.className).toContain('ui-split-handle--collapsed-after');
+    expect(handle.getAttribute('aria-expanded')).toBe('false');
+    expect(handle.querySelector('.ui-split-handle__grip')).not.toBeNull();
+    act(() => { handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientY: 0 })); });
     act(() => { document.dispatchEvent(new MouseEvent('mouseup', {})); });
-    act(() => hidden.click());
-    expect(onVisibleChange).toHaveBeenCalledWith(true);
+    act(() => handle.click());
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });
 

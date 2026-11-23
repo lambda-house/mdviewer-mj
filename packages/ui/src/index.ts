@@ -7,7 +7,7 @@ export { PLATFORM, ACTION_BUTTON_FIRST, type Platform } from './platform';
 export { Button, type ButtonProps } from './Button';
 export { Kbd, Badge, Notice, SettingRow, DescList, StatusDot, ScrollArea, EmptyState } from './display';
 export { Dialog, ConfirmDialog, type DialogProps, type ConfirmDialogProps } from './Dialog';
-export { Splitter, type SplitterProps } from './Splitter';
+export { SplitHandle, HANDLE_STEP, type SplitHandleProps } from './SplitHandle';
 export { Segmented, type SegmentedOption, type SegmentedProps } from './Segmented';
 export { Tabs, type TabItem, type TabsProps } from './Tabs';
 export { Menu, type MenuItem, type MenuProps } from './Menu';
