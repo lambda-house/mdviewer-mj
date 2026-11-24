@@ -5,7 +5,7 @@ import { activeTabOf, focusedGroupOf } from '@lambda-house/reader';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ColorTheme } from '@lambda-house/reader';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
-import type { AgentEntry, UpdateInfo } from '../utils/tauri';
+import type { UpdateInfo } from '../utils/tauri';
 import { documentWindowPath, documentWindowStorage } from '../utils/documentWindow';
 import { stepPaneZoom, type LayoutNode } from '@lambda-house/workbench';
 import {
@@ -115,8 +115,6 @@ export interface AppState {
 
   // Whether the global agent files root is shown in the Files panel.
   agentVisible: boolean;
-  /** Agent files from the last scan; empty while the workspace is off. */
-  agentEntries: AgentEntry[];
 
   // Workspaces
   workspaces: Workspace[];
@@ -174,7 +172,6 @@ export interface AppState {
   toggleHistoryVisible: () => void;
   setAgentVisible: (visible: boolean) => void;
   toggleAgentVisible: () => void;
-  setAgentEntries: (entries: AgentEntry[]) => void;
 
   // Workspaces
   /** Save the current folders and tabs under `name` (replacing one of that name). */
@@ -238,7 +235,6 @@ export const useStore = create<AppState>()(
 
       // History
       agentVisible: true,
-      agentEntries: [],
       workspaces: [],
       activeWorkspace: null,
       searchQuery: '',
@@ -375,7 +371,6 @@ export const useStore = create<AppState>()(
         get().setAgentVisible(!state.agentVisible || !isPaneShown(state.documentsLayout, 'files'));
       },
 
-      setAgentEntries: (entries) => set({ agentEntries: entries }),
 
 
       // Workspaces

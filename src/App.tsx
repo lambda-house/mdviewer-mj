@@ -3,8 +3,9 @@ import { Activity } from 'lucide-react';
 import { useStore } from './store';
 import { useReader } from './reader';
 import { reader } from './readerHost';
-import { allTabs, flushEditorChanges, getFileName, readerPlugin, reloadChangedDocuments } from '@lambda-house/reader';
+import { flushEditorChanges, getFileName, readerPlugin, reloadChangedDocuments } from '@lambda-house/reader';
 import { journalPlugin } from '@lambda-house/journal';
+import { agentsPlugin } from '@lambda-house/agents';
 import { Workbench } from '@lambda-house/workbench';
 import {
   scanDirectories,
@@ -16,12 +17,11 @@ import {
   onOpenPaths,
   onMenuCommand,
   checkForUpdate,
-  onAgentFilesChanged,
   onWindowCloseRequested,
 } from './utils/tauri';
 import { appMenu, buildMenu, commandContext, useCommandContext } from './utils/commands';
-import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import { journal } from './journal';
+import { agents } from './agents';
 import { documentWindowPath } from './utils/documentWindow';
 import { registry } from './workbench';
 import { NO_DOCUMENT, documentsPlugin, zoomOf } from './documents';
@@ -29,18 +29,14 @@ import { openPaths } from './opening';
 
 // ============================================================
 // MDViewer's window: the Workbench of its plugins (shared UI spec §3.3), the
-// reader's, the journal's and MDViewer's own (documents.tsx), and what the
-// window does through Tauri: scanning and watching the opened folders,
-// agent files, drops and launch paths, the update check. A memory window has
-// Documents only, and its one document.
+// reader's, the journal's, the agent documents' and MDViewer's own
+// (documents.tsx), and what the window does through Tauri: scanning and
+// watching the opened folders, drops and launch paths, the update check. A
+// memory window has Documents only, and its one document.
 // ============================================================
 
 /** Quiet time after the last file change event before the tree is rescanned. */
 const RESCAN_DEBOUNCE = 300;
-/** Quiet time after the last agent file change before agent files are rescanned. */
-const AGENT_CHANGE_DEBOUNCE = 500;
-/** How often agent files are rescanned when they can't be watched (ms). */
-const AGENT_POLL_INTERVAL = 10000;
 
 registry.register(readerPlugin(reader, {
   empty: NO_DOCUMENT,
@@ -55,6 +51,12 @@ if (!documentWindowPath) {
     surface: { id: 'journal', label: 'Journal', icon: <Activity size={13} />, order: 20, tools: { refresh: true, memories: true, agentAccess: true } },
   }));
 }
+// Agent files are watched while the global root is on or one is open; the opened folders
+// ask for a scan too, since the backend lists (and watches) the agent files in them
+registry.register(agentsPlugin(agents, {
+  useWatched: (open) => useStore((s) => s.agentVisible) || open,
+  useScanKey: () => useStore((s) => s.directories.join('\n')),
+}));
 registry.register(documentsPlugin);
 
 // The commands, with their shortcuts, are in utils/commands.ts; the main
@@ -74,10 +76,6 @@ const App: React.FC = () => {
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
-  const agentVisible = useStore((s) => s.agentVisible);
-  const agentEntries = useStore((s) => s.agentEntries);
-  const hasAgentTabs = useReader((s) => allTabs(s).some((t) => agentEntries.some((e) => e.path === t.path)));
-  const openedDirectories = useStore((s) => s.directories);
   const setFiles = useStore((s) => s.setFiles);
   const showTextFiles = useStore((s) => s.showTextFiles);
   const sessionRestored = useReader((s) => s.sessionRestored);
@@ -197,42 +195,6 @@ const App: React.FC = () => {
       }
     };
   }, [setFiles]);
-
-  // Agent files change while agents work: rescan while the global root or an
-  // agent file is open, when the backend reports a change and when the window
-  // gets focus. Each scan also makes the backend watch newly opened folders.
-  useEffect(() => {
-    if (!isTauri() || documentWindowPath) return;
-    if (!agentVisible && !hasAgentTabs) {
-      // Still learn which documents are agent files (for "what changed")
-      refreshAgentWorkspace().catch(() => {});
-      return;
-    }
-    const refresh = () => {
-      if (document.visibilityState === 'visible') {
-        refreshAgentWorkspace().catch((error) => console.error('Failed to refresh agent files:', error));
-      }
-    };
-    refresh();
-    // An agent writes several files in a row: rescan once they pause
-    let debounce: ReturnType<typeof setTimeout> | undefined;
-    const scheduleRefresh = () => {
-      clearTimeout(debounce);
-      debounce = setTimeout(refresh, AGENT_CHANGE_DEBOUNCE);
-    };
-    const unlisten = onAgentFilesChanged(scheduleRefresh);
-    // The watcher couldn't start: poll instead
-    const poll = setInterval(() => {
-      if (!agentFilesWatched()) refresh();
-    }, AGENT_POLL_INTERVAL);
-    window.addEventListener('focus', refresh);
-    return () => {
-      clearTimeout(debounce);
-      clearInterval(poll);
-      unlisten.then((fn) => fn()).catch(() => {});
-      window.removeEventListener('focus', refresh);
-    };
-  }, [agentVisible, hasAgentTabs, openedDirectories]);
 
   // Rescan when the "show text files" setting changes (not on startup - the
   // directories are scanned once above)

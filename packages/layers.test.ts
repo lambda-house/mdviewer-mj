@@ -21,6 +21,8 @@ const RANK: Record<string, number> = {
   workbench: 2,
   reader: 3,
   journal: 3,
+  // Builds on the reader: an agent document opens in it, its reads feed "what changed"
+  agents: 4,
 };
 
 const VIEW = ['react', 'react-dom', 'lucide-react', 'clsx'];
@@ -32,6 +34,7 @@ const EXTERNAL: Record<string, string[]> = {
   workbench: [...VIEW, 'zustand'],
   reader: [...VIEW, 'zustand', 'markdown-it', 'shiki', 'mermaid', 'codemirror', '@codemirror/*', '@lezer/*'],
   journal: [...VIEW, 'zustand'],
+  agents: [...VIEW, 'zustand'],
 };
 
 /** Test files may also use the test runner and Node. */

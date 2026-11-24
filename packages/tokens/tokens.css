@@ -57,6 +57,8 @@
   --cat-green: #91d6b3;
   --cat-tan: #d3aa8d;
   --cat-orange: #f08a4b;
+  /* A folder's icon in the file trees and the agent documents' folders */
+  --folder-color: #dcb67a;
 
   /* Spacing */
   --sp-1: 4px;
@@ -102,6 +104,9 @@
   --titlebar-height: 39px;
   --tab-bar-height: 30px;
   --status-bar-height: 28px;
+  /* A side panel's width (Files, the agent documents) */
+  --panel-min-width: 200px;
+  --panel-max-width: 400px;
 }
 
 :root[data-theme='light'] {
@@ -147,6 +152,7 @@
   --cat-green: #216d47;
   --cat-tan: #8a5a3c;
   --cat-orange: #b5530f;
+  --folder-color: #c29a4a;
 
   --scrollbar-thumb: #c4c4c4;
   --scrollbar-thumb-hover: #a8a8a8;

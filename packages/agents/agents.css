@@ -1,0 +1,317 @@
+/* ============================================================
+   @lambda-house/agents: the documents coding agents read and write
+   ============================================================
+   Every style of the agent documents list (AgentList) and its pane
+   (AgentPane). Colours, spacing and type come from the tokens. */
+
+/* AgentPane: a side pane of its own, its tree scrolling under the header */
+.agents-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-right: 1px solid var(--line-subtle);
+  overflow: hidden;
+  min-width: var(--panel-min-width);
+  max-width: var(--panel-max-width);
+}
+
+.agents-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0;
+}
+
+/* AgentList: the introduction, the filter, the sections and their items */
+.agent-panel-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 16px;
+  color: var(--text-muted);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+}
+
+.agent-panel-intro svg {
+  color: var(--accent);
+}
+
+.agent-panel-intro p {
+  margin: 0;
+}
+
+.agent-panel-intro code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  color: var(--text);
+}
+
+.agent-panel-intro-detail {
+  color: var(--text-faint);
+}
+
+.agent-panel-enable {
+  margin-top: 4px;
+  padding: 5px 12px;
+  background: var(--input);
+  border: 1px solid var(--accent-fill);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-12);
+  cursor: pointer;
+  transition: all var(--dur-fast) ease-out;
+}
+
+.agent-panel-enable:hover {
+  background: var(--hover);
+}
+
+.agent-panel-filter {
+  position: relative;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.agent-panel-filter input {
+  width: 100%;
+  height: 24px;
+  padding: 0 8px 0 26px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+.agent-panel-filter input::placeholder {
+  color: var(--text-faint);
+}
+
+.agent-panel-filter input:focus {
+  border-color: var(--accent-fill);
+  outline: none;
+}
+
+.agent-panel-filter-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.agent-panel-content {
+  padding: 4px 0 12px;
+}
+
+.agent-panel-empty {
+  padding: 12px 16px;
+  color: var(--text-faint);
+  font-size: var(--fs-12);
+}
+
+.agent-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-section-header:hover {
+  color: var(--text);
+}
+
+.agent-section-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-section-count {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+.agent-group-title {
+  padding: 4px 12px 2px 26px;
+  color: var(--text-faint);
+  font-size: var(--fs-11);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-item {
+  padding: 4px 12px 4px 26px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.agent-item:hover {
+  background: var(--hover);
+}
+
+.agent-item.selected {
+  background: var(--selected);
+  border-left-color: var(--accent-fill);
+}
+
+.agent-item:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.agent-item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-item-dot {
+  width: 6px;
+  height: 6px;
+  margin-left: -12px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.agent-item.unread .agent-item-dot {
+  background: var(--accent);
+}
+
+.agent-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+.agent-item.unread .agent-item-title {
+  font-weight: 600;
+}
+
+.agent-item-status {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: var(--r-sm);
+  background: var(--pressed);
+  color: var(--accent);
+  font-size: var(--fs-11);
+}
+
+.agent-item-age {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-11);
+}
+
+.agent-item-group {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: var(--fs-11);
+}
+
+.agent-item-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: var(--fs-11);
+  line-height: 1.4;
+}
+
+/* A session folder (Agent MCR): its header sticks while its documents scroll */
+.agent-folder {
+  margin-bottom: 4px;
+}
+
+.agent-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  text-align: left;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--dur-fast) ease-out;
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  background: var(--surface-1);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.agent-folder-header:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.agent-folder-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform var(--dur-fast) ease-out;
+}
+
+.agent-folder-expand.expanded {
+  transform: rotate(90deg);
+}
+
+.agent-folder-icon {
+  color: var(--folder-color);
+  flex-shrink: 0;
+}
+
+.agent-folder-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
+.agent-folder .agent-group {
+  padding-left: 14px;
+}
+
+/* The documents of no session folder, after the folders */
+.agent-user-title {
+  margin: 10px 0 2px;
+  padding: 6px 12px 2px;
+  border-top: 1px solid var(--line-subtle);
+  color: var(--text-faint);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

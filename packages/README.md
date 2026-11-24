@@ -9,10 +9,11 @@ Frontend code shared by MDViewer (`lambda-house/mdviewer-mj`) and Agent MCR (`la
 | `workbench` (`@lambda-house/workbench`) | 2 | Window shell and its tool buttons, layout tree, panes, commands (the window's own too), palette, settings, status bar, plugins, the `Workbench` an app assembles | phases 3–4, 7–9 |
 | `reader` (`@lambda-house/reader`) | 3 | Markdown reader and editor, its contents pane, toolbar zoom and styles, `readerPlugin` | phases 5, 8–9 |
 | `journal` (`@lambda-house/journal`) | 3 | Index of past agent sessions, `journalPlugin` | phases 6, 8 |
+| `agents` (`@lambda-house/agents`) | 4 | The documents coding agents read and write: their list (`AgentList`) and pane (`AgentPane`), `agentsPlugin` that keeps them scanned, their reads for the reader's "what changed". Builds on the reader | phase 9 |
 
 ## Rules
 
-- A package imports only packages of a lower layer, its own files and the libraries listed for it in `layers.test.ts`. Never an app's `src/`, the `@/` alias, `@tauri-apps/*` or an app store. `reader` and `journal` don't import each other.
+- A package imports only packages of a lower layer, its own files and the libraries listed for it in `layers.test.ts`. Never an app's `src/`, the `@/` alias, `@tauri-apps/*` or an app store. `reader` and `journal` don't import each other; `agents` builds on `reader` (an agent document opens in it).
 - What a package needs from the app (files, dialogs, links, storage) comes through a host interface that the app passes in.
 - External libraries are `peerDependencies` of the package; the app installs them, so there is one copy of React.
 - `layers.test.ts` checks every import and every `package.json`, and runs with `npm test`. `tsc -p packages`, part of `npm run build`, type-checks the packages without the app's `@/` alias.
