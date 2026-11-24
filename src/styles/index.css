@@ -1,11 +1,10 @@
 /* ============================================================
-   MDViewer - Main Stylesheet
-   IntelliJ IDEA Dark Theme
+   MDViewer's own styles. The shared ones are the packages': the tokens, the
+   controls and the elements' base look (ui.css), the window (workbench.css),
+   the reader's and the journal's, all loaded before this file.
    ============================================================ */
 
-/* CSS Variables - Theme (dark is the default, light overrides below) */
-/* Shared colours, sizes and type come from @lambda-house/tokens and the document's (syntax colours,
-   type sizes, find matches) from @lambda-house/reader, both loaded before this file; these variables are this app's own. */
+/* This app's own variables (dark by default, light below) */
 :root {
   --folder-color: #dcb67a;
   --drop-overlay-bg: rgba(30, 30, 30, 0.7);

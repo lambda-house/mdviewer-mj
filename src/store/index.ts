@@ -173,7 +173,7 @@ export interface AppState {
   setAvailableUpdate: (update: UpdateInfo | null) => void;
 
   // Appearance
-  setTheme: (theme: 'dark' | 'light') => void;
+  setTheme: (theme: ColorTheme) => void;
 
   // History
   setHistoryVisible: (visible: boolean) => void;

@@ -4,7 +4,8 @@
 // Part 2: the reader store (createReaderStore: documents, groups, settings).
 // Part 3: document groups side by side (DocumentGroups). Phase 8: the contents
 // pane (Contents), and every style of the reader in ../reader.css. Phase 9: the
-// toolbar's zoom (DocumentZoom), asking before a window with unsaved edits closes.
+// toolbar's zoom and document tools (DocumentZoom, DocumentTools), asking before
+// a window with unsaved edits closes.
 
 export * from './types';
 export * from './files';
@@ -24,6 +25,7 @@ export { DocumentGroups } from './DocumentGroups';
 export { Contents, CONTENTS_MIN_WIDTH, CONTENTS_MAX_WIDTH, CONTENTS_WIDTH, type ContentsProps } from './Contents';
 export { DocumentStatus, truncatePath } from './DocumentStatus';
 export { DocumentZoom } from './DocumentZoom';
+export { DocumentTools } from './DocumentTools';
 export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
 export { SearchOptionToggles } from './FindBar';
 export { readerCommands, selectedText, type ReaderCommands } from './commands';

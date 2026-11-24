@@ -3,7 +3,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PluginRegistry, Workbench } from '@lambda-house/workbench';
-import { allTabs, createReaderStore, focusedGroupOf, readerCommands, readerPlugin, reloadChangedDocuments, type Reader, type ReaderPluginOptions } from './index';
+import {
+  DocumentTools, DocumentZoom, ReaderProvider, allTabs, createReaderStore, focusedGroupOf, readerCommands, readerPlugin, reloadChangedDocuments,
+  type Reader, type ReaderPluginOptions,
+} from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -167,5 +170,28 @@ describe('the reader beside the plugin', () => {
     expect(state().documents['/x/a.md'].content).toBe('a, changed');
     expect(state().documents['/x/b.md'].content).toBe('b, edited');
     expect(reader.host.readFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the toolbar’s document tools', () => {
+  it('edits the document, exports it only while there is one, and shows and changes the focused group’s zoom', () => {
+    const reader = fakeReader();
+    act(() => root.render(<ReaderProvider reader={reader}><DocumentTools /><DocumentZoom /></ReaderProvider>));
+    const [edit, exportHtml] = [...host.querySelectorAll<HTMLButtonElement>('button.wb-tool')];
+    expect(exportHtml.disabled).toBe(true);
+    act(() => { reader.store.getState().openDocument('/a.md', '# A'); });
+    expect(exportHtml.disabled).toBe(false);
+    act(() => edit.click());
+    expect(reader.store.getState().editMode).toBe(true);
+    expect(edit.className).toBe('wb-tool active');
+
+    const zoom = host.querySelector<HTMLElement>('.zoom-control')!;
+    expect(zoom.textContent).toBe('100%');
+    act(() => { reader.store.getState().zoomIn(); });
+    expect(zoom.textContent).toBe(`${focusedGroupOf(reader.store.getState()).zoom}%`);
+    // Opened, its reset goes back to 100 %
+    act(() => zoom.click());
+    act(() => host.querySelector<HTMLButtonElement>('.zoom-reset-button')!.click());
+    expect(focusedGroupOf(reader.store.getState()).zoom).toBe(100);
   });
 });

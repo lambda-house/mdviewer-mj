@@ -1,9 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
   FolderPlus,
   Search,
-  Edit3,
-  Download,
   PanelLeft,
   List,
   History,
@@ -11,9 +9,7 @@ import {
   FileSearch,
 } from 'lucide-react';
 import { useStore, panelShown } from '../store';
-import { useReader } from '../reader';
-import { reader } from '../readerHost';
-import { DocumentZoom, activeTabOf, exportActiveDocument, focusedGroupOf } from '@lambda-house/reader';
+import { DocumentTools, DocumentZoom } from '@lambda-house/reader';
 import clsx from 'clsx';
 import { ShellTools } from '@lambda-house/workbench';
 import WorkspaceMenu from './WorkspaceMenu';
@@ -51,10 +47,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const filterQuery = useStore((s) => s.filterQuery);
   const setFilterQuery = useStore((s) => s.setFilterQuery);
-  const activeTab = useReader((s) => activeTabOf(focusedGroupOf(s)));
-  const editMode = useReader((s) => s.editMode);
-  const toggleEditMode = useReader((s) => s.toggleEditMode);
-  const [isExporting, setIsExporting] = useState(false);
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setFilterQuery(e.target.value);
@@ -63,15 +55,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const handleToggleToc = useCallback(() => {
     toggleTocVisible();
   }, [toggleTocVisible]);
-
-  const handleExportHtml = useCallback(async () => {
-    setIsExporting(true);
-    try {
-      await exportActiveDocument(reader, 'html');
-    } finally {
-      setIsExporting(false);
-    }
-  }, []);
 
   return (
     <>
@@ -111,21 +94,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       
       {/* Center Section */}
       <div className="wb-tool-group">
-        <button
-          className={clsx('wb-tool', editMode && 'active')}
-          onClick={toggleEditMode}
-          title={editMode ? 'Close editor (Ctrl+E)' : 'Edit document (Ctrl+E)'}
-        >
-          <Edit3 size={16} />
-        </button>
-        <button
-          className={clsx('wb-tool', isExporting && 'active')}
-          onClick={handleExportHtml}
-          disabled={!activeTab || isExporting}
-          title={activeTab ? 'Export as HTML' : 'No document to export'}
-        >
-          <Download size={16} />
-        </button>
+        <DocumentTools />
         <button
           className={clsx('wb-tool', searchVisible && 'active')}
           onClick={onToggleSearch}
