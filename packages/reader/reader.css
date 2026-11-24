@@ -447,16 +447,6 @@
   border-radius: var(--r-md);
 }
 
-/* Task Lists */
-.markdown-body .task-list-item {
-  list-style: none;
-  margin-left: -1.5em;
-}
-
-.markdown-body .task-list-item input[type="checkbox"] {
-  margin-right: 0.5em;
-}
-
 /* Mermaid Diagrams */
 .mermaid-container {
   position: relative;
@@ -900,17 +890,6 @@
 .shiki .line {
   display: inline-block;
   width: 100%;
-}
-
-/* Line numbers (optional) */
-.shiki.line-numbers .line::before {
-  counter-increment: line;
-  content: counter(line);
-  display: inline-block;
-  width: 2em;
-  margin-right: 1em;
-  text-align: right;
-  color: var(--text-faint);
 }
 
 /* ============================================================

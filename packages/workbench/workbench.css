@@ -698,14 +698,6 @@
   gap: 12px;
 }
 
-.settings-modal .settings-card-title {
-  margin: 0;
-  font-size: var(--fs-12);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--text);
-}
-
 /* Toggle Switch */
 .settings-modal .settings-toggle {
   position: relative;
@@ -842,25 +834,3 @@
   line-height: 1.45;
   color: var(--text-muted);
 }
-
-/* Connections fields */
-.settings-modal .settings-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.settings-modal .settings-field-label {
-  font-size: var(--fs-12);
-  font-weight: 500;
-  color: var(--text);
-}
-
-.settings-modal .settings-actions-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Embedded session panels (User memories & Agent access) */

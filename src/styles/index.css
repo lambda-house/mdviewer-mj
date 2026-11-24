@@ -635,28 +635,6 @@ a:hover {
 }
 
 /* ============================================================
-   Utility Classes
-   ============================================================ */
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ============================================================
    Modal Styles
    ============================================================ */
 
@@ -777,10 +755,6 @@ a:hover {
   font-weight: 500;
   transition: all var(--dur-fast) ease-out;
 }
-
-/* Settings Option Row */
-/* Toggle Switch */
-/* Language Aliases */
 
 .settings-add-btn:hover {
   background: var(--hover);
@@ -1175,34 +1149,6 @@ a:hover {
 /* ============================================================
    Agent Panel
    ============================================================ */
-
-.agent-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-1);
-  border-right: 1px solid var(--line-subtle);
-  overflow: hidden;
-  min-width: var(--panel-min-width);
-  max-width: var(--panel-max-width);
-}
-
-.agent-panel-header {
-  height: 40px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-.agent-panel-title {
-  font-size: var(--fs-12);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-}
 
 .agent-panel-actions {
   display: flex;
