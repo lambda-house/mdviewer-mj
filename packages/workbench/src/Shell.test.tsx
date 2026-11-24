@@ -126,8 +126,8 @@ describe('Shell', () => {
 
   describe('status bar', () => {
     const withStatus: ShellSurface[] = [
-      { id: 'documents', label: 'Documents', render: () => <ShellStatus><StatusItem>readme.md</StatusItem><StatusItem>2 KB</StatusItem></ShellStatus> },
-      { id: 'sessions', label: 'Sessions', render: () => <ShellStatus side="end"><StatusItem onClick={() => {}}>Revoke</StatusItem></ShellStatus> },
+      { id: 'documents', label: 'Documents', render: () => <ShellStatus id="document"><StatusItem>readme.md</StatusItem><StatusItem>2 KB</StatusItem></ShellStatus> },
+      { id: 'sessions', label: 'Sessions', render: () => <ShellStatus id="access" side="end"><StatusItem onClick={() => {}}>Revoke</StatusItem></ShellStatus> },
       { id: 'empty', label: 'Empty', render: () => <p /> },
     ];
     const onPinnedChange = vi.fn();
@@ -146,6 +146,30 @@ describe('Shell', () => {
       show('empty');
       expect(texts()).toEqual([]);
       expect(status().classList.contains('is-empty')).toBe(true);
+    });
+
+    it('sorts what is in it by order, not by the order it rendered', () => {
+      function Items({ late }: { late: boolean }) {
+        return (
+          <>
+            <ShellStatus id="path" order={50}><StatusItem>readme.md</StatusItem></ShellStatus>
+            <ShellStatus id="words"><StatusItem>120 words</StatusItem><StatusItem>1 min</StatusItem></ShellStatus>
+            {late && <ShellStatus id="index" order={10}><StatusItem>Index ready</StatusItem></ShellStatus>}
+            <ShellStatus id="size"><StatusItem>2 KB</StatusItem></ShellStatus>
+          </>
+        );
+      }
+      const draw = (late: boolean) => act(() => root.render(
+        <Shell surfaces={[{ id: 'documents', label: 'Documents', render: () => <Items late={late} /> }]} active="documents" onActivate={() => {}} status={{ pinned: true, onPinnedChange }} />,
+      ));
+      draw(false);
+      expect(texts()).toEqual(['readme.md', '120 words', '1 min', '2 KB']);
+      // One that comes later with a lower order goes before; the same order keeps the order they came in
+      draw(true);
+      expect(texts()).toEqual(['Index ready', 'readme.md', '120 words', '1 min', '2 KB']);
+      expect([...status().querySelectorAll<HTMLElement>('.wb-status__slot')].map((slot) => slot.dataset.status)).toEqual(['index', 'path', 'words', 'size']);
+      draw(false);
+      expect(texts()).toEqual(['readme.md', '120 words', '1 min', '2 KB']);
     });
 
     it('is pinned by the app', () => {

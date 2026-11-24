@@ -27,6 +27,33 @@ export interface PaletteItem {
   run: () => void;
 }
 
+/** What a provider found for the query. */
+export interface PaletteResults {
+  items: PaletteItem[];
+  /** Under the search field: the provider's filters. */
+  toolbar?: ReactNode;
+}
+
+/**
+ * A source of the palette's items (shared UI spec §5.5): the commands, open
+ * tabs, files, sessions. Its items name their groups; the groups follow the
+ * providers' order.
+ */
+export interface PaletteProvider {
+  id: string;
+  /** Its items come before those of higher ones: lower first, 100 by default (the commands are last, 1000). */
+  order?: number;
+  /** Only while this surface is shown, as a command with a surface. */
+  surface?: string;
+  /**
+   * What it finds for the query: a hook, called while the palette is open,
+   * so its data may come from stores or be fetched when the palette opens.
+   */
+  useResults: (query: string) => PaletteResults;
+  /** The palette shows a side panel with the selected item's preview; `empty` is the panel while nothing is selected. */
+  preview?: { empty?: ReactNode };
+}
+
 export interface PaletteProps {
   open: boolean;
   onClose: () => void;
@@ -227,6 +254,46 @@ export function Palette({
   );
 }
 
+export interface ProviderPaletteProps {
+  /** The providers, in their order. */
+  providers: PaletteProvider[];
+  onClose: () => void;
+  label?: string;
+  placeholder?: string;
+}
+
+/**
+ * The palette of what providers find, drawn while it is open: their items in
+ * the providers' order, their filters under the search field, a preview
+ * panel when one of them has previews. Each opening starts with an empty
+ * query.
+ */
+export function ProviderPalette({ providers, ...props }: ProviderPaletteProps) {
+  // Their hooks run in a list: a new list is a new palette, so the hooks of one never change
+  return <ProviderResults key={providers.map((provider) => provider.id).join('\n')} providers={providers} {...props} />;
+}
+
+function ProviderResults({ providers, onClose, label, placeholder }: ProviderPaletteProps) {
+  const [query, setQuery] = useState('');
+  const results = providers.map((provider) => provider.useResults(query));
+  const toolbars = results.flatMap((result, i) => (result.toolbar ? [<Fragment key={providers[i].id}>{result.toolbar}</Fragment>] : []));
+  const preview = providers.find((provider) => provider.preview)?.preview;
+  return (
+    <Palette
+      open
+      onClose={onClose}
+      query={query}
+      onQueryChange={setQuery}
+      items={results.flatMap((result) => result.items)}
+      label={label}
+      placeholder={placeholder}
+      toolbar={toolbars.length > 0 ? toolbars : undefined}
+      showPreview={!!preview}
+      emptyPreview={preview?.empty}
+    />
+  );
+}
+
 /** Whether every word of the query is in one of the texts (case-insensitive). */
 export function matchesQuery(query: string, ...texts: Array<string | undefined>): boolean {
   const haystack = texts.filter(Boolean).join(' ').toLowerCase();
@@ -249,4 +316,13 @@ export function commandItems<C>(menu: MenuItem<C>[], context: C, query: string, 
       shortcut: command.shortcut ? formatShortcut(command.shortcut) : undefined,
       run: command.run,
     }));
+}
+
+/** The menu's commands as a provider, last in the palette: what they read now, on the shown surface. */
+export function commandProvider<C>(menu: MenuItem<C>[], context: () => C, surface?: string): PaletteProvider {
+  return {
+    id: 'workbench:commands',
+    order: 1000,
+    useResults: (query) => ({ items: commandItems(menu, context(), query, 'Commands', surface) }),
+  };
 }

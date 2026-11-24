@@ -24,7 +24,7 @@ import { journal } from './journal';
 import { agents } from './agents';
 import { documentWindowPath } from './utils/documentWindow';
 import { registry } from './workbench';
-import { NO_DOCUMENT, documentsPlugin, zoomOf } from './documents';
+import { NO_DOCUMENT, documentsPlugin, showDocuments, zoomOf } from './documents';
 import { openPaths } from './opening';
 
 // ============================================================
@@ -45,6 +45,8 @@ registry.register(readerPlugin(reader, {
   restore: isTauri() && !documentWindowPath,
   windowDocument: documentWindowPath,
   confirmClose: { name: 'MDViewer', onCloseRequested: onWindowCloseRequested },
+  // The palette lists them first; one chosen on the Journal is shown on Documents
+  openTabs: { show: showDocuments },
 }));
 if (!documentWindowPath) {
   registry.register(journalPlugin(journal, {
@@ -60,11 +62,10 @@ registry.register(agentsPlugin(agents, {
 registry.register(documentsPlugin);
 
 // The commands, with their shortcuts, are in utils/commands.ts; the main
-// menu, the keys, the native menu and the palette all read this one list
+// menu, the keys, the native menu and the palette (after the open tabs and
+// the files) all read this one list
 const menu = buildMenu();
 appMenu.set(menu);
-
-const openPalette = () => useStore.getState().setPaletteOpen(true);
 
 const App: React.FC = () => {
   // The shown surface is the store's: commands of the other one wait
@@ -74,6 +75,8 @@ const App: React.FC = () => {
   const setStatusBarPinned = useStore((s) => s.setStatusBarPinned);
   const settingsOpen = useStore((s) => s.settingsOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+  const paletteOpen = useStore((s) => s.paletteOpen);
+  const setPaletteOpen = useStore((s) => s.setPaletteOpen);
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
   const setFiles = useStore((s) => s.setFiles);
@@ -277,7 +280,7 @@ const App: React.FC = () => {
       onMenuOpen={flushEditorChanges}
       nativeMenu={onMenuCommand}
       status={{ pinned: statusBarPinned, onPinnedChange: setStatusBarPinned }}
-      palette={{ open: openPalette }}
+      palette={{ open: paletteOpen, onOpenChange: setPaletteOpen, placeholder: 'Search commands, open tabs and files…' }}
       settings={{ open: settingsOpen, onOpenChange: setSettingsOpen }}
       appearance={{ theme, setTheme }}
     />

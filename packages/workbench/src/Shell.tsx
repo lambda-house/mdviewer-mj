@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Segmented, cx } from '@lambda-house/ui';
 import { StatusBar } from './StatusBar';
@@ -178,17 +178,30 @@ export function ShellViews({ views, value, onChange, label, className }: ShellVi
 
 /**
  * What a surface, view or pane shows in the status bar (StatusItem), at its
- * start or end, while it is shown. Outside a Shell (a test) it renders in place.
+ * start or end, while it is shown. The bar sorts them by `order` (lower
+ * first, 100 by default; the same order keeps the order they came in).
+ * Outside a Shell (a test) it renders in place.
  */
-export function ShellStatus({ side = 'start', children }: { side?: 'start' | 'end'; children: ReactNode }) {
+export function ShellStatus({ id, order = 100, side = 'start', children }: { id: string; order?: number; side?: 'start' | 'end'; children: ReactNode }) {
   const surface = useContext(SurfaceContext);
   const target = surface?.shown ? surface.targets[side === 'start' ? 'statusStart' : 'statusEnd'] : null;
   const showStatus = surface?.targets.showStatus;
+  // Its own place in the bar's side, among the others by order
+  const [slot] = useState(() => (typeof document === 'undefined' ? null : document.createElement('div')));
+  useLayoutEffect(() => {
+    if (!target || !slot) return;
+    slot.className = 'wb-status__slot';
+    slot.dataset.status = id;
+    slot.dataset.order = String(order);
+    const after = [...target.children].find((other) => other !== slot && Number((other as HTMLElement).dataset.order) > order);
+    target.insertBefore(slot, after ?? null);
+    return () => slot.remove();
+  }, [target, slot, id, order]);
   useEffect(() => {
     if (!target || !showStatus) return;
     showStatus(true);
     return () => showStatus(false);
   }, [target, showStatus]);
   if (!surface) return <>{children}</>;
-  return target ? createPortal(children, target) : null;
+  return target && slot ? createPortal(children, slot) : null;
 }

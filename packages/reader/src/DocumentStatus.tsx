@@ -50,16 +50,16 @@ export function DocumentStatus() {
   }, [document?.content, document?.lastModified]);
 
   if (!tab || !document) {
-    return <ShellStatus><StatusItem>No document open</StatusItem></ShellStatus>;
+    return <ShellStatus id="reader:document"><StatusItem>No document open</StatusItem></ShellStatus>;
   }
   return (
     <>
-      <ShellStatus>
+      <ShellStatus id="reader:document">
         <StatusItem icon={<FileText size={12} />} title={tab.path}>{truncatePath(tab.path)}</StatusItem>
         <StatusItem>{formatFileSize(stats.size)}</StatusItem>
         <StatusItem icon={<Clock size={12} />}>{formatRelativeTime(stats.modified)}</StatusItem>
       </ShellStatus>
-      <ShellStatus side="end">
+      <ShellStatus id="reader:words" side="end">
         <StatusItem icon={<Hash size={12} />}>{stats.words.toLocaleString()} words</StatusItem>
         <StatusItem>{stats.reading}</StatusItem>
       </ShellStatus>

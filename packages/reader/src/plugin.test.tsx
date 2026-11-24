@@ -61,6 +61,24 @@ describe('readerPlugin', () => {
     expect(registry.listPlugins()[0].required).toBe(true);
   });
 
+  it('lists the open tabs in the palette when asked, and shows the chosen one', async () => {
+    expect((await mount(fakeReader())).items('workbench:palette-provider')).toEqual([]);
+    const reader = fakeReader();
+    const show = vi.fn();
+    const registry = new PluginRegistry();
+    registry.register(readerPlugin(reader, { openTabs: { show } }));
+    act(() => { reader.store.getState().openDocument('/notes/a.md', 'a'); reader.store.getState().openDocument('/notes/b.md', 'b'); });
+    await act(async () => root.render(
+      <Workbench registry={registry} surface="journal" onSurface={() => {}} menu={[]} commandContext={() => null} useCommandContext={() => null}
+        settings={{ open: false, onOpenChange: () => {} }} palette={{ open: true, onOpenChange: () => {} }} />,
+    ));
+    const rows = () => [...document.querySelectorAll('.cmd-item')].map((row) => [row.querySelector('.cmd-item__label')?.textContent, row.querySelector('.cmd-item__hint')?.textContent]);
+    expect(rows()).toEqual([['a.md', '/notes'], ['b.md', 'Current']]);
+    act(() => document.querySelector<HTMLElement>('.cmd-item')!.click());
+    expect(show).toHaveBeenCalled();
+    expect(focusedGroupOf(reader.store.getState()).tabs.find((tab) => tab.id === focusedGroupOf(reader.store.getState()).activeTabId)?.path).toBe('/notes/a.md');
+  });
+
   it('reads the saved tabs’ documents back once each, and drops a tab whose file is gone', async () => {
     // The last run kept its tabs (paths only); this one starts from them
     const saved: Record<string, string> = {};

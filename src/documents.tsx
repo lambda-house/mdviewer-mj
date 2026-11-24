@@ -1,8 +1,10 @@
 import { useCallback, useMemo } from 'react';
-import { FileQuestion, FileSearch, FileText, Files, History, Upload } from 'lucide-react';
+import { File as FileIcon, FileQuestion, FileSearch, FileText, Files, History, Upload } from 'lucide-react';
 import { EmptyState, Kbd } from '@lambda-house/ui';
-import { LayoutView, usePaneTypes, type Layout, type PaneZoom, type Plugin } from '@lambda-house/workbench';
-import { useStore, panelShown, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, type ZoomPanel } from './store';
+import { LayoutView, matchesQuery, usePaneTypes, type Layout, type PaletteProvider, type PaneZoom, type Plugin } from '@lambda-house/workbench';
+import { allTabs, folderOf } from '@lambda-house/reader';
+import { useStore, panelShown, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, type FileNode, type ZoomPanel } from './store';
+import { useReader } from './reader';
 import { defaultDocumentsLayout } from './store/documentsLayout';
 import { registry } from './workbench';
 import { openPath } from './readerHost';
@@ -12,14 +14,14 @@ import UpdateBanner from './components/UpdateBanner';
 import FilePanel from './components/FilePanel';
 import SearchPanel from './components/SearchPanel';
 import HistoryPanel from './components/HistoryPanel';
-import CommandPalette from './components/CommandPalette';
 import { appSettingsTabs } from './components/SettingsTabs';
 
 // MDViewer's own part of the window, as a plugin: the Documents surface (its
 // tools, the update banner, and the layout of the left panel, the document
 // groups and the contents), the left panel's panes (Files, Search and
-// History take turns there), the Folders and Updates tabs, the palette.
-// The document groups and the contents are the reader's (readerPlugin).
+// History take turns there), the Folders and Updates tabs, the files of the
+// opened folders in the palette. The document groups, the contents and the
+// open tabs in the palette are the reader's (readerPlugin).
 
 /** An empty document group: how to open a document here. */
 export const NO_DOCUMENT = (
@@ -39,6 +41,50 @@ export const zoomOf = (panel: ZoomPanel): PaneZoom => ({
   step: (_, direction) => useStore.getState().zoomPanel(panel, direction),
   subscribe: useStore.subscribe,
 });
+
+/** Files shown when the query is empty are none; with a query, at most this many. */
+const MAX_FILES = 50;
+
+/** The files of the opened folders, depth first. */
+function treeFiles(nodes: FileNode[], out: FileNode[] = []): FileNode[] {
+  for (const node of nodes) {
+    if (node.type === 'file') out.push(node);
+    else if (node.children) treeFiles(node.children, out);
+  }
+  return out;
+}
+
+/** Bring up the documents. */
+export const showDocuments = () => useStore.getState().setSurface('documents');
+
+/** The palette's files: those of the opened folders that match, and aren't open in a tab (the reader lists those). */
+export const filesProvider: PaletteProvider = {
+  id: 'mdviewer:files',
+  order: 20,
+  useResults: (query) => {
+    const tree = useStore((s) => s.files);
+    const tabs = useReader((s) => s.groups);
+    const files = useMemo(() => treeFiles(tree), [tree]);
+    if (!query.trim()) return { items: [] };
+    const open = new Set(allTabs({ groups: tabs }).map((tab) => tab.path));
+    return {
+      items: files
+        .filter((file) => !open.has(file.path) && matchesQuery(query, file.name, file.displayPath))
+        .slice(0, MAX_FILES)
+        .map((file) => ({
+          id: `file:${file.path}`,
+          group: 'Files',
+          label: file.name,
+          hint: folderOf(file.displayPath),
+          icon: <FileIcon size={14} />,
+          run: () => {
+            showDocuments();
+            openPath(file.path).catch((error) => alert(`Could not open ${file.path}:\n${errorText(error)}`));
+          },
+        })),
+    };
+  },
+};
 
 /** The Documents surface, on the workbench layout the store keeps (store/documentsLayout.ts). */
 function Documents() {
@@ -107,9 +153,6 @@ export const documentsPlugin: Plugin = {
     api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'search', label: 'search panel', title: 'Search', icon: <FileSearch size={14} />, ...left, render: () => <SearchPanel /> } });
     api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'history', label: 'history panel', title: 'History', icon: <History size={14} />, ...left, render: () => <HistoryPanel /> } });
     for (const tab of appSettingsTabs()) api.contribute('workbench:settings-tab', tab);
-    api.contribute('workbench:overlay', {
-      id: 'palette', order: 200,
-      render: () => <CommandPalette openFile={(path) => { openPath(path).catch((error) => alert(`Could not open ${path}:\n${errorText(error)}`)); }} />,
-    });
+    api.contribute('workbench:palette-provider', filesProvider);
   },
 };

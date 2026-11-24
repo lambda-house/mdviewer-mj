@@ -570,11 +570,16 @@
 .wb-status__item--button:hover { color: var(--text); }
 .wb-status__text { overflow: hidden; text-overflow: ellipsis; }
 .wb-status__icon { display: inline-flex; }
-/* Items are set apart by a thin line, as the bar always was */
-.wb-status__item + .wb-status__item::before, .wb-status__separator {
+/* Each ShellStatus has its place in its side, by order; its items are the side's */
+.wb-status__slot { display: contents; }
+/* Items are set apart by a thin line, as the bar always was, also from those of the slot before */
+.wb-status__item + .wb-status__item::before,
+.wb-status__slot:not(:empty) ~ .wb-status__slot > .wb-status__item:first-child::before,
+.wb-status__separator {
   content: ""; flex: 0 0 auto; width: 1px; height: 14px; background: var(--line);
 }
-.wb-status__item + .wb-status__item::before { margin-right: 10px; }
+.wb-status__item + .wb-status__item::before,
+.wb-status__slot:not(:empty) ~ .wb-status__slot > .wb-status__item:first-child::before { margin-right: 10px; }
 .wb-status__pin {
   width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
   border-radius: var(--r-sm); color: var(--text-muted); background: none; border: none; cursor: pointer;

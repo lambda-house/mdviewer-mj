@@ -30,4 +30,5 @@ export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
 export { SearchOptionToggles } from './FindBar';
 export { readerCommands, selectedText, type ReaderCommands } from './commands';
 export { DocumentSettings, readerSettingsTab } from './ReaderSettings';
+export { folderOf, openTabsProvider } from './palette';
 export { readerPlugin, reloadChangedDocuments, type CloseRequest, type ReaderPluginOptions } from './plugin';

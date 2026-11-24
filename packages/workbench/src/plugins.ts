@@ -1,7 +1,8 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import type { PaneType } from './LayoutView';
+import type { PaletteProvider } from './Palette';
 import type { SettingsTab } from './settings';
-import type { ShellSurface } from './Shell';
+import type { ShellSurface, ShellView } from './Shell';
 
 // The plugin registry (shared UI spec §5.7). The workbench names no extension
 // point of its own: an app declares the ones it has by declaration merging,
@@ -18,6 +19,8 @@ import type { ShellSurface } from './Shell';
 
 /** A surface of the window, in the top bar's switch by `order` (lower first, 100 by default). */
 export interface WorkbenchSurface extends ShellSurface { order?: number }
+/** A view of a surface, in its view switch by `order` (lower first, 100 by default); the surface draws them (useViews, ShellViews). */
+export interface WorkbenchView extends ShellView { surface: string; order?: number }
 /** A pane type a view's layout can show (usePaneTypes). */
 export interface WorkbenchPaneType { view: string; type: PaneType }
 /** Drawn once beside the shell: a dialog, an overlay, or a component that only runs effects. */
@@ -28,7 +31,9 @@ export interface WorkbenchWrapper { id: string; order?: number; wrap: (children:
 /** Extension points: name → the type of what plugins contribute there. */
 export interface WorkbenchPoints {
   'workbench:surface': WorkbenchSurface;
+  'workbench:view': WorkbenchView;
   'workbench:pane-type': WorkbenchPaneType;
+  'workbench:palette-provider': PaletteProvider;
   'workbench:settings-tab': SettingsTab;
   'workbench:overlay': WorkbenchOverlay;
   'workbench:wrapper': WorkbenchWrapper;

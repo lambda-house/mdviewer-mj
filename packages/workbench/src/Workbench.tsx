@@ -7,14 +7,17 @@ import { SettingsDialog, appearanceTab, shortcutsTab, type SettingsTab } from '.
 import { WindowMenuContext, commandForKey, commandTitle, matchesShortcut, menuCommands, type MenuItem } from './commands';
 import { WINDOW_COMMANDS } from './windowCommands';
 import { usePlugins, type PluginRegistry } from './plugins';
+import { ProviderPalette, commandProvider } from './Palette';
 import type { PaneType } from './LayoutView';
+import type { ShellView } from './Shell';
 
 // The window an app assembles from plugins (shared UI spec §3.3, §5.7): the
 // shell with the surfaces plugins bring, the main menu, the palette, settings
 // and theme buttons at the end of the bar, the one Settings dialog with their
-// tabs, their overlays, all inside their wrappers. The menu's shortcuts work
-// in the whole window, and the native menu runs its commands by id. The app
-// keeps what its commands read: the shown surface, whether Settings is open,
+// tabs, the palette of their providers and the menu's commands, their
+// overlays, all inside their wrappers. The menu's shortcuts work in the whole
+// window, and the native menu runs its commands by id. The app keeps what its
+// commands read: the shown surface, whether Settings or the palette is open,
 // the theme.
 
 export interface WorkbenchProps<C> {
@@ -35,8 +38,19 @@ export interface WorkbenchProps<C> {
   status?: ShellProps['status'];
   /** Whether the top bar is the window's title bar (the app knows its window and full screen). Native by default. */
   titleBar?: ShellProps['titleBar'];
-  /** The palette: the ⌕ at the end of the bar opens it, disabled while `enabled` is false. Without it there is no ⌕. */
-  palette?: { open: () => void; enabled?: boolean };
+  /**
+   * The palette: what the plugins' providers find, then the menu's commands.
+   * The ⌕ at the end of the bar opens it; while `enabled` is false the ⌕ is
+   * disabled and the palette isn't drawn. Without it, neither.
+   */
+  palette?: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    enabled?: boolean;
+    /** Names it for screen readers ("Command palette"). */
+    label?: string;
+    placeholder?: string;
+  };
   /** The Settings dialog: the ⚙ at the end of the bar opens it. */
   settings: { open: boolean; onOpenChange: (open: boolean) => void };
   /** The theme: the Appearance tab and the ☾/☀ at the end of the bar. Without it, neither. */
@@ -51,6 +65,16 @@ export function usePaneTypes(registry: PluginRegistry, view: string): Record<str
     () => Object.fromEntries(registry.items('workbench:pane-type').filter((p) => p.view === view).map((p) => [p.type.type, p.type])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [registry, view, revision],
+  );
+}
+
+/** A surface's views: what plugins contributed for it, by `order` (draw them with ShellViews). */
+export function useViews(registry: PluginRegistry, surface: string): ShellView[] {
+  const revision = usePlugins(registry);
+  return useMemo(
+    () => registry.items('workbench:view').filter((view) => view.surface === surface),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [registry, surface, revision],
   );
 }
 
@@ -91,7 +115,7 @@ function WindowTools<C>({ menu, palette, settings, appearance }: Pick<WorkbenchP
   return (
     <div className="wb-tool-group">
       {palette && (
-        <button type="button" className="wb-tool" onClick={palette.open} disabled={palette.enabled === false} title={title(WINDOW_COMMANDS.palette, 'Command Palette')}>
+        <button type="button" className="wb-tool" onClick={() => palette.onOpenChange(true)} disabled={palette.enabled === false} title={title(WINDOW_COMMANDS.palette, 'Command Palette')}>
           <Search size={16} />
         </button>
       )}
@@ -159,6 +183,16 @@ export function Workbench<C>({
         end={<WindowTools menu={menu} palette={palette} settings={settings} appearance={appearance} />}
       />
       <SettingsDialog open={settings.open} onClose={() => settings.onOpenChange(false)} tabs={tabs} />
+      {palette?.open && palette.enabled !== false && (
+        <ProviderPalette
+          providers={[...registry.items('workbench:palette-provider'), commandProvider(menu, commandContext, surface)]
+            .filter((provider) => !provider.surface || provider.surface === surface)
+            .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))}
+          onClose={() => palette.onOpenChange(false)}
+          label={palette.label}
+          placeholder={palette.placeholder}
+        />
+      )}
       {registry.items('workbench:overlay').map((overlay) => <Fragment key={overlay.id}>{overlay.render()}</Fragment>)}
     </div>
   );

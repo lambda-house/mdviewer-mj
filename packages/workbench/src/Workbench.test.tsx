@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
-import { act, createContext, useContext } from 'react';
+import { act, createContext, useContext, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dragsWindow } from './dragRegion.testing';
 import {
-  PluginRegistry, ShellTools, Workbench, pluginsTab, useCommandTitle, usePaneTypes, useSurfaceShown, windowCommands,
+  PluginRegistry, ShellTools, ShellViews, Workbench, pluginsTab, useCommandTitle, usePaneTypes, useSurfaceShown, useViews, windowCommands,
   type MenuItem, type Plugin, type Theme, type WorkbenchProps,
 } from './index';
 
@@ -140,14 +140,14 @@ describe('Workbench', () => {
     });
     render(registry, {
       menu: [win.palette, win.settings],
-      palette: { open: openPalette },
+      palette: { open: false, onOpenChange: openPalette },
       settings: { open: false, onOpenChange: openChange },
       appearance: { theme: 'dark', setTheme },
     });
     const end = [...host.querySelectorAll<HTMLButtonElement>('.wb-topbar > :last-child .wb-tool')];
     expect(end.map((b) => b.title)).toEqual(['Command Palette (Ctrl+Shift+P)', 'Settings (Ctrl+,)', 'Switch to light theme']);
     act(() => end.forEach((b) => b.click()));
-    expect(openPalette).toHaveBeenCalledTimes(1);
+    expect(openPalette).toHaveBeenCalledWith(true);
     expect(openChange).toHaveBeenCalledWith(true);
     expect(setTheme).toHaveBeenCalledWith('light');
     // The main menu's button is a tool of the bar too
@@ -173,7 +173,7 @@ describe('Workbench', () => {
     });
     const bar = () => host.querySelector<HTMLElement>('.wb-topbar')!;
 
-    render(registry, { titleBar: 'overlay', palette: { open: () => {} }, appearance: { theme: 'dark', setTheme: () => {} } });
+    render(registry, { titleBar: 'overlay', palette: { open: false, onOpenChange: () => {} }, appearance: { theme: 'dark', setTheme: () => {} } });
     expect(bar().getAttribute('data-titlebar')).toBe('overlay');
     expect(bar().style.paddingLeft).toBe('88px');
     expect(dragsWindow(bar())).toBe(true);
@@ -215,8 +215,98 @@ describe('Workbench', () => {
     render(registry);
     expect(host.querySelectorAll('.wb-topbar > :last-child .wb-tool')).toHaveLength(1);
     expect(host.querySelector('.wb-topbar > :last-child .wb-tool')?.getAttribute('title')).toBe('Settings');
-    render(registry, { palette: { open: () => {}, enabled: false } });
+    render(registry, { palette: { open: false, onOpenChange: () => {}, enabled: false } });
     expect(host.querySelector<HTMLButtonElement>('.wb-topbar > :last-child .wb-tool')?.disabled).toBe(true);
+  });
+
+  it('lists what the providers find, in their order, then the commands of the shown surface', () => {
+    const registry = new PluginRegistry();
+    const opened = vi.fn();
+    let filter = 'all';
+    registry.register({
+      id: 'sources', name: 'Sources',
+      setup(api) {
+        api.contribute('workbench:palette-provider', {
+          id: 'files', order: 20,
+          useResults: (query) => ({ items: ['notes.md', 'todo.md'].filter((name) => name.includes(query)).map((name) => ({ id: name, group: 'Files', label: name, run: () => opened(name) })) }),
+        });
+        api.contribute('workbench:palette-provider', {
+          id: 'tabs', order: 10,
+          useResults: () => {
+            // A provider's data may come from hooks
+            const [count] = useState(1);
+            return {
+              items: [{ id: 'tab', group: 'Open tabs', label: `readme.md (${count})`, run: () => {} }],
+              toolbar: <button type="button" data-filter onClick={() => { filter = 'tabs'; }}>{filter}</button>,
+            };
+          },
+        });
+        api.contribute('workbench:palette-provider', { id: 'elsewhere', surface: 'second', useResults: () => ({ items: [{ id: 'x', group: 'Second', label: 'Second only', run: () => {} }] }) });
+      },
+    });
+    const openChange = vi.fn();
+    render(registry, { palette: { open: true, onOpenChange: openChange, placeholder: 'Search everything…' } });
+    const dialog = () => document.querySelector('.cmd-panel');
+    const groups = () => [...document.querySelectorAll('.cmd-group')].map((g) => [g.getAttribute('aria-label'), [...g.querySelectorAll('.cmd-item__label')].map((l) => l.textContent)]);
+    expect(dialog()?.querySelector('input')?.placeholder).toBe('Search everything…');
+    // The second surface's provider and command are left out; the disabled command too
+    expect(groups()).toEqual([
+      ['Open tabs', ['readme.md (1)']],
+      ['Files', ['notes.md', 'todo.md']],
+      ['Commands', ['First Thing', 'Everywhere']],
+    ]);
+    expect(dialog()?.querySelector('.cmd-subbar [data-filter]')?.textContent).toBe('all');
+    expect(dialog()?.querySelector('.cmd-preview')).toBeNull();
+    const input = dialog()!.querySelector('input')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'todo');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(groups()).toEqual([['Open tabs', ['readme.md (1)']], ['Files', ['todo.md']]]);
+    act(() => document.querySelectorAll<HTMLElement>('.cmd-item')[1].click());
+    expect(openChange).toHaveBeenCalledWith(false);
+    expect(opened).toHaveBeenCalledWith('todo.md');
+    // Not drawn while it can't open
+    render(registry, { palette: { open: true, onOpenChange: openChange, enabled: false } });
+    expect(dialog()).toBeNull();
+  });
+
+  it('shows a preview panel when a provider has previews', () => {
+    const registry = new PluginRegistry();
+    registry.register({
+      id: 'sessions', name: 'Sessions',
+      setup: (api) => api.contribute('workbench:palette-provider', {
+        id: 'sessions', preview: { empty: <p data-empty>Select a session</p> },
+        useResults: () => ({ items: [{ id: 's', group: 'Sessions', label: 'Fix the build', preview: <p data-preview>In Live</p>, run: () => {} }] }),
+      }),
+    });
+    render(registry, { palette: { open: true, onOpenChange: () => {} } });
+    expect(document.querySelector('.cmd-preview [data-preview]')?.textContent).toBe('In Live');
+  });
+
+  it('draws a surface’s views in their order', () => {
+    const registry = new PluginRegistry();
+    function Views() {
+      const views = useViews(registry, 'first');
+      return <ShellViews label="Sessions view" views={views} value="live" onChange={() => {}} />;
+    }
+    registry.register({
+      id: 'views', name: 'Views',
+      setup(api) {
+        api.contribute('workbench:surface', { id: 'first', label: 'Sessions', render: () => <Views /> });
+        api.contribute('workbench:view', { surface: 'first', id: 'board', label: 'Board', order: 30, render: () => <p>board</p> });
+        api.contribute('workbench:view', { surface: 'first', id: 'live', label: 'Live', order: 10, render: () => <p data-live>live</p> });
+        api.contribute('workbench:view', { surface: 'documents', id: 'other', label: 'Other', render: () => null });
+      },
+    });
+    registry.register({ id: 'extra', name: 'Extra', setup: (api) => api.contribute('workbench:view', { surface: 'first', id: 'extra', label: 'Extra', order: 20, render: () => null }) });
+    render(registry);
+    const options = () => [...host.querySelectorAll('.wb-topbar [aria-label="Sessions view"] [class*="segmented__option"]')].map((b) => b.textContent);
+    expect(options()).toEqual(['Live', 'Extra', 'Board']);
+    expect(host.querySelector('[data-live]')).not.toBeNull();
+    // A plugin turned off takes its view away
+    act(() => registry.setEnabled('extra', false));
+    expect(options()).toEqual(['Live', 'Board']);
   });
 
   it('closes Settings through onOpenChange', () => {

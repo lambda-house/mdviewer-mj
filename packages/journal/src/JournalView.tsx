@@ -179,12 +179,12 @@ export function JournalView({ active: activeProp, tools = {}, refreshInterval = 
           onReset={() => store.getState().resetLayout()}
         />
         {/* The index's state and access, in the window's status bar */}
-        <ShellStatus>
+        <ShellStatus id="journal:index">
           <StatusItem icon={<i className="sc-local-dot" />} title={snapshot.cachePath || 'No persistent cache'}>
             {snapshot.cachePath ? 'SQLite index' : 'In-memory index'} · {snapshot.restoredFiles || 0} restored · {snapshot.pendingFiles ? `${snapshot.pendingFiles} files still indexing · totals partial` : 'history indexed'} · {compact(snapshot.bytesRead || 0)} bytes read this scan · {snapshot.errors.length} warnings
           </StatusItem>
         </ShellStatus>
-        <ShellStatus side="end"><StatusItem onClick={() => void revoke()}>Revoke session access</StatusItem></ShellStatus>
+        <ShellStatus id="journal:access" side="end"><StatusItem onClick={() => void revoke()}>Revoke session access</StatusItem></ShellStatus>
         {snapshot.errors.length > 0 && <details className="sc-errors"><summary>Index warnings</summary>{snapshot.errors.map((e, i) => <p key={i}>{e}</p>)}</details>}
       </>}
       {dialog === 'agentAccess' && (

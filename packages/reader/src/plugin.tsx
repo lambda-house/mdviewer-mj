@@ -9,10 +9,12 @@ import { CloseDocumentDialog, SaveAllDialog } from './SaveAllDialog';
 import { readerSettingsTab } from './ReaderSettings';
 import { allTabs, type RestoredDocument } from './store';
 import { getFileName } from './files';
+import { openTabsProvider } from './palette';
 
 // The reader as a workbench plugin (shared UI spec §5.7): what it brings to
 // the window. Its provider; the `documents` and `contents` panes of a view;
-// its Settings tab; its dialogs; and what it does on its own: read the saved
+// its Settings tab; its dialogs; the open tabs in the palette, if asked;
+// and what it does on its own: read the saved
 // tabs' documents back, open a reader window's one document, go back and
 // forward with the mouse's side buttons, Mod+1…9 to a tab, ask before the
 // window closes with unsaved edits.
@@ -42,6 +44,8 @@ export interface ReaderPluginOptions {
    * reader and returns how to stop.
    */
   confirmClose?: { name: string; onCloseRequested: (onClose: (request: CloseRequest) => Promise<void>) => Promise<() => void> };
+  /** The palette lists the open tabs; choosing one calls `show` first (to bring up the surface the documents are on). */
+  openTabs?: { show?: () => void };
 }
 
 function errorText(error: unknown): string {
@@ -188,6 +192,7 @@ export function readerPlugin(reader: Reader, options: ReaderPluginOptions = {}):
         },
       });
       api.contribute('workbench:settings-tab', readerSettingsTab());
+      if (options.openTabs) api.contribute('workbench:palette-provider', openTabsProvider(reader, options.openTabs.show));
       api.contribute('workbench:overlay', {
         id: 'reader',
         render: () => <ReaderEffects restore={options.restore} windowDocument={options.windowDocument} confirmClose={options.confirmClose} />,
