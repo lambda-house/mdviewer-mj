@@ -6,9 +6,9 @@ Frontend code shared by MDViewer (`lambda-house/mdviewer-mj`) and Agent MCR (`la
 |---|---|---|---|
 | `tokens` (`@lambda-house/tokens`) | 0 | Colour, spacing, type and radius variables | phase 1 |
 | `ui` (`@lambda-house/ui`) | 1 | Controls | phase 2 |
-| `workbench` (`@lambda-house/workbench`) | 2 | Window shell, layout tree, panes, commands, palette, settings, status bar, plugins | phases 3–4 |
-| `reader` (`@lambda-house/reader`) | 3 | Markdown reader and editor | phase 5 |
-| `journal` (`@lambda-house/journal`) | 3 | Index of past agent sessions | phase 6 |
+| `workbench` (`@lambda-house/workbench`) | 2 | Window shell, layout tree, panes, commands, palette, settings, status bar, plugins, the `Workbench` an app assembles | phases 3–4, 7–8 |
+| `reader` (`@lambda-house/reader`) | 3 | Markdown reader and editor, its contents pane and styles, `readerPlugin` | phases 5, 8 |
+| `journal` (`@lambda-house/journal`) | 3 | Index of past agent sessions, `journalPlugin` | phases 6, 8 |
 
 ## Rules
 
