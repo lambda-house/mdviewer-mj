@@ -39,10 +39,12 @@ export interface JournalState {
   /** Whether session access is on; null until the backend has answered. */
   enabled: boolean | null;
   snapshot: Snapshot;
-  /** What the backend called the snapshot held (`snapshotSince`): it sends one again only when that changed. */
+  /** What the backend called the snapshot held (`journalSince`, `snapshotSince`): it sends again only what changed. */
   stamp: string;
-  /** A snapshot is being asked for. */
+  /** The first snapshot is being asked for. */
   busy: boolean;
+  /** Counts the revocations of access: an answer asked for before one is dropped. Not saved. */
+  accessEpoch: number;
   error: string;
 
   layout: LayoutNode;
@@ -62,7 +64,7 @@ export interface JournalState {
   setBusy: (busy: boolean) => void;
   /** A new snapshot, with its stamp if the backend gave one; a detail pane that shows nothing yet shows the newest session. */
   receive: (snapshot: Snapshot, stamp?: string) => void;
-  /** Access was revoked: nothing indexed is kept. */
+  /** Access was revoked: nothing indexed is kept, and answers on their way are dropped. */
   forget: () => void;
 
   setFilters: (list: string, filters: Partial<SessionFilters>) => void;
@@ -195,6 +197,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
           snapshot: EMPTY_SNAPSHOT,
           stamp: '',
           busy: false,
+          accessEpoch: 0,
           error: '',
           layout: defaultLayout(),
           lists: { [MAIN_LIST]: NO_FILTERS },
@@ -219,7 +222,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
               ...(first && target && !details[target].session ? { details: { ...details, [target]: { ...details[target], session: first } } } : {}),
             });
           },
-          forget: () => set({ enabled: false, snapshot: EMPTY_SNAPSHOT, stamp: '', evidence: {} }),
+          forget: () => set((state) => ({ enabled: false, snapshot: EMPTY_SNAPSHOT, stamp: '', evidence: {}, busy: false, accessEpoch: state.accessEpoch + 1 })),
 
           setFilters: (list, filters) => set((state) => state.lists[list]
             ? { lists: { ...state.lists, [list]: { ...state.lists[list], ...filters } } }

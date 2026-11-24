@@ -30,6 +30,36 @@ export interface Snapshot { sessions: Session[]; errors: string[]; scannedFiles:
 
 export const EMPTY_SNAPSHOT: Snapshot = { sessions: [], errors: [], scannedFiles: 0, pendingFiles: 0, indexedAt: 0 };
 
+/**
+ * What changed since the stamp held (a host's `journalSince`, Agent MCR's
+ * MCR-141): nothing (`snapshot` null), a whole snapshot, or a delta: the
+ * changed sessions with their places in the new snapshot, and the sources of
+ * the removed ones.
+ */
+export interface JournalUpdate {
+  stamp: string;
+  snapshot: Snapshot | null;
+  /** Present for a delta. Each entry is the position of its supplied session in the new snapshot. */
+  positions?: number[];
+  removed?: string[];
+}
+
+/** The snapshot an update makes of the one held. Unchanged sessions stay the same objects. */
+export function applyJournalUpdate(current: Snapshot, { snapshot, positions, removed = [] }: JournalUpdate): Snapshot {
+  if (!snapshot) return current;
+  if (!positions) return snapshot;
+  if (!positions.length && !removed.length) return { ...snapshot, sessions: current.sessions };
+  const replaced = new Set([...removed, ...snapshot.sessions.map((s) => s.source)]);
+  const retained = current.sessions.filter((s) => !replaced.has(s.source));
+  let nextChanged = 0;
+  let nextRetained = 0;
+  // Unchanged rows keep their relative order. Fill around the changed rows at
+  // the positions supplied by the index, preserving that index's tie-breaks.
+  const sessions = Array.from({ length: retained.length + positions.length }, (_, i) =>
+    i === positions[nextChanged] ? snapshot.sessions[nextChanged++] : retained[nextRetained++]);
+  return { ...snapshot, sessions };
+}
+
 export interface MemoryItem { key: string; title: string; provider: string; scope: string; path: string; modified: number; description: string }
 export interface MemoryCatalog { entries: MemoryItem[]; notes: string[] }
 export interface MemoryDocument { title: string; content: string; provenance: string; note: string }

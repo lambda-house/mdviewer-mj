@@ -8,7 +8,7 @@ import { ConnectionsDialog } from './ConnectionsDialog';
 import { JournalDetail, Metric } from './JournalDetail';
 import { JournalList } from './JournalList';
 import { MemoryBrowser } from './MemoryBrowser';
-import { compact, filterSessions, NO_FILTERS, origin, sessionKey, sumUsage, totalTokens } from './sessions';
+import { applyJournalUpdate, compact, filterSessions, NO_FILTERS, origin, sessionKey, sumUsage, totalTokens } from './sessions';
 import { DETAIL_PANE, detailPanes, LIST_PANE, listPanes } from './store';
 
 /** How often the snapshot is asked for while the journal is shown (ms), unless the app says otherwise. */
@@ -22,26 +22,39 @@ const inflight = new WeakSet<object>();
  * Ask the backend for a new snapshot, unless one is on its way. The journal
  * does it every few seconds while shown; an app that reads the snapshot
  * elsewhere too (Agent MCR's Live and palette) can ask sooner. With the
- * host's `snapshotSince` only a snapshot that shows something new comes
- * across, and the one held stays, so nothing renders again.
+ * host's `journalSince` only what changed comes across (unchanged sessions
+ * stay the same objects), with `snapshotSince` only a snapshot that shows
+ * something new; either way an unchanged index renders nothing again. Only
+ * the first read shows as busy, and an answer that comes after access was
+ * revoked is dropped.
  */
 export async function refreshJournal({ store, host }: Journal): Promise<void> {
   if (inflight.has(store)) return;
   inflight.add(store);
-  store.getState().setBusy(true);
+  const { stamp, accessEpoch } = store.getState();
+  const current = () => store.getState().accessEpoch === accessEpoch;
+  const initial = !stamp;
+  if (initial) store.getState().setBusy(true);
   try {
-    if (host.snapshotSince) {
-      const answer = await host.snapshotSince(store.getState().stamp);
+    if (host.journalSince) {
+      const update = await host.journalSince(stamp);
+      if (!current()) return;
+      if (update.snapshot) store.getState().receive(applyJournalUpdate(store.getState().snapshot, update), update.stamp);
+      else store.getState().setError('');
+    } else if (host.snapshotSince) {
+      const answer = await host.snapshotSince(stamp);
+      if (!current()) return;
       if (answer.snapshot) store.getState().receive(answer.snapshot, answer.stamp);
       else store.getState().setError('');
     } else {
-      store.getState().receive(await host.snapshot());
+      const snapshot = await host.snapshot();
+      if (current()) store.getState().receive(snapshot);
     }
   } catch (e) {
-    store.getState().setError(errorText(e));
+    if (current()) store.getState().setError(errorText(e));
   } finally {
     inflight.delete(store);
-    store.getState().setBusy(false);
+    if (initial && current()) store.getState().setBusy(false);
   }
 }
 

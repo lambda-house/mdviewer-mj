@@ -59,19 +59,20 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
     setContextBusy(false);
   }, [selected]);
 
-  // The full session (its latest events) while shown, again with every snapshot
+  // The full session (its latest events) while shown, again when its summary changes: with
+  // a host's deltas an unchanged session stays the same object, so other sessions' changes don't reload it
+  const summary = sessions.find((s) => sessionKey(s) === selected);
   useEffect(() => {
     if (!active) return;
-    const summary = sessions.find((s) => sessionKey(s) === selected);
     if (!summary) { setDetail(null); return; }
     let cancelled = false;
     host.detail(summary.provider, summary.id)
       .then((s) => { if (!cancelled) setDetail({ ...s, status: summary.status }); })
       .catch((e) => { if (!cancelled) fail(e); });
     return () => { cancelled = true; };
-  }, [selected, sessions, active, host]);
+  }, [summary, active, host]);
 
-  const chosen = detail && sessionKey(detail) === selected ? detail : sessions.find((s) => sessionKey(s) === selected);
+  const chosen = summary && detail && sessionKey(detail) === selected ? detail : summary;
   const closeButton = several && <Button variant="ghost" size="xs" icon={<X size={16} />} aria-label="Close session pane" title="Close this pane" onClick={() => store.getState().closePane(pane)} />;
   if (!chosen) {
     return <Pane className="sc-detail" title="Session" tools={closeButton}><div className="sc-empty"><Bot size={32} /><h2>Select a session</h2><p>Inspect its activity, agents and linked work.</p></div></Pane>;

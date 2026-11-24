@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ComponentType, type MouseEvent
 import { useStore } from 'zustand';
 import type { JournalState, JournalStore } from './store';
 import type {
-  ConnectionStatus, Connections, MemoryCatalog, MemoryDocument, Session, SessionEvent, SessionNode, Snapshot,
+  ConnectionStatus, Connections, JournalUpdate, MemoryCatalog, MemoryDocument, Session, SessionEvent, SessionNode, Snapshot,
 } from './sessions';
 
 /** What local agents may read through the app's MCP socket. */
@@ -41,6 +41,12 @@ export interface JournalHost {
    * megabytes; without this the journal asks for it whole each time.
    */
   snapshotSince?(stamp: string): Promise<{ stamp: string; snapshot: Snapshot | null }>;
+  /**
+   * Better still: only what changed since the `stamp` held, as a delta
+   * (`applyJournalUpdate`), or the whole snapshot when the backend no longer
+   * knows that stamp. Preferred over `snapshotSince` when the host has it.
+   */
+  journalSince?(stamp: string): Promise<JournalUpdate>;
   /** A session with its latest events. */
   detail(provider: string, id: string): Promise<Session>;
   /** The page of events before `before` (a sequence number). */

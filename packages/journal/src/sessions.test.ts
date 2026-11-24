@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cacheState, directoryTree, family, filterSessions, formatSessionTitle, matchesActivity, matchesSession, NO_FILTERS, origin,
-  resumeCommand, sessionTooltip, sessionTree, sumUsage, totalTokens, within, type Session,
+  applyJournalUpdate, cacheState, directoryTree, family, filterSessions, formatSessionTitle, matchesActivity, matchesSession, NO_FILTERS, origin,
+  resumeCommand, sessionTooltip, sessionTree, sumUsage, totalTokens, within, type Session, type Snapshot,
 } from './sessions';
 
 const s = (id: string, parentId: string | null = null, provider: 'codex' | 'claude' = 'codex') => ({ id, parentId, provider, cwd: '/work/it\'s repo', title: 'Fix CORE-123', name: '', model: 'model-a', tickets: ['CORE-123'], tools: { shell: 1 }, usage: { input: 100, cached: 70, cacheWrite: 5, output: 20, reasoning: 6 } } as unknown as Session);
@@ -106,5 +106,30 @@ describe('cacheState', () => {
     expect(cacheState(c, at + 2 * 3600_000)).toMatchObject({ warm: false, assumed: true });
     expect(cacheState(of('claude', { cacheAt: at }), at)).toBeNull();
     expect(cacheState(of('codex', {}), at)).toBeNull();
+  });
+});
+
+describe('applyJournalUpdate', () => {
+  const at = (id: string, title = id) => ({ id, source: `/fake/${id}.jsonl`, title }) as Session;
+  const held: Snapshot = { sessions: [at('a'), at('b'), at('c'), at('d')], errors: [], scannedFiles: 4, pendingFiles: 0, indexedAt: 1 };
+  const figures = { errors: ['late'], scannedFiles: 5, pendingFiles: 1, indexedAt: 2 };
+
+  it('keeps what it holds for no snapshot, and takes a whole one', () => {
+    expect(applyJournalUpdate(held, { stamp: 's', snapshot: null })).toBe(held);
+    const whole = { ...figures, sessions: [at('x')] };
+    expect(applyJournalUpdate(held, { stamp: 's', snapshot: whole })).toBe(whole);
+  });
+
+  it('puts the changed sessions at their places around the unchanged ones, without the removed', () => {
+    const next = applyJournalUpdate(held, { stamp: 's', snapshot: { ...figures, sessions: [at('c', 'C again'), at('e')] }, positions: [0, 2], removed: ['/fake/b.jsonl'] });
+    expect(next.sessions.map((s) => s.title)).toEqual(['C again', 'a', 'e', 'd']);
+    expect(next.sessions[1]).toBe(held.sessions[0]);
+    expect(next.pendingFiles).toBe(1);
+  });
+
+  it('takes the new figures with the same sessions when only they changed', () => {
+    const next = applyJournalUpdate(held, { stamp: 's', snapshot: { ...figures, sessions: [] }, positions: [] });
+    expect(next.sessions).toBe(held.sessions);
+    expect(next.scannedFiles).toBe(5);
   });
 });

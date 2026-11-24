@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentAccess } from './AgentAccess';
 import { JournalProvider, type JournalHost, type SessionRowProps } from './host';
+import type { JournalUpdate } from './sessions';
 import { JournalView, REFRESH_INTERVAL, refreshJournal } from './JournalView';
 import { MemoryBrowser } from './MemoryBrowser';
 import { journalSettingsTabs } from './JournalSettings';
@@ -196,6 +197,59 @@ describe('the journal', () => {
     // Revoked: the stamp goes with the index, so the next grant reads it whole
     store.getState().forget();
     expect(store.getState().stamp).toBe('');
+  });
+
+  it('takes only what changed from a host with journalSince, keeping unchanged sessions and their details', async () => {
+    // Each its own source, as the index's are
+    const second = { ...other, source: '/fake/b.jsonl' };
+    const third = { ...other, id: 'c', source: '/fake/c.jsonl', title: 'Removed task' };
+    const first = { sessions: [{ ...session, events: [] }, second, third], scannedFiles: 3, pendingFiles: 0, indexedAt: 1, errors: [] };
+    const changed = { ...second, title: 'Parser rewrite, again' };
+    const journalSince = vi.fn<NonNullable<JournalHost['journalSince']>>()
+      .mockResolvedValueOnce({ stamp: 'a', snapshot: first })
+      .mockResolvedValueOnce({ stamp: 'b', snapshot: { ...first, sessions: [changed] }, positions: [0], removed: [third.source] })
+      .mockResolvedValue({ stamp: 'b', snapshot: null });
+    const host = fakeHost({ journalSince, snapshotSince: vi.fn() });
+    const store = await render(host);
+    expect(host.snapshotSince).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Removed task');
+    const kept = store.getState().snapshot.sessions[0];
+    const detailReads = vi.mocked(host.detail).mock.calls.length;
+    await act(async () => { await refreshJournal({ store, host }); });
+    expect(journalSince).toHaveBeenLastCalledWith('a');
+    // The changed one moved to the front, the removed one went, the unchanged one is the same object
+    expect(store.getState().snapshot.sessions.map((s) => s.title)).toEqual(['Parser rewrite, again', 'Fix CORE-123']);
+    expect(store.getState().snapshot.sessions[1]).toBe(kept);
+    expect(container.textContent).not.toContain('Removed task');
+    // The shown session didn't change: its detail isn't read again
+    expect(host.detail).toHaveBeenCalledTimes(detailReads);
+    const held = store.getState().snapshot;
+    await act(async () => { await refreshJournal({ store, host }); });
+    expect(store.getState().snapshot).toBe(held);
+  });
+
+  it('shows busy for the first read only, and drops an answer that comes after access was revoked', async () => {
+    let answer!: (update: JournalUpdate) => void;
+    const journalSince = vi.fn<NonNullable<JournalHost['journalSince']>>()
+      .mockResolvedValueOnce({ stamp: 'a', snapshot: { sessions: [other], scannedFiles: 1, pendingFiles: 0, indexedAt: 1, errors: [] } })
+      .mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }))
+      .mockRejectedValueOnce(new Error('Index gone'));
+    const store = await render(fakeHost({ journalSince }));
+    const host = fakeHost({ journalSince });
+    const pending = refreshJournal({ store, host });
+    expect(store.getState().busy).toBe(false);
+    store.getState().forget();
+    answer({ stamp: 'late', snapshot: { sessions: [session], scannedFiles: 1, pendingFiles: 0, indexedAt: 2, errors: [] } });
+    await act(async () => { await pending; });
+    expect(store.getState().stamp).toBe('');
+    expect(store.getState().snapshot.sessions).toEqual([]);
+    // A failure after the revocation says nothing either
+    const failing = refreshJournal({ store, host });
+    expect(store.getState().busy).toBe(true);
+    store.getState().forget();
+    await act(async () => { await failing; });
+    expect(store.getState().error).toBe('');
+    expect(store.getState().busy).toBe(false);
   });
 
   it('asks for the snapshot as often as the app says', async () => {

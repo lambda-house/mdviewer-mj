@@ -57,7 +57,7 @@ export function JournalList({ pane }: { pane: string }) {
         </div>
       )}
       <FolderResults all={snapshot.sessions} matches={matches} selected={selected} open={open} menu={openMenu} directory={filters.directory} narrow={(directory) => set({ directory })} />
-      {!matches.length && <div className="sc-empty">{busy ? 'Indexing transcripts…' : 'No sessions match these filters.'}</div>}
+      {!matches.length && <div className="sc-empty">{busy || snapshot.pendingFiles > 0 ? 'Indexing transcripts…' : 'No sessions match these filters.'}</div>}
       {menu && (
         <Menu
           label="Session"
