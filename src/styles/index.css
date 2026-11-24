@@ -53,10 +53,10 @@ html, body, #root {
 
 body {
   font-family: var(--font-sans);
-  font-size: var(--font-size-base);
+  font-size: var(--fs-13);
   line-height: 1.5;
-  color: var(--text-primary);
-  background-color: var(--surface-bg);
+  color: var(--text);
+  background-color: var(--canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -90,13 +90,13 @@ body {
 
 /* Selection */
 ::selection {
-  background-color: var(--selected-bg);
-  color: var(--text-primary);
+  background-color: var(--selected);
+  color: var(--text);
 }
 
 /* Focus Visible */
 :focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -130,7 +130,7 @@ input:focus, textarea:focus {
 
 /* Link Reset */
 a {
-  color: var(--text-accent);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -149,7 +149,7 @@ a:hover {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: var(--surface-bg);
+  background: var(--canvas);
 }
 
 /* Documents and Sessions: both stay mounted, so returning restores the selected session/tab */
@@ -176,7 +176,7 @@ a:hover {
 .toolbar-separator {
   width: 1px;
   height: 16px;
-  background: var(--border-default);
+  background: var(--line);
   margin: 0 4px;
 }
 
@@ -186,19 +186,19 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .toolbar-button:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .toolbar-button.active {
-  background: var(--selected-bg);
-  color: var(--text-accent);
+  background: var(--selected);
+  color: var(--accent);
 }
 
 /* WebKit does not consistently show native title tooltips on toolbar icons. */
@@ -217,12 +217,12 @@ a:hover {
   width: max-content;
   max-width: 240px;
   padding: 4px 7px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  background: var(--surface-overlay);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
   box-shadow: var(--shadow-lg);
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
+  color: var(--text);
+  font-size: var(--fs-11);
   line-height: 1.3;
   pointer-events: none;
   white-space: normal;
@@ -243,20 +243,20 @@ a:hover {
   width: 100%;
   height: 24px;
   padding: 0 8px 0 26px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  transition: border-color var(--transition-fast);
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-12);
+  transition: border-color var(--dur-fast) ease-out;
 }
 
 .toolbar-search input::placeholder {
-  color: var(--text-disabled);
+  color: var(--text-faint);
 }
 
 .toolbar-search input:focus {
-  border-color: var(--border-active);
+  border-color: var(--accent-fill);
 }
 
 .toolbar-search-icon {
@@ -264,7 +264,7 @@ a:hover {
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-disabled);
+  color: var(--text-faint);
   pointer-events: none;
 }
 
@@ -277,11 +277,11 @@ a:hover {
   align-items: center;
   height: 24px;
   padding: 0 6px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   gap: 8px;
-  transition: width var(--transition-normal);
+  transition: width var(--dur-normal) ease-out;
   overflow: hidden;
 }
 
@@ -295,9 +295,9 @@ a:hover {
 }
 
 .zoom-value {
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text);
   min-width: 36px;
   text-align: center;
 }
@@ -306,7 +306,7 @@ a:hover {
   width: 80px;
   height: 4px;
   -webkit-appearance: none;
-  background: var(--border-default);
+  background: var(--line);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -315,10 +315,10 @@ a:hover {
   -webkit-appearance: none;
   width: 14px;
   height: 14px;
-  background: var(--text-accent);
+  background: var(--accent);
   border-radius: 50%;
   cursor: pointer;
-  transition: transform var(--transition-fast);
+  transition: transform var(--dur-fast) ease-out;
 }
 
 .zoom-slider::-webkit-slider-thumb:hover {
@@ -331,14 +331,14 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .zoom-button:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .zoom-reset-button {
@@ -347,27 +347,27 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-accent);
+  color: var(--accent);
   background: transparent;
-  border: 1px solid var(--text-accent);
+  border: 1px solid var(--accent);
   cursor: pointer;
   white-space: nowrap;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .zoom-reset-button.disabled {
-  color: var(--text-disabled);
-  border-color: var(--text-disabled);
+  color: var(--text-faint);
+  border-color: var(--text-faint);
   cursor: default;
   opacity: 0.5;
 }
 
 .zoom-reset-button:not(.disabled):hover {
-  background: var(--text-accent);
-  color: var(--surface-input);
+  background: var(--accent);
+  color: var(--input);
 }
 
 /* ============================================================
@@ -377,8 +377,8 @@ a:hover {
 .file-panel {
   display: flex;
   flex-direction: column;
-  background: var(--surface-elevated);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  border-right: 1px solid var(--line-subtle);
   overflow: hidden;
   min-width: var(--panel-min-width);
   max-width: var(--panel-max-width);
@@ -391,8 +391,8 @@ a:hover {
 
 .directory-section-empty {
   margin: 8px 14px 12px 32px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-size: var(--fs-11);
 }
 
 @keyframes spin {
@@ -410,28 +410,28 @@ a:hover {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  font-size: var(--fs-12);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-elevated);
+  transition: all var(--dur-fast) ease-out;
+  border-bottom: 1px solid var(--line-subtle);
+  background: var(--surface-1);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
 .directory-section-header:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .directory-section-expand {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
-  transition: transform var(--transition-fast);
+  color: var(--text-muted);
+  transition: transform var(--dur-fast) ease-out;
 }
 
 .directory-section-expand.expanded {
@@ -458,10 +458,10 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
   flex-shrink: 0;
 }
 
@@ -474,13 +474,13 @@ a:hover {
 }
 
 .directory-section-action:hover {
-  background: var(--hover-bg);
-  color: var(--text-accent);
+  background: var(--hover);
+  color: var(--accent);
 }
 
 .directory-section-remove:hover {
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .directory-section-content {
@@ -505,16 +505,16 @@ a:hover {
   gap: 4px;
   padding: 4px 12px;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: background var(--dur-fast) ease-out;
   min-height: 28px;
 }
 
 .tree-node-content:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .tree-node-content.selected {
-  background: var(--selected-bg);
+  background: var(--selected);
 }
 
 .tree-node-indent {
@@ -528,9 +528,9 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   flex-shrink: 0;
-  transition: transform var(--transition-fast);
+  transition: transform var(--dur-fast) ease-out;
 }
 
 .tree-node-expand.expanded {
@@ -541,7 +541,7 @@ a:hover {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .tree-node-icon.folder {
@@ -549,12 +549,12 @@ a:hover {
 }
 
 .tree-node-icon.file {
-  color: var(--text-accent);
+  color: var(--accent);
 }
 
 .tree-node-name {
   flex: 1;
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -573,11 +573,11 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
   opacity: 0;
   flex-shrink: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .tree-node-content:hover .tree-node-action {
@@ -585,8 +585,8 @@ a:hover {
 }
 
 .tree-node-action:hover {
-  color: var(--text-accent);
-  background: var(--hover-bg);
+  color: var(--accent);
+  background: var(--hover);
 }
 
 .tree-node-children {
@@ -603,9 +603,9 @@ a:hover {
   z-index: 1000;
   min-width: 180px;
   padding: 4px 0;
-  background: var(--surface-overlay);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
@@ -614,24 +614,24 @@ a:hover {
 .context-menu-item {
   text-align: left;
   padding: 4px 16px;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
+  font-size: var(--fs-12);
+  color: var(--text);
   white-space: nowrap;
 }
 
 .context-menu-item:hover:not(:disabled) {
-  background: var(--selected-bg);
+  background: var(--selected);
 }
 
 .context-menu-item:disabled {
-  color: var(--text-disabled);
+  color: var(--text-faint);
   cursor: default;
 }
 
 .context-menu-separator {
   height: 1px;
   margin: 4px 0;
-  background: var(--border-default);
+  background: var(--line);
 }
 
 /* ============================================================
@@ -676,8 +676,8 @@ a:hover {
    ============================================================ */
 
 .settings-directory-list {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   margin-bottom: 16px;
   overflow: hidden;
 }
@@ -685,8 +685,8 @@ a:hover {
 .settings-directory-empty {
   padding: 24px;
   text-align: center;
-  color: var(--text-disabled);
-  font-size: var(--font-size-sm);
+  color: var(--text-faint);
+  font-size: var(--fs-12);
 }
 
 .settings-directory-item {
@@ -694,8 +694,8 @@ a:hover {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--line-subtle);
+  transition: background var(--dur-fast) ease-out;
 }
 
 .settings-directory-item:last-child {
@@ -703,7 +703,7 @@ a:hover {
 }
 
 .settings-directory-item:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .settings-directory-icon {
@@ -713,8 +713,8 @@ a:hover {
 
 .settings-directory-path {
   flex: 1;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
+  font-size: var(--fs-12);
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -726,10 +726,10 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
   flex-shrink: 0;
 }
 
@@ -738,8 +738,8 @@ a:hover {
 }
 
 .settings-directory-remove:hover {
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .settings-directory-action {
@@ -748,10 +748,10 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
   flex-shrink: 0;
 }
 
@@ -760,8 +760,8 @@ a:hover {
 }
 
 .settings-directory-action:hover {
-  background: var(--hover-bg);
-  color: var(--text-accent);
+  background: var(--hover);
+  color: var(--accent);
 }
 
 .settings-add-btn {
@@ -769,13 +769,13 @@ a:hover {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-12);
   font-weight: 500;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
 }
 
 /* Settings Option Row */
@@ -783,8 +783,8 @@ a:hover {
 /* Language Aliases */
 
 .settings-add-btn:hover {
-  background: var(--hover-bg);
-  border-color: var(--border-active);
+  background: var(--hover);
+  border-color: var(--accent-fill);
 }
 
 /* ============================================================
@@ -794,8 +794,8 @@ a:hover {
 .history-panel {
   display: flex;
   flex-direction: column;
-  background: var(--surface-elevated);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  border-right: 1px solid var(--line-subtle);
   overflow: hidden;
   min-width: var(--panel-min-width);
   max-width: var(--panel-max-width);
@@ -808,24 +808,24 @@ a:hover {
 }
 
 .history-panel-markdown {
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
 }
 
 .history-panel-markdown h1 {
-  font-size: var(--font-size-lg);
+  font-size: var(--fs-16);
   margin-top: 0;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .history-panel-markdown h2 {
-  font-size: var(--font-size-md);
+  font-size: var(--fs-14);
   margin-top: 16px;
   margin-bottom: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-accent);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--accent);
 }
 
 .history-panel-markdown ul {
@@ -837,21 +837,21 @@ a:hover {
 .history-panel-markdown li {
   margin: 4px 0;
   padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
+  border-radius: var(--r-sm);
+  transition: background var(--dur-fast) ease-out;
 }
 
 .history-panel-markdown li:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .history-panel-markdown a {
-  color: var(--text-primary);
+  color: var(--text);
   text-decoration: none;
 }
 
 .history-panel-markdown a:hover {
-  color: var(--text-accent);
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -877,26 +877,26 @@ a:hover {
   align-items: center;
   gap: 10px;
   padding: 32px 48px;
-  background: var(--surface-elevated);
-  border: 2px dashed var(--border-active);
-  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  border: 2px dashed var(--accent-fill);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   text-align: center;
 }
 
 .drop-overlay-inner svg {
-  color: var(--text-accent);
+  color: var(--accent);
 }
 
 .drop-overlay-title {
-  font-size: var(--font-size-lg);
+  font-size: var(--fs-16);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .drop-overlay-hint {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  font-size: var(--fs-12);
+  color: var(--text-muted);
 }
 
 /* ============================================================
@@ -908,43 +908,43 @@ a:hover {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .search-scope {
   display: flex;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   overflow: hidden;
 }
 
 .search-scope-button {
   flex: 1;
   height: 22px;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  font-size: var(--fs-11);
+  color: var(--text-muted);
 }
 
 .search-scope-button + .search-scope-button {
-  border-left: 1px solid var(--border-default);
+  border-left: 1px solid var(--line);
 }
 
 .search-scope-button:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .search-scope-button.active {
-  background: var(--active-bg);
-  color: var(--text-primary);
+  background: var(--pressed);
+  color: var(--text);
 }
 
 .search-summary {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  font-size: var(--fs-11);
+  color: var(--text-muted);
 }
 
 .search-summary.error {
-  color: var(--error-text);
+  color: var(--danger);
 }
 
 .search-results {
@@ -960,22 +960,22 @@ a:hover {
   gap: 4px;
   padding: 2px 8px 2px 4px;
   cursor: pointer;
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
   white-space: nowrap;
 }
 
 .search-result-file-header:hover,
 .search-result-line:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .search-result-file-icon {
-  color: var(--text-accent);
+  color: var(--accent);
   flex-shrink: 0;
 }
 
 .search-result-file-name {
-  color: var(--text-primary);
+  color: var(--text);
   flex-shrink: 0;
 }
 
@@ -984,22 +984,22 @@ a:hover {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-size: var(--fs-11);
 }
 
 .search-result-count {
   padding: 0 5px;
   border-radius: 8px;
-  background: var(--surface-input);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  background: var(--input);
+  color: var(--text-muted);
+  font-size: var(--fs-11);
 }
 
 .search-result-line {
   padding: 1px 8px 1px 40px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  font-size: var(--fs-12);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1008,7 +1008,7 @@ a:hover {
 
 .search-result-mark {
   background: var(--find-match-bg);
-  color: var(--text-primary);
+  color: var(--text);
   border-radius: 2px;
 }
 
@@ -1031,7 +1031,7 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
 }
 
 .workspace-dropdown {
@@ -1043,8 +1043,8 @@ a:hover {
 
 .workspace-empty {
   padding: 6px 16px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  font-size: var(--fs-12);
+  color: var(--text-muted);
 }
 
 .workspace-item {
@@ -1059,7 +1059,7 @@ a:hover {
 .workspace-item-check {
   width: 12px;
   display: flex;
-  color: var(--text-accent);
+  color: var(--accent);
 }
 
 .workspace-item-name {
@@ -1074,8 +1074,8 @@ a:hover {
 }
 
 .workspace-item-meta {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  font-size: var(--fs-11);
+  color: var(--text-muted);
 }
 
 .workspace-item-delete {
@@ -1084,8 +1084,8 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
   opacity: 0;
 }
 
@@ -1094,8 +1094,8 @@ a:hover {
 }
 
 .workspace-item-delete:hover {
-  color: var(--error-text);
-  background: var(--hover-bg);
+  color: var(--danger);
+  background: var(--hover);
 }
 
 .workspace-save-as {
@@ -1105,21 +1105,21 @@ a:hover {
 }
 
 .workspace-save-input {
-  background: var(--surface-input);
-  border-radius: var(--radius-sm);
+  background: var(--input);
+  border-radius: var(--r-sm);
 }
 
 .workspace-save-button {
   padding: 0 10px;
-  font-size: var(--font-size-sm);
-  border-radius: var(--radius-sm);
-  background: var(--border-active);
+  font-size: var(--fs-12);
+  border-radius: var(--r-sm);
+  background: var(--accent-fill);
   color: var(--text-on-accent);
 }
 
 .workspace-save-button:disabled {
-  background: var(--surface-input);
-  color: var(--text-disabled);
+  background: var(--input);
+  color: var(--text-faint);
 }
 
 /* ============================================================
@@ -1131,10 +1131,10 @@ a:hover {
   align-items: center;
   gap: 8px;
   padding: 4px 12px;
-  background: var(--surface-elevated);
-  border-bottom: 1px solid var(--border-default);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-12);
 }
 
 .update-banner span {
@@ -1146,23 +1146,23 @@ a:hover {
   display: inline-flex;
   align-items: center;
   padding: 3px 10px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: var(--fs-12);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .update-banner button:hover {
-  background: var(--hover-bg);
-  border-color: var(--border-active);
+  background: var(--hover);
+  border-color: var(--accent-fill);
 }
 
 .update-banner .update-banner-install {
-  background: var(--border-active);
-  border-color: var(--border-active);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
   color: var(--text-on-accent);
 }
 
@@ -1179,8 +1179,8 @@ a:hover {
 .agent-panel {
   display: flex;
   flex-direction: column;
-  background: var(--surface-elevated);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  border-right: 1px solid var(--line-subtle);
   overflow: hidden;
   min-width: var(--panel-min-width);
   max-width: var(--panel-max-width);
@@ -1193,15 +1193,15 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .agent-panel-title {
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .agent-panel-actions {
@@ -1215,14 +1215,14 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .agent-panel-action:hover:not(:disabled) {
-  background: var(--hover-bg);
-  color: var(--text-primary);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .agent-panel-action:disabled {
@@ -1240,13 +1240,13 @@ a:hover {
   align-items: flex-start;
   gap: 10px;
   padding: 20px 16px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-12);
   line-height: 1.5;
 }
 
 .agent-panel-intro svg {
-  color: var(--text-accent);
+  color: var(--accent);
 }
 
 .agent-panel-intro p {
@@ -1256,52 +1256,52 @@ a:hover {
 .agent-panel-intro code {
   font-family: var(--font-mono);
   font-size: 0.95em;
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .agent-panel-intro-detail {
-  color: var(--text-disabled);
+  color: var(--text-faint);
 }
 
 .agent-panel-enable {
   margin-top: 4px;
   padding: 5px 12px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-active);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  background: var(--input);
+  border: 1px solid var(--accent-fill);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-12);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast) ease-out;
 }
 
 .agent-panel-enable:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .agent-panel-filter {
   position: relative;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .agent-panel-filter input {
   width: 100%;
   height: 24px;
   padding: 0 8px 0 26px;
-  background: var(--surface-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-12);
 }
 
 .agent-panel-filter input::placeholder {
-  color: var(--text-disabled);
+  color: var(--text-faint);
 }
 
 .agent-panel-filter input:focus {
-  border-color: var(--border-active);
+  border-color: var(--accent-fill);
   outline: none;
 }
 
@@ -1310,7 +1310,7 @@ a:hover {
   left: 20px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-disabled);
+  color: var(--text-faint);
   pointer-events: none;
 }
 
@@ -1326,7 +1326,7 @@ a:hover {
   min-width: 0;
   color: inherit;
   text-align: left;
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-12);
 }
 
 .global-agent-root-title {
@@ -1345,8 +1345,8 @@ a:hover {
 
 .agent-panel-empty {
   padding: 12px 16px;
-  color: var(--text-disabled);
-  font-size: var(--font-size-sm);
+  color: var(--text-faint);
+  font-size: var(--fs-12);
 }
 
 .agent-section-header {
@@ -1355,8 +1355,8 @@ a:hover {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-size: var(--fs-11);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1365,7 +1365,7 @@ a:hover {
 }
 
 .agent-section-header:hover {
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .agent-section-title {
@@ -1380,13 +1380,13 @@ a:hover {
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--text-disabled);
+  color: var(--text-faint);
 }
 
 .agent-group-title {
   padding: 4px 12px 2px 26px;
-  color: var(--text-disabled);
-  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+  font-size: var(--fs-11);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1399,16 +1399,16 @@ a:hover {
 }
 
 .agent-item:hover {
-  background: var(--hover-bg);
+  background: var(--hover);
 }
 
 .agent-item.selected {
-  background: var(--selected-bg);
-  border-left-color: var(--border-active);
+  background: var(--selected);
+  border-left-color: var(--accent-fill);
 }
 
 .agent-item:focus-visible {
-  outline: 1px solid var(--focus-ring);
+  outline: 1px solid var(--focus);
   outline-offset: -1px;
 }
 
@@ -1428,7 +1428,7 @@ a:hover {
 }
 
 .agent-item.unread .agent-item-dot {
-  background: var(--text-accent);
+  background: var(--accent);
 }
 
 .agent-item-title {
@@ -1437,8 +1437,8 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  color: var(--text);
+  font-size: var(--fs-12);
 }
 
 .agent-item.unread .agent-item-title {
@@ -1448,24 +1448,24 @@ a:hover {
 .agent-item-status {
   flex-shrink: 0;
   padding: 0 5px;
-  border-radius: var(--radius-sm);
-  background: var(--active-bg);
-  color: var(--text-accent);
-  font-size: var(--font-size-xs);
+  border-radius: var(--r-sm);
+  background: var(--pressed);
+  color: var(--accent);
+  font-size: var(--fs-11);
 }
 
 .agent-item-age {
   flex-shrink: 0;
-  color: var(--text-disabled);
-  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+  font-size: var(--fs-11);
 }
 
 .agent-item-group {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-disabled);
-  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+  font-size: var(--fs-11);
 }
 
 .agent-item-description {
@@ -1474,7 +1474,7 @@ a:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin-top: 1px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-size: var(--fs-11);
   line-height: 1.4;
 }

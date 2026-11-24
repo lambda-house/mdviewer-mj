@@ -543,7 +543,7 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       style={{
         // Use CSS zoom for better scaling of all content including images
         zoom: zoom / 100,
-        '--text-primary': markdownTextColor,
+        '--text': markdownTextColor,
       } as React.CSSProperties}
       dangerouslySetInnerHTML={{ __html: html }}
       // The notice is at the top, out of view in a long document: a

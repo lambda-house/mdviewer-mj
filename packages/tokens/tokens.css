@@ -142,8 +142,8 @@
 }
 
 /*
- * Component variables, until their component moves to @lambda-house/ui
- * (phase 2).
+ * A pill switch's track and thumb (the journal's memory scopes, Agent MCR's
+ * palette filters): the thumb has no one token in both themes.
  */
 :root {
   --segmented-track: var(--input);
@@ -154,62 +154,4 @@
 :root[data-theme='light'] {
   --segmented-thumb: #ffffff;
   --segmented-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-
-/*
- * Old names, kept while the apps' CSS moves to the names above. Delete a line
- * once neither app uses that name (spec §4.1).
- */
-:root {
-  /* MDViewer */
-  --surface-bg: var(--canvas);
-  --surface-elevated: var(--surface-1);
-  --surface-overlay: var(--surface-2);
-  --surface-input: var(--input);
-  --border-default: var(--line);
-  --border-active: var(--accent-fill);
-  --border-subtle: var(--line-subtle);
-  --text-primary: var(--text);
-  --text-secondary: var(--text-muted);
-  --text-accent: var(--accent);
-  --text-disabled: var(--text-faint);
-  --hover-bg: var(--hover);
-  --selected-bg: var(--selected);
-  --focus-ring: var(--focus);
-  --active-bg: var(--pressed);
-  --error-bg: var(--danger-bg);
-  --error-text: var(--danger);
-  --warning-bg: var(--warn-bg);
-  --warning-text: var(--warn);
-  --success-bg: var(--ok-bg);
-  --success-text: var(--ok);
-  --font-size-xs: var(--fs-11);
-  --font-size-sm: var(--fs-12);
-  --font-size-base: var(--fs-13);
-  --font-size-md: var(--fs-14);
-  --font-size-lg: var(--fs-16);
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
-  --transition-fast: var(--dur-fast) ease-out;
-  --transition-normal: var(--dur-normal) ease-out;
-  --transition-slow: var(--dur-slow) ease-out;
-
-  /* Agent MCR */
-  --layer-1: var(--surface-2);
-  --layer-2: var(--input);
-  --layer-3: var(--surface-3);
-  --layer-hover: var(--hover);
-  --layer-selected: var(--selected);
-  --bg-panel: var(--surface-1);
-  --bg-input: var(--input);
-  --bg-subtle: var(--surface-2);
-  --bg-hover: var(--hover);
-  --text-soft: var(--text);
-  --info: var(--accent);
-  --info-bg: var(--accent-bg);
-  --info-line: var(--accent-line);
-  --success: var(--ok);
-  --r-xs: var(--r-sm);
-  --r-xl: var(--r-lg);
 }

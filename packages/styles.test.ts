@@ -39,6 +39,35 @@ export function unbalancedBraces(css: string): string[] {
   return [...problems, ...open.map((at) => `the { at line ${at} is never closed`)];
 }
 
+function sources(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    if (name === 'node_modules') return [];
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return sources(path);
+    return /\.tsx?$/.test(name) ? [path] : [];
+  });
+}
+
+const withoutComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+/**
+ * Variables used without a fallback that nothing defines: no stylesheet, and
+ * no component as an inline style (`'--zoom-factor': …`, `setProperty('--x')`).
+ * Such a `var()` makes its declaration invalid, so the property falls back to
+ * its initial value. Shiki writes its `--shiki-*` into the HTML it renders.
+ */
+export function undefinedVariables(stylesheets: string[], code: string[]): string[] {
+  const defined = new Set<string>();
+  for (const css of stylesheets) for (const [, name] of withoutComments(css).matchAll(/(--[\w-]+)\s*:/g)) defined.add(name);
+  for (const source of code) {
+    for (const [, name] of source.matchAll(/['"](--[\w-]+)['"]\s*:/g)) defined.add(name);
+    for (const [, name] of source.matchAll(/setProperty\(\s*['"](--[\w-]+)/g)) defined.add(name);
+  }
+  const used = new Set<string>();
+  for (const css of stylesheets) for (const [, name] of withoutComments(css).matchAll(/var\(\s*(--[\w-]+)\s*\)/g)) used.add(name);
+  return [...used].filter((name) => !defined.has(name) && !name.startsWith('--shiki-')).sort();
+}
+
 describe('stylesheets', () => {
   const files = [...stylesheets(join(ROOT, 'packages')), ...stylesheets(join(ROOT, 'src'))];
 
@@ -48,6 +77,16 @@ describe('stylesheets', () => {
 
   it.each(files.map((file) => [relative(ROOT, file), file]))('%s closes every block', (_, file) => {
     expect(unbalancedBraces(readFileSync(file, 'utf8'))).toEqual([]);
+  });
+
+  it('uses no variable that nothing defines', () => {
+    const code = [...sources(join(ROOT, 'packages')), ...sources(join(ROOT, 'src'))].map((file) => readFileSync(file, 'utf8'));
+    expect(undefinedVariables(files.map((file) => readFileSync(file, 'utf8')), code)).toEqual([]);
+  });
+
+  it('names a variable nothing defines', () => {
+    expect(undefinedVariables([':root { --a: 1px; } .x { width: var(--a); height: var(--b); top: var(--c, 0); }'], [])).toEqual(['--b']);
+    expect(undefinedVariables(['.x { zoom: var(--z); }'], ["style={{ '--z': 2 }}"])).toEqual([]);
   });
 
   it('reports what is left open', () => {

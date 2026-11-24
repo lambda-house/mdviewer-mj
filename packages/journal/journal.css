@@ -150,10 +150,10 @@
   font-family: var(--font-mono);
   font-size: var(--fs-11);
   padding: 1px 5px;
-  border-radius: var(--r-xs);
-  background: var(--layer-2);
+  border-radius: var(--r-sm);
+  background: var(--input);
   border: 1px solid var(--line);
-  color: var(--text-soft);
+  color: var(--text);
 }
 
 .settings-modal .settings-embedded-host .sc-memory-browser {
@@ -189,7 +189,7 @@
   font-weight: 500;
   border-radius: var(--r-sm);
   border: 1px solid var(--line-strong);
-  background: var(--bg-panel);
+  background: var(--surface-1);
   color: var(--text);
   padding: 6px 12px;
   cursor: pointer;
@@ -198,7 +198,7 @@
 }
 
 .settings-modal .settings-embedded-host button:where(:not([class^="ui-"],[class*=" ui-"])):hover:not(:disabled) {
-  background: var(--layer-hover);
+  background: var(--hover);
 }
 
 .settings-modal .settings-embedded-host .sc-memory-scopes {
@@ -243,13 +243,13 @@
   align-items: flex-start;
   text-align: left;
   padding: 12px 14px;
-  background: var(--layer-1);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
 }
 
 .settings-modal .settings-embedded-host .sc-memory-list button:hover:not(:disabled) {
-  background: var(--layer-hover);
+  background: var(--hover);
   border-color: var(--line-strong);
 }
 
@@ -283,13 +283,13 @@
 .settings-modal .settings-embedded-host .sc-analysis-result {
   margin: 0;
   padding: 12px 14px;
-  background: var(--layer-2);
+  background: var(--input);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   font-family: var(--font-mono);
   font-size: var(--fs-12);
   line-height: 1.6;
-  color: var(--text-soft);
+  color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overflow: auto;
@@ -309,7 +309,7 @@
   gap: 12px;
   margin: 0;
   padding: 12px 14px;
-  background: var(--layer-1);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
 }
@@ -331,7 +331,7 @@
   gap: 6px;
   font-size: var(--fs-12);
   font-weight: 500;
-  color: var(--text-soft);
+  color: var(--text);
 }
 
 .settings-modal .settings-embedded-host .sc-analysis-check {
@@ -357,13 +357,13 @@
   font-family: inherit;
   font-size: var(--fs-12);
   color: var(--text);
-  background: var(--bg-input);
+  background: var(--input);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
 }
 
 .settings-modal .settings-embedded-host .sc-command {
-  background: var(--layer-1);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   padding: 8px 10px;
@@ -389,7 +389,7 @@
 }
 
 .settings-modal .settings-embedded-host .sc-analysis-audit {
-  background: var(--layer-1);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   padding: 0 14px;

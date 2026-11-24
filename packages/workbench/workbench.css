@@ -510,7 +510,7 @@
   flex-direction: column;
   background: var(--surface-1);
   border: 1px solid var(--line);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-md);
   color: var(--text);
   font-family: var(--font-sans);
@@ -627,12 +627,12 @@
 }
 
 .settings-modal .settings-nav-item:hover {
-  background: var(--layer-hover);
+  background: var(--hover);
   color: var(--text);
 }
 
 .settings-modal .settings-nav-item.active {
-  background: var(--layer-selected);
+  background: var(--selected);
   color: var(--text);
   font-weight: 500;
 }
@@ -685,7 +685,7 @@
 
 /* Layer-1 card container for SettingRows and form groups */
 .settings-modal .settings-card {
-  background: var(--layer-1);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   padding: 2px 16px;
@@ -703,7 +703,7 @@
   font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--text-soft);
+  color: var(--text);
 }
 
 /* Toggle Switch */
@@ -726,7 +726,7 @@
   position: absolute;
   inset: 0;
   cursor: pointer;
-  background-color: var(--layer-3);
+  background-color: var(--surface-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-full);
   transition: background-color var(--dur-fast) var(--ease-standard),
@@ -773,7 +773,7 @@
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
-  background: var(--layer-1);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   transition: border-color var(--dur-fast) var(--ease-standard),
@@ -782,7 +782,7 @@
 
 .settings-modal .settings-plugin-card:hover {
   border-color: var(--line-strong);
-  background: var(--layer-hover);
+  background: var(--hover);
 }
 
 .settings-modal .settings-plugin-card.is-disabled {
@@ -797,7 +797,7 @@
   width: 36px;
   height: 36px;
   border-radius: var(--r-md);
-  background: var(--layer-2);
+  background: var(--input);
   border: 1px solid var(--line);
   color: var(--text-muted);
 }
@@ -853,7 +853,7 @@
 .settings-modal .settings-field-label {
   font-size: var(--fs-12);
   font-weight: 500;
-  color: var(--text-soft);
+  color: var(--text);
 }
 
 .settings-modal .settings-actions-row {

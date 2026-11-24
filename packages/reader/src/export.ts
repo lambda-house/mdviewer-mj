@@ -8,25 +8,25 @@ export type ExportFormat = 'markdown' | 'html';
 /** Export palette per theme (the app's own variables are not in the file). */
 const EXPORT_PALETTE = {
   dark: `
-      --surface-bg: #1e1e1e;
-      --surface-elevated: #252526;
-      --surface-overlay: #2d2d30;
-      --border-default: #3c3c3c;
-      --border-subtle: #2d2d30;
-      --text-primary: #cccccc;
-      --text-secondary: #858585;
-      --text-accent: #4fc1ff;
-      --selected-bg: #094771;`,
+      --canvas: #1e1e1e;
+      --surface-1: #252526;
+      --surface-2: #2d2d30;
+      --line: #3c3c3c;
+      --line-subtle: #2d2d30;
+      --text: #cccccc;
+      --text-muted: #858585;
+      --accent: #4fc1ff;
+      --selected: #094771;`,
   light: `
-      --surface-bg: #ffffff;
-      --surface-elevated: #f3f3f3;
-      --surface-overlay: #f7f7f7;
-      --border-default: #d0d0d0;
-      --border-subtle: #e4e4e4;
-      --text-primary: #1f1f1f;
-      --text-secondary: #6a6a6a;
-      --text-accent: #005fb8;
-      --selected-bg: #cce4f7;`,
+      --canvas: #ffffff;
+      --surface-1: #f3f3f3;
+      --surface-2: #f7f7f7;
+      --line: #d0d0d0;
+      --line-subtle: #e4e4e4;
+      --text: #1f1f1f;
+      --text-muted: #6a6a6a;
+      --accent: #005fb8;
+      --selected: #cce4f7;`,
 };
 
 // Generate complete HTML document for export, in the current theme.
@@ -49,8 +49,8 @@ function generateExportHtml(title: string, content: string, theme: 'dark' | 'lig
       font-family: var(--font-sans);
       font-size: 14px;
       line-height: 1.7;
-      color: var(--text-primary);
-      background-color: var(--surface-bg);
+      color: var(--text);
+      background-color: var(--canvas);
       max-width: 800px;
       margin: 0 auto;
       padding: 32px 48px;
@@ -64,8 +64,8 @@ function generateExportHtml(title: string, content: string, theme: 'dark' | 'lig
       line-height: 1.3;
     }
 
-    h1 { font-size: 32px; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-subtle); }
-    h2 { font-size: 24px; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-subtle); }
+    h1 { font-size: 32px; padding-bottom: 0.3em; border-bottom: 1px solid var(--line-subtle); }
+    h2 { font-size: 24px; padding-bottom: 0.3em; border-bottom: 1px solid var(--line-subtle); }
     h3 { font-size: 18px; }
     h4 { font-size: 16px; }
 
@@ -73,21 +73,21 @@ function generateExportHtml(title: string, content: string, theme: 'dark' | 'lig
 
     p { margin: 1em 0; }
 
-    a { color: var(--text-accent); text-decoration: none; }
+    a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
     code {
       font-family: var(--font-mono);
       font-size: 0.9em;
       padding: 0.2em 0.4em;
-      background: var(--surface-overlay);
+      background: var(--surface-2);
       border-radius: 3px;
     }
 
     pre {
       margin: 1em 0;
       padding: 16px;
-      background: var(--surface-overlay);
+      background: var(--surface-2);
       border-radius: 6px;
       overflow-x: auto;
     }
@@ -103,20 +103,20 @@ function generateExportHtml(title: string, content: string, theme: 'dark' | 'lig
       margin: 1em 0;
       padding: 0.5em 1em;
       border-left: 4px solid #007acc;
-      background: var(--surface-elevated);
-      color: var(--text-secondary);
+      background: var(--surface-1);
+      color: var(--text-muted);
     }
 
     ul, ol { margin: 1em 0; padding-left: 2em; }
     li { margin: 0.5em 0; }
 
     table { width: 100%; margin: 1em 0; border-collapse: collapse; }
-    th, td { padding: 10px 16px; border: 1px solid var(--border-default); text-align: left; }
-    th { background: var(--surface-elevated); font-weight: 600; }
-    tr:nth-child(even) { background: var(--surface-elevated); }
+    th, td { padding: 10px 16px; border: 1px solid var(--line); text-align: left; }
+    th { background: var(--surface-1); font-weight: 600; }
+    tr:nth-child(even) { background: var(--surface-1); }
 
     img { max-width: 100%; height: auto; border-radius: 6px; }
-    hr { margin: 2em 0; border: none; border-top: 1px solid var(--border-default); }
+    hr { margin: 2em 0; border: none; border-top: 1px solid var(--line); }
 
     .code-block-wrapper { position: relative; margin: 1em 0; }
     .code-block-header {
@@ -126,13 +126,13 @@ function generateExportHtml(title: string, content: string, theme: 'dark' | 'lig
       padding: 8px 16px;
       background: #3c3c3c;
       border-radius: 6px 6px 0 0;
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--line-subtle);
     }
     .code-block-language {
       font-size: 11px;
       font-weight: 500;
       text-transform: uppercase;
-      color: var(--text-secondary);
+      color: var(--text-muted);
     }
     .code-block-copy { display: none; }
     .code-block-wrapper pre { margin: 0; border-radius: 0 0 6px 6px; }
@@ -140,7 +140,7 @@ function generateExportHtml(title: string, content: string, theme: 'dark' | 'lig
     /* Mermaid diagrams */
     .mermaid-container {
       margin: 1em 0;
-      background: var(--surface-overlay);
+      background: var(--surface-2);
       border-radius: 6px;
       padding: 16px;
       overflow-x: auto;
