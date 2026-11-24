@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
-import { Activity, ArrowUpRight, Bot, Copy, Link2, Play, Square, Terminal, X, Zap } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowUpRight, Bot, Copy, History, Link2, Play, Square, Terminal, X, Zap } from 'lucide-react';
 import { Button, Tabs } from '@lambda-house/ui';
-import { PaneMenu } from '@lambda-house/workbench';
+import { Pane } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext } from './host';
 import { MemoryBrowser } from './MemoryBrowser';
 import { SessionTree } from './SessionTree';
@@ -23,10 +23,10 @@ function ContextResult({ value }: { value: unknown }) {
 }
 
 /**
- * One `journal-detail` pane: its session's header and tabs. It loads only its
- * own session, and only while shown (`active`); a session's details load when
- * it is chosen. Linked Work's lookups, Direct and Resume are there only when
- * the host has them.
+ * One `journal-detail` pane: its pane header (Resume, close, the pane menu),
+ * its session's heading and tabs. It loads only its own session, and only
+ * while shown (`active`); a session's details load when it is chosen. Linked
+ * Work's lookups, Direct and Resume are there only when the host has them.
  */
 export function JournalDetail({ pane, active }: { pane: string; active: boolean }) {
   const { store, host } = useJournalContext();
@@ -70,9 +70,9 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
   }, [selected, sessions, active, host]);
 
   const chosen = detail && sessionKey(detail) === selected ? detail : sessions.find((s) => sessionKey(s) === selected);
-  const close = <span className="sc-detail-tools"><PaneMenu />{several && <button className="sc-detail-close" aria-label="Close session pane" title="Close this pane" onClick={() => store.getState().closePane(pane)}><X size={14} /></button>}</span>;
+  const closeButton = several && <Button variant="ghost" size="xs" icon={<X size={16} />} aria-label="Close session pane" title="Close this pane" onClick={() => store.getState().closePane(pane)} />;
   if (!chosen) {
-    return <main className="sc-detail">{close}<div className="sc-empty"><Bot size={32} /><h2>Select a session</h2><p>Inspect its activity, agents and linked work.</p></div></main>;
+    return <Pane className="sc-detail" title="Session" tools={closeButton}><div className="sc-empty"><Bot size={32} /><h2>Select a session</h2><p>Inspect its activity, agents and linked work.</p></div></Pane>;
   }
 
   const events = evidence?.session === selected ? [evidence.event] : olderEvents ?? chosen.events ?? [];
@@ -115,10 +115,13 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
     finally { setHistoryBusy(false); }
   };
 
+  const resume = !chosen.parentId && host.resume && (
+    <Button variant="ghost" size="sm" icon={<Play size={12} />} title="Continue this session in a hosted terminal, in its folder" onClick={() => void host.resume!(chosen).catch(fail)}>Resume in Live</Button>
+  );
+
   return (
-    <main className="sc-detail">
+    <Pane className="sc-detail" title="Session" tools={<>{resume}{closeButton}</>}>
       <div className="sc-detail-heading">
-        {close}
         <div className="sc-session-meta"><span className={`sc-provider ${chosen.provider}`}>{chosen.provider}</span><span className={`sc-status ${chosen.status}`}>{chosen.status}</span><span>{origin(chosen) === 'human' ? 'Human session' : origin(chosen)} · {chosen.name}</span></div>
         <h2 title={label(chosen)}>{label(chosen)}</h2>
         <p title={chosen.cwd}>{chosen.cwd}</p>
@@ -126,7 +129,6 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
           <span><Zap size={14} />{chosen.model || 'Unknown model'} {chosen.effort && `· ${chosen.effort}`}</span>
           <span>{compact(totalTokens(chosen.usage))} recorded tokens</span>
           <span>{chosen.eventCount.toLocaleString()} events</span>
-          {!chosen.parentId && host.resume && <button className="ss-resume" title="Continue this session in a hosted terminal, in its folder" onClick={() => void host.resume!(chosen).catch(fail)}><Play size={11} /> Resume in Live</button>}
         </div>
       </div>
       <div className="sc-tabs">
@@ -134,14 +136,14 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
       </div>
       <div className="sc-detail-content">
         {tab === 'activity' && <>
-          {evidence?.session === selected && <button onClick={() => store.getState().clearEvidence(pane)}>Back to activity</button>}
+          {evidence?.session === selected && <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />} onClick={() => store.getState().clearEvidence(pane)}>Back to activity</Button>}
           <div className="sc-section-row">
             <h3>Activity <span className="sc-activity-count">{events.length} / {chosen.eventCount} · {olderEvents ? 'earlier' : 'latest'} · newest first</span></h3>
             <select title="Message previews are capped at 12,000 characters" aria-label="Event type" value={state.eventFilter} onChange={(e) => set({ eventFilter: e.target.value })}>{['all', 'user', 'assistant', 'tool', 'result', 'error'].map((t) => <option key={t}>{t}</option>)}</select>
           </div>
           <div className="sc-history-actions">
-            {olderEvents && <button onClick={() => setOlderEvents(null)}>Back to latest</button>}
-            {events[0]?.seq > 1 && <button disabled={historyBusy} onClick={() => void earlier()}>{historyBusy ? 'Loading earlier activity…' : 'Earlier activity'}</button>}
+            {olderEvents && <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />} onClick={() => setOlderEvents(null)}>Back to latest</Button>}
+            {events[0]?.seq > 1 && <Button variant="ghost" size="sm" icon={<History size={14} />} disabled={historyBusy} onClick={() => void earlier()}>{historyBusy ? 'Loading earlier activity…' : 'Earlier activity'}</Button>}
           </div>
           {[...events].reverse().filter((e) => state.eventFilter === 'all' || e.kind === state.eventFilter).map((e, i) => (
             <article className={`sc-event ${e.kind}`} key={`${chosen.id}-${e.at}-${i}`}>
@@ -183,13 +185,13 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
           <h3>Atlassian tickets</h3>
           <p className="sc-note">Mentions extracted from messages and tool activity. A mention is evidence of a reference, not an assignment.</p>
           <div className="sc-ticket-list">{chosen.tickets.map((key) => <div key={key}>
-            <button onClick={() => void loadContext('jira', key)} disabled={contextBusy}><Link2 size={14} />{key}</button>
-            {host.connections && host.openExternal && <button title={`Open ${key} in Jira`} aria-label={`Open ${key} in Jira`} onClick={() => void openTicket(key)}><ArrowUpRight size={14} /></button>}
+            <Button variant="ghost" size="sm" icon={<Link2 size={14} />} onClick={() => void loadContext('jira', key)} disabled={contextBusy}>{key}</Button>
+            {host.connections && host.openExternal && <Button variant="ghost" size="sm" icon={<ArrowUpRight size={14} />} title={`Open ${key} in Jira`} aria-label={`Open ${key} in Jira`} onClick={() => void openTicket(key)} />}
           </div>)}</div>
           {!chosen.tickets.length && <p>No ticket mentions found.</p>}
           <h3>TEOB memory</h3>
           <p>Look up the memory run whose identifier matches this session.</p>
-          <button onClick={() => void loadContext('memory', chosen.id)} disabled={contextBusy}><Activity size={15} /> Load memory run</button>
+          <Button variant="ghost" size="sm" icon={<Activity size={14} />} onClick={() => void loadContext('memory', chosen.id)} disabled={contextBusy}>Load memory run</Button>
           <h4>Memory tools observed</h4>
           {chosen.memoryRefs.length ? chosen.memoryRefs.map((r) => <code className="sc-memory-ref" key={r}>{r}</code>) : <p className="sc-note">No named TEOB memory calls observed. Calls through shell wrappers may not be identifiable.</p>}
           {contextTitle && <div className="sc-context"><h3>{contextTitle}</h3>{contextBusy && <p>Fetching…</p>}{contextError && <p role="alert">{contextError}</p>}{context !== null && <ContextResult value={context} />}</div>}
@@ -205,19 +207,19 @@ export function JournalDetail({ pane, active }: { pane: string; active: boolean 
           <h3>Direct the session</h3>
           <p className="sc-note">Observed activity does not guarantee that an agent is still running. Codex controls connect to its existing local daemon and require the observed turn to still be current.</p>
           {chosen.provider === 'codex' ? <>
-            <button disabled={controlBusy} onClick={() => void control('inspect')}><Activity size={15} /> Inspect live Codex state</button>
+            <Button variant="ghost" size="sm" icon={<Activity size={14} />} disabled={controlBusy} onClick={() => void control('inspect')}>Inspect live Codex state</Button>
             <label className="sc-instruction">Instruction<textarea placeholder="Give this agent a specific correction or next constraint…" value={instruction} onChange={(e) => setInstruction(e.target.value)} /></label>
             <div className="sc-control-actions">
               <Button variant="primary" disabled={controlBusy || !chosen.turnId || !instruction.trim()} onClick={() => void control('steer')}>Send steering instruction</Button>
-              <button disabled={controlBusy || !chosen.turnId} onClick={() => void control('interrupt')}><Square size={14} /> Interrupt turn</button>
+              <Button variant="ghost" icon={<Square size={14} />} disabled={controlBusy || !chosen.turnId} onClick={() => void control('interrupt')}>Interrupt turn</Button>
             </div>
           </> : <p>Live steering is not connected for externally launched Claude sessions. Continue in its existing terminal. Resume only after the original instance has stopped.</p>}
           {controlMessage && <pre className="sc-control-result" role="status">{controlMessage}</pre>}
           <h3>Resume in your terminal</h3>
           <p className="sc-note">This copies a command; it does not launch another agent. Avoid resuming while the original instance is working.</p>
-          <div className="sc-command"><Terminal size={16} /><code>{resumeCommand(chosen)}</code><button aria-label="Copy resume command" onClick={() => void navigator.clipboard.writeText(resumeCommand(chosen)).then(() => setControlMessage('Resume command copied.')).catch((e) => setControlMessage(errorText(e)))}><Copy size={15} /></button></div>
+          <div className="sc-command"><Terminal size={16} /><code>{resumeCommand(chosen)}</code><Button variant="ghost" size="xs" icon={<Copy size={14} />} aria-label="Copy resume command" title="Copy resume command" onClick={() => void navigator.clipboard.writeText(resumeCommand(chosen)).then(() => setControlMessage('Resume command copied.')).catch((e) => setControlMessage(errorText(e)))} /></div>
         </>}
       </div>
-    </main>
+    </Pane>
   );
 }

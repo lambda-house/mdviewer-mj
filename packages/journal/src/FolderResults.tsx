@@ -1,6 +1,6 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { Filter, Folder, MapPin } from 'lucide-react';
-import { formatAge } from '@lambda-house/ui';
+import { Button, formatAge } from '@lambda-house/ui';
 import { SessionTree } from './SessionTree';
 import { directoryTree, homePath, shortPath, within, type DirectoryNode, type Session } from './sessions';
 
@@ -89,8 +89,8 @@ export function DirectoryMap({ sessions, directory, current, select }: { session
     <details className="sc-directory-map">
       <summary><MapPin size={13} /><span title={directory || 'All recorded locations'}>{directory.split(/[\\/]/).filter(Boolean).pop() || 'All locations'}</span><small>Directory map</small></summary>
       <div className="sc-directory-actions">
-        <button onClick={() => select('')}>All locations</button>
-        <button onClick={() => select(current)} disabled={!current}>Current directory</button>
+        <Button variant="ghost" size="sm" onClick={() => select('')}>All locations</Button>
+        <Button variant="ghost" size="sm" onClick={() => select(current)} disabled={!current}>Current directory</Button>
       </div>
       <p title={directory}>{directory || 'All recorded locations'} · counts include descendants</p>
       <div className="sc-directory-tree">{render(root, 0)}</div>

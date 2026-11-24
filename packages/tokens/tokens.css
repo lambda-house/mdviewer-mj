@@ -140,18 +140,3 @@
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
 }
-
-/*
- * A pill switch's track and thumb (the journal's memory scopes, Agent MCR's
- * palette filters): the thumb has no one token in both themes.
- */
-:root {
-  --segmented-track: var(--input);
-  --segmented-thumb: var(--surface-1);
-  --segmented-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-
-:root[data-theme='light'] {
-  --segmented-thumb: #ffffff;
-  --segmented-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}

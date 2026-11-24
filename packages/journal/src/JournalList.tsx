@@ -1,14 +1,14 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { ChevronRight, Search, X } from 'lucide-react';
 import { Menu } from '@lambda-house/ui';
-import { PaneMenu } from '@lambda-house/workbench';
+import { Pane } from '@lambda-house/workbench';
 import { useJournal, useJournalContext } from './host';
 import { DirectoryMap, FolderResults } from './FolderResults';
 import { filterSessions, filtersOn as countFilters, homePath, NO_FILTERS, type SessionFilters } from './sessions';
 
 const isMod = (event: MouseEvent) => event.metaKey || event.ctrlKey;
 
-/** The search, the filters and the sessions of one `journal-list` pane. */
+/** One `journal-list` pane: its header (the pane menu), the search, the filters and the sessions. */
 export function JournalList({ pane }: { pane: string }) {
   const { store } = useJournalContext();
   const filters = useJournal((s) => s.lists[pane]) ?? NO_FILTERS;
@@ -29,11 +29,8 @@ export function JournalList({ pane }: { pane: string }) {
   };
 
   return (
-    <aside className="sc-session-list ss-list" aria-label="Session search">
-      <div className="ss-search-row">
-        <div className="sc-search ss-search"><Search size={14} /><input aria-label="Search sessions" placeholder="Find a task, ticket, model or tool…" {...field('query')} /></div>
-        <PaneMenu />
-      </div>
+    <Pane as="aside" className="sc-session-list ss-list" aria-label="Session search" title="Sessions">
+      <div className="sc-search ss-search"><Search size={14} /><input aria-label="Search sessions" placeholder="Find a task, ticket, model or tool…" {...field('query')} /></div>
       <details className="ss-filters">
         <summary><span>Filters{on ? ` · ${on} on` : ''}</span><span className="ss-count">{matches.length.toLocaleString()} sessions</span><ChevronRight size={12} /></summary>
         <div className="ss-filter-fields">
@@ -72,6 +69,6 @@ export function JournalList({ pane }: { pane: string }) {
           ]}
         />
       )}
-    </aside>
+    </Pane>
   );
 }
