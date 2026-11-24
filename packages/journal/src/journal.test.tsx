@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentAccess } from './AgentAccess';
 import { JournalProvider, type JournalHost, type SessionRowProps } from './host';
-import { JournalView } from './JournalView';
+import { JournalView, REFRESH_INTERVAL, refreshJournal } from './JournalView';
 import { MemoryBrowser } from './MemoryBrowser';
 import { journalSettingsTabs } from './JournalSettings';
 import { createJournalStore, detailPanes, MAIN_DETAIL } from './store';
@@ -173,6 +173,44 @@ describe('the journal', () => {
   it('draws the rows the app gives it', async () => {
     await render(fakeHost(), <JournalView />, ({ title, onOpen }) => <button className="sc-session app-row" onClick={onOpen}>{title}!</button>);
     expect([...container.querySelectorAll('.app-row')].map((r) => r.textContent)).toEqual(['Fix CORE-123!', 'Parser rewrite!']);
+  });
+
+  it('takes a snapshot only when what it shows changed, with a host that has snapshotSince', async () => {
+    const snapshot = { sessions: [{ ...session, events: [] }, other], scannedFiles: 2, pendingFiles: 0, indexedAt: 1, errors: [] };
+    const snapshotSince = vi.fn(async (stamp: string) => (stamp === 's1' ? { stamp: 's1', snapshot: null } : { stamp: 's1', snapshot }));
+    const host = fakeHost({ snapshotSince });
+    const store = await render(host);
+    expect(snapshotSince).toHaveBeenCalledWith('');
+    expect(host.snapshot).not.toHaveBeenCalled();
+    const held = store.getState().snapshot;
+    expect(held.sessions).toHaveLength(2);
+    expect(store.getState().stamp).toBe('s1');
+
+    // Unchanged: the held snapshot stays the same object, so nothing renders again
+    store.getState().setError('a failed read');
+    await refreshJournal({ store, host });
+    expect(snapshotSince).toHaveBeenLastCalledWith('s1');
+    expect(store.getState().snapshot).toBe(held);
+    expect(store.getState().error).toBe('');
+
+    // Revoked: the stamp goes with the index, so the next grant reads it whole
+    store.getState().forget();
+    expect(store.getState().stamp).toBe('');
+  });
+
+  it('asks for the snapshot as often as the app says', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const host = fakeHost();
+      await render(host, <JournalView refreshInterval={60_000} />);
+      expect(host.snapshot).toHaveBeenCalledTimes(1);
+      await act(async () => { vi.advanceTimersByTime(REFRESH_INTERVAL); });
+      expect(host.snapshot).toHaveBeenCalledTimes(1);
+      await act(async () => { vi.advanceTimersByTime(60_000 - REFRESH_INTERVAL); });
+      expect(host.snapshot).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('revokes access and forgets the index', async () => {

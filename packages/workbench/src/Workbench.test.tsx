@@ -2,8 +2,9 @@
 import { act, createContext, useContext } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dragsWindow } from './dragRegion.testing';
 import {
-  PluginRegistry, Workbench, pluginsTab, useCommandTitle, usePaneTypes, useSurfaceShown, windowCommands,
+  PluginRegistry, ShellTools, Workbench, pluginsTab, useCommandTitle, usePaneTypes, useSurfaceShown, windowCommands,
   type MenuItem, type Plugin, type Theme, type WorkbenchProps,
 } from './index';
 
@@ -151,6 +152,49 @@ describe('Workbench', () => {
     expect(setTheme).toHaveBeenCalledWith('light');
     // The main menu's button is a tool of the bar too
     expect(host.querySelector('.wb-main-menu > button')?.className).toBe('wb-tool');
+  });
+
+  it('makes the bar a title bar on request: room for the traffic lights, and only its own empty space drags', () => {
+    const registry = new PluginRegistry();
+    // A surface's tools as plugins bring them: a hover control and a popover are not buttons, a group has gaps
+    registry.register({
+      id: 'tools', name: 'Tools', required: true,
+      setup(api) {
+        api.contribute('workbench:surface', {
+          id: 'first', label: 'First', order: 10, render: () => (
+            <ShellTools>
+              <div className="wb-tool-group"><button className="wb-tool">A</button><span className="wb-tool-separator" /><div className="hover">50%</div></div>
+              <details><summary>Summary</summary><div className="popover"><p>Figures</p></div></details>
+            </ShellTools>
+          ),
+        });
+        api.contribute('workbench:surface', { id: 'second', label: 'Second', order: 20, render: () => null });
+      },
+    });
+    const bar = () => host.querySelector<HTMLElement>('.wb-topbar')!;
+
+    render(registry, { titleBar: 'overlay', palette: { open: () => {} }, appearance: { theme: 'dark', setTheme: () => {} } });
+    expect(bar().getAttribute('data-titlebar')).toBe('overlay');
+    expect(bar().style.paddingLeft).toBe('88px');
+    expect(dragsWindow(bar())).toBe(true);
+    expect(dragsWindow(bar().querySelector('.wb-topbar__spacer')!)).toBe(true);
+    // The main menu opens in place: its frame and separators are no drag either
+    act(() => bar().querySelector<HTMLButtonElement>('.wb-main-menu > button')!.click());
+    expect(bar().querySelector('[role="menu"]')).not.toBeNull();
+    const inside = [...bar().querySelectorAll(':scope > :not(.wb-topbar__spacer), :scope > :not(.wb-topbar__spacer) *')];
+    expect(inside.length).toBeGreaterThan(15);
+    for (const el of inside) expect(dragsWindow(el), el.outerHTML.slice(0, 80)).toBe(false);
+
+    // Full screen: no room for the lights (macOS hides them) and no drag region
+    render(registry, { titleBar: 'fullscreen' });
+    expect(bar().getAttribute('data-titlebar')).toBe('fullscreen');
+    expect(bar().style.paddingLeft).toBe('');
+    expect(dragsWindow(bar())).toBe(false);
+    // A native title bar: the bar as it was
+    render(registry, { titleBar: 'native' });
+    expect(bar().hasAttribute('data-titlebar')).toBe(false);
+    expect(bar().getAttribute('style')).toBeNull();
+    expect(host.querySelector('[data-tauri-drag-region]')).toBeNull();
   });
 
   it('names a command’s key in a tooltip, from the menu', () => {

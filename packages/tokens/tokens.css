@@ -97,6 +97,9 @@
 
   /* Window chrome */
   --toolbar-height: 32px;
+  /* The top bar as macOS's overlay title bar (the workbench's titleBar.ts): with its 1 px border the
+     bar's middle is at 19 px, where trafficLightPosition y 21 puts the traffic lights' centre */
+  --titlebar-height: 39px;
   --tab-bar-height: 30px;
   --status-bar-height: 28px;
 }

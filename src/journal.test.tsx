@@ -17,7 +17,10 @@ const session: Session = { id: 'a', provider: 'codex', parentId: null, name: 'ro
 
 const backend: Record<string, (args?: Record<string, unknown>) => unknown> = {
   session_access: () => true,
-  sessions_snapshot: () => ({ sessions: [{ ...session, events: [] }], scannedFiles: 1, pendingFiles: 0, indexedAt: Date.now(), errors: [] }),
+  sessions_snapshot_since: (args) => ({
+    stamp: 's1',
+    snapshot: args?.stamp === 's1' ? null : { sessions: [{ ...session, events: [] }], scannedFiles: 1, pendingFiles: 0, indexedAt: Date.now(), errors: [] },
+  }),
   session_details: () => session,
   session_connections: () => ({ jiraSite: 'https://example.atlassian.net', jiraReady: true, memoryUrl: '', memoryReady: false }),
   session_control: () => { throw 'Daemon unavailable'; },
@@ -47,7 +50,9 @@ describe('the journal in MDViewer', () => {
     await act(async () => root.render(<JournalProvider journal={{ store, host: journalHost }}><JournalView /></JournalProvider>));
     await flush();
     expect(invoke).toHaveBeenCalledWith('session_access');
-    expect(invoke).toHaveBeenCalledWith('sessions_snapshot');
+    // The snapshot with a stamp: the first time none is held
+    expect(invoke).toHaveBeenCalledWith('sessions_snapshot_since', { stamp: null });
+    expect(store.getState().stamp).toBe('s1');
     expect(invoke).toHaveBeenCalledWith('session_details', { provider: 'codex', id: 'a' });
     expect(container.querySelector('.sc-detail h2')?.textContent).toBe('Fix CORE-123');
     // MDViewer has the remote context and the Codex controls

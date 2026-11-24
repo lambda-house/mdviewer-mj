@@ -425,6 +425,12 @@
   -webkit-app-region: drag;
 }
 
+/* The window's title bar (macOS's overlay title bar, titleBar.ts): the traffic lights are drawn over its start */
+.wb-topbar[data-titlebar] {
+  height: var(--titlebar-height);
+  min-height: var(--titlebar-height);
+}
+
 .wb-topbar__group {
   display: flex;
   align-items: center;

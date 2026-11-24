@@ -4,6 +4,8 @@ import { cx } from './cx';
 export type MenuItem =
   | {
       label: ReactNode; onSelect: () => void; icon?: ReactNode; disabled?: boolean; key?: string;
+      /** The item's tooltip: what the label leaves out (Agent MCR's agent profiles say what they are). */
+      title?: string;
       /** The item is pointed at or focused (true), or no longer (false): to preview what it does. */
       onHover?: (on: boolean) => void;
     }
@@ -124,6 +126,7 @@ export function Menu({ items, at, onClose, label, anchorRef, wrap = false, focus
             type="button"
             role="menuitem"
             className="ui-menu__item"
+            title={item.title}
             disabled={item.disabled}
             onClick={() => { item.onHover?.(false); onClose(); item.onSelect(); }}
             onMouseEnter={item.onHover && (() => item.onHover?.(true))}

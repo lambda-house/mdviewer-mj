@@ -35,6 +35,12 @@ export interface JournalHost {
   /** Revoke session access: the backend forgets its index. */
   disable(): Promise<void>;
   snapshot(): Promise<Snapshot>;
+  /**
+   * The same scan for a holder of a snapshot: `snapshot` is null when what it
+   * shows has the `stamp` held (empty: none held yet). The whole snapshot is
+   * megabytes; without this the journal asks for it whole each time.
+   */
+  snapshotSince?(stamp: string): Promise<{ stamp: string; snapshot: Snapshot | null }>;
   /** A session with its latest events. */
   detail(provider: string, id: string): Promise<Session>;
   /** The page of events before `before` (a sequence number). */

@@ -19,6 +19,8 @@ export const journalHost: JournalHost = {
   enable: () => invoke<boolean>('enable_sessions'),
   disable: () => invoke<void>('disable_sessions'),
   snapshot: () => invoke('sessions_snapshot'),
+  // Only a snapshot whose content changed comes across: none for the stamp held (Agent MCR's MCR-141)
+  snapshotSince: (stamp) => invoke('sessions_snapshot_since', { stamp: stamp || null }),
   detail: (provider, id) => invoke('session_details', { provider, id }),
   events: (provider, id, before) => invoke('session_events', { provider, id, before }),
 

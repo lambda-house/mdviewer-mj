@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Shield, X } from 'lucide-react';
-import { Button } from '@lambda-house/ui';
+import { Button, keepSame } from '@lambda-house/ui';
 import { errorText, useJournalContext, type AnalysisStatus } from './host';
 import { sessionKey, shellQuote, type Session, type SessionEvent } from './sessions';
 
@@ -27,8 +27,9 @@ export function AgentAccess({ close, directory, selected, inspect, embedded = fa
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [evidence, setEvidence] = useState('');
-  const refresh = useCallback(async () => { try { if (analysis) setStatus(await analysis.status()); } catch (e) { setError(errorText(e)); } }, [analysis]);
-  useEffect(() => { void refresh(); const timer = setInterval(() => void refresh(), 3000); return () => clearInterval(timer); }, [refresh]);
+  // A status that says the same keeps the held one, so the panel doesn't render again; nothing is asked while the window is hidden
+  const refresh = useCallback(async () => { try { if (analysis) { const next = await analysis.status(); setStatus((held) => keepSame(held, next)); } } catch (e) { setError(errorText(e)); } }, [analysis]);
+  useEffect(() => { void refresh(); const timer = setInterval(() => { if (!document.hidden) void refresh(); }, 3000); return () => clearInterval(timer); }, [refresh]);
   if (!analysis) return null;
   const action = async (f: () => Promise<unknown>) => { setBusy(true); setError(''); try { await f(); await refresh(); } catch (e) { setError(errorText(e)); } finally { setBusy(false); } };
   const command = status ? `${shellQuote(status.executable)} --mcp` : '';

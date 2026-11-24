@@ -14,3 +14,4 @@ export { Menu, type MenuItem, type MenuProps } from './Menu';
 export { PaneFrame, type PaneFrameProps } from './PaneFrame';
 export { useSmoothWheelScroll } from './useSmoothWheelScroll';
 export { formatAge } from './format';
+export { keepSame } from './keepSame';

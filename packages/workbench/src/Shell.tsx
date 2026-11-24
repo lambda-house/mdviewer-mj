@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { createPortal } from 'react-dom';
 import { Segmented, cx } from '@lambda-house/ui';
 import { StatusBar } from './StatusBar';
+import { NO_DRAG, topRowProps, type TitleBar } from './titleBar';
 
 /** A surface of the window: Documents, Sessions (shared UI spec §5.1). */
 export interface ShellSurface {
@@ -23,6 +24,8 @@ export interface ShellProps {
   end?: ReactNode;
   /** The window's status bar (spec §5.6): what surfaces put there with ShellStatus. Without it, none. */
   status?: { pinned: boolean; onPinnedChange: (pinned: boolean) => void };
+  /** Whether the top bar is the window's title bar (macOS's overlay title bar): then its empty space drags the window. Native by default. */
+  titleBar?: TitleBar;
   className?: string;
 }
 
@@ -43,7 +46,7 @@ type Slot = 'views' | 'start' | 'end' | 'statusStart' | 'statusEnd';
  * and the surfaces under it. A surface puts its tools into the bar with
  * ShellTools, from anywhere in its tree.
  */
-export function Shell({ surfaces, active, onActivate, menu, end, status, className }: ShellProps) {
+export function Shell({ surfaces, active, onActivate, menu, end, status, titleBar = 'native', className }: ShellProps) {
   const [statusItems, setStatusItems] = useState(0);
   const showStatus = useCallback((shown: boolean) => setStatusItems((n) => n + (shown ? 1 : -1)), []);
   const [targets, setTargets] = useState<Targets>({ views: null, start: null, end: null, statusStart: null, statusEnd: null, showStatus });
@@ -63,11 +66,14 @@ export function Shell({ surfaces, active, onActivate, menu, end, status, classNa
   const endRef = useCallback(slotRef('end'), []);
   const statusStartRef = useCallback(slotRef('statusStart'), []);
   const statusEndRef = useCallback(slotRef('statusEnd'), []);
+  // Under a title bar, only the bar's own empty space drags: whatever goes into it (menus that open in
+  // place, hover controls, popovers, a tool group's gaps) is never a drag, without each knowing of it
+  const noDrag = titleBar === 'overlay' ? NO_DRAG : {};
 
   return (
     <div className={cx('wb-shell', className)}>
-      <header className="wb-topbar">
-        <div className="wb-topbar__group">
+      <header className="wb-topbar" {...topRowProps(titleBar)}>
+        <div className="wb-topbar__group" {...noDrag}>
           {surfaces.length > 1 && (
             <Segmented
               label="Workspace"
@@ -78,11 +84,11 @@ export function Shell({ surfaces, active, onActivate, menu, end, status, classNa
           )}
           {menu}
         </div>
-        <div className="wb-topbar__tools" ref={viewsRef} />
-        <div className="wb-topbar__tools" ref={startRef} />
+        <div className="wb-topbar__tools" ref={viewsRef} {...noDrag} />
+        <div className="wb-topbar__tools" ref={startRef} {...noDrag} />
         <div className="wb-topbar__spacer" />
-        <div className="wb-topbar__tools" ref={endRef} />
-        {end && <div className="wb-topbar__group">{end}</div>}
+        <div className="wb-topbar__tools" ref={endRef} {...noDrag} />
+        {end && <div className="wb-topbar__group" {...noDrag}>{end}</div>}
       </header>
       {surfaces.map((surface) => {
         const shown = surface.id === active;

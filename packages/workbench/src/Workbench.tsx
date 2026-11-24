@@ -33,6 +33,8 @@ export interface WorkbenchProps<C> {
   /** The native menu's events: `run` gets a command's id. Returns how to stop listening. */
   nativeMenu?: (run: (commandId: string) => void) => Promise<() => void>;
   status?: ShellProps['status'];
+  /** Whether the top bar is the window's title bar (the app knows its window and full screen). Native by default. */
+  titleBar?: ShellProps['titleBar'];
   /** The palette: the ⌕ at the end of the bar opens it, disabled while `enabled` is false. Without it there is no ⌕. */
   palette?: { open: () => void; enabled?: boolean };
   /** The Settings dialog: the ⚙ at the end of the bar opens it. */
@@ -131,7 +133,7 @@ function useNativeMenu<C>(menu: MenuItem<C>[], context: () => C, nativeMenu: Wor
 
 export function Workbench<C>({
   registry, surface, onSurface, menu, commandContext, useCommandContext, onMenuOpen,
-  nativeMenu, status, palette, settings, appearance, className,
+  nativeMenu, status, titleBar, palette, settings, appearance, className,
 }: WorkbenchProps<C>) {
   usePlugins(registry);
   useCommandKeys(menu, surface);
@@ -152,6 +154,7 @@ export function Workbench<C>({
         active={surface}
         onActivate={onSurface}
         status={status}
+        titleBar={titleBar}
         menu={<MainMenu items={menu} useCommandContext={useCommandContext} onOpen={onMenuOpen} surface={surface} />}
         end={<WindowTools menu={menu} palette={palette} settings={settings} appearance={appearance} />}
       />

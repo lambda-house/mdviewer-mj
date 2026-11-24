@@ -39,6 +39,8 @@ export interface JournalState {
   /** Whether session access is on; null until the backend has answered. */
   enabled: boolean | null;
   snapshot: Snapshot;
+  /** What the backend called the snapshot held (`snapshotSince`): it sends one again only when that changed. */
+  stamp: string;
   /** A snapshot is being asked for. */
   busy: boolean;
   error: string;
@@ -58,8 +60,8 @@ export interface JournalState {
   setEnabled: (enabled: boolean | null) => void;
   setError: (error: string) => void;
   setBusy: (busy: boolean) => void;
-  /** A new snapshot; a detail pane that shows nothing yet shows the newest session. */
-  receive: (snapshot: Snapshot) => void;
+  /** A new snapshot, with its stamp if the backend gave one; a detail pane that shows nothing yet shows the newest session. */
+  receive: (snapshot: Snapshot, stamp?: string) => void;
   /** Access was revoked: nothing indexed is kept. */
   forget: () => void;
 
@@ -191,6 +193,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
         return {
           enabled: null,
           snapshot: EMPTY_SNAPSHOT,
+          stamp: '',
           busy: false,
           error: '',
           layout: defaultLayout(),
@@ -205,17 +208,18 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
           setEnabled: (enabled) => set({ enabled }),
           setError: (error) => { if (get().error !== error) set({ error }); },
           setBusy: (busy) => set({ busy }),
-          receive: (snapshot) => {
+          receive: (snapshot, stamp = '') => {
             const first = snapshot.sessions[0] ? sessionKey(snapshot.sessions[0]) : '';
             const target = targetDetail();
             const details = get().details;
             set({
               snapshot,
+              stamp,
               error: '',
               ...(first && target && !details[target].session ? { details: { ...details, [target]: { ...details[target], session: first } } } : {}),
             });
           },
-          forget: () => set({ enabled: false, snapshot: EMPTY_SNAPSHOT, evidence: {} }),
+          forget: () => set({ enabled: false, snapshot: EMPTY_SNAPSHOT, stamp: '', evidence: {} }),
 
           setFilters: (list, filters) => set((state) => state.lists[list]
             ? { lists: { ...state.lists, [list]: { ...state.lists[list], ...filters } } }

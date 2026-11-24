@@ -91,7 +91,7 @@ describe('Menu', () => {
         anchorRef={anchor}
         items={[
           { label: 'Disabled', onSelect: () => calls.push('disabled'), disabled: true },
-          { label: 'Copy', onSelect: () => calls.push('copy') },
+          { label: 'Copy', onSelect: () => calls.push('copy'), title: 'Copy the path' },
           'separator',
           { label: 'Close', onSelect: () => calls.push('closeTab') },
         ]}
@@ -109,6 +109,9 @@ describe('Menu', () => {
     key(items[2], 'ArrowDown');
     expect(document.activeElement).toBe(items[1]);
     expect(all('[role="separator"]')).toHaveLength(1);
+    // An item's title is its tooltip; one without has none
+    expect(items[1].title).toBe('Copy the path');
+    expect(items[2].hasAttribute('title')).toBe(false);
   });
 
   it('can give the focus to another item first', () => {

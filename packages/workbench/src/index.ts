@@ -3,7 +3,7 @@
 // '@lambda-house/workbench/workbench.css' after the ui styles). Shared UI spec §5.
 // Phase 3: commands, the main menu and the command palette. Phase 4: the layout tree, the shell, the plugin registry.
 // Phase 8: the Workbench an app assembles from plugins (its points are the workbench:* ones).
-// Phase 9: the window's commands (windowCommands) and the end of the top bar.
+// Phase 9: the window's commands (windowCommands) and the end of the top bar; the top bar as the title bar (titleBar).
 
 export {
   WindowMenuContext, ariaShortcut, commandForKey, commandTitle, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface,
@@ -21,6 +21,7 @@ export { LayoutView, type LayoutViewProps, type PaneActions, type PaneContext, t
 export { Pane, PaneMenu, PaneTitle, PaneZoomBadge, paneMenuItems, usePane, usePaneZoom } from './panes';
 export { Shell, ShellStatus, ShellTools, ShellViews, useSurfaceShown, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
 export { Workbench, usePaneTypes, type WorkbenchProps } from './Workbench';
+export { NO_DRAG, TRAFFIC_LIGHT_INSET, TRAFFIC_LIGHT_X, TRAFFIC_LIGHTS_WIDTH, topRowInset, topRowProps, type TitleBar, type TopRowProps } from './titleBar';
 export { StatusItem } from './StatusBar';
 export {
   PluginRegistry, createPlugin, usePlugins,

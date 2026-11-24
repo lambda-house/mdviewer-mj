@@ -11,7 +11,7 @@ import { MemoryBrowser } from './MemoryBrowser';
 import { compact, filterSessions, NO_FILTERS, origin, sessionKey, sumUsage, totalTokens } from './sessions';
 import { DETAIL_PANE, detailPanes, LIST_PANE, listPanes } from './store';
 
-/** How often the snapshot is asked for while the journal is shown (ms). */
+/** How often the snapshot is asked for while the journal is shown (ms), unless the app says otherwise. */
 export const REFRESH_INTERVAL = 5000;
 /** While files are still being indexed, the next snapshot comes sooner (ms). */
 const PENDING_INTERVAL = 150;
@@ -21,14 +21,22 @@ const inflight = new WeakSet<object>();
 /**
  * Ask the backend for a new snapshot, unless one is on its way. The journal
  * does it every few seconds while shown; an app that reads the snapshot
- * elsewhere too (Agent MCR's Live and palette) can ask sooner.
+ * elsewhere too (Agent MCR's Live and palette) can ask sooner. With the
+ * host's `snapshotSince` only a snapshot that shows something new comes
+ * across, and the one held stays, so nothing renders again.
  */
 export async function refreshJournal({ store, host }: Journal): Promise<void> {
   if (inflight.has(store)) return;
   inflight.add(store);
   store.getState().setBusy(true);
   try {
-    store.getState().receive(await host.snapshot());
+    if (host.snapshotSince) {
+      const answer = await host.snapshotSince(store.getState().stamp);
+      if (answer.snapshot) store.getState().receive(answer.snapshot, answer.stamp);
+      else store.getState().setError('');
+    } else {
+      store.getState().receive(await host.snapshot());
+    }
   } catch (e) {
     store.getState().setError(errorText(e));
   } finally {
@@ -42,6 +50,8 @@ export interface JournalViewProps {
   active?: boolean;
   /** Tools in the top bar besides the summary: a refresh button, and dialogs for memories and agent access (an app without them in its settings). */
   tools?: { refresh?: boolean; memories?: boolean; agentAccess?: boolean };
+  /** How often the snapshot is asked for while active (ms): REFRESH_INTERVAL by default; seldom where it only names sessions (Agent MCR's Live). */
+  refreshInterval?: number;
 }
 
 /**
@@ -51,7 +61,7 @@ export interface JournalViewProps {
  * it asks for it and reads nothing. Its summary (and the tools) go into the
  * window's top bar.
  */
-export function JournalView({ active: activeProp, tools = {} }: JournalViewProps) {
+export function JournalView({ active: activeProp, tools = {}, refreshInterval = REFRESH_INTERVAL }: JournalViewProps) {
   const surfaceShown = useSurfaceShown();
   const active = activeProp ?? surfaceShown;
   const { store, host } = useJournalContext();
@@ -76,9 +86,9 @@ export function JournalView({ active: activeProp, tools = {} }: JournalViewProps
   useEffect(() => {
     if (!enabled || !active) return;
     void refresh();
-    const timer = setInterval(() => { if (!document.hidden) void refresh(); }, REFRESH_INTERVAL);
+    const timer = setInterval(() => { if (!document.hidden) void refresh(); }, refreshInterval);
     return () => clearInterval(timer);
-  }, [enabled, active, refresh]);
+  }, [enabled, active, refresh, refreshInterval]);
   useEffect(() => {
     if (!enabled || !active || !snapshot.pendingFiles) return;
     const timer = setTimeout(() => { if (!document.hidden) void refresh(); }, PENDING_INTERVAL);
