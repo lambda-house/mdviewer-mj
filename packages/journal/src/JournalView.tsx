@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bot, ChevronRight, RefreshCw, Settings2, Shield, X } from 'lucide-react';
-import { Button, cx, formatAge } from '@lambda-house/ui';
+import { Button, formatAge } from '@lambda-house/ui';
 import { LayoutView, ShellStatus, ShellTools, StatusItem, useSurfaceShown, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext, type Journal } from './host';
 import { AgentAccess } from './AgentAccess';
@@ -61,7 +61,6 @@ export function JournalView({ active: activeProp, tools = {} }: JournalViewProps
   const error = useJournal((s) => s.error);
   const root = useJournal((s) => s.layout);
   const focused = useJournal((s) => s.focused);
-  const several = useJournal((s) => detailPanes(s).length > 1);
   const listFilters = useJournal((s) => s.lists[s.lastList]) ?? NO_FILTERS;
   const shownKey = useJournal((s) => s.details[s.lastDetail]?.session ?? '');
   const [dialog, setDialog] = useState<'connections' | 'memories' | 'agentAccess' | null>(null);
@@ -153,7 +152,7 @@ export function JournalView({ active: activeProp, tools = {} }: JournalViewProps
         </div>
       ) : <>
         <LayoutView
-          className={cx('journal-layout', several && 'has-several')}
+          className="journal-layout"
           layout={layout}
           onChange={onChange}
           paneTypes={paneTypes}

@@ -4,7 +4,7 @@ import { cx } from '@lambda-house/ui';
 import { Shell, type ShellProps } from './Shell';
 import { MainMenu } from './MainMenu';
 import { SettingsDialog, appearanceTab, shortcutsTab, type SettingsTab } from './settings';
-import { commandForKey, commandTitle, matchesShortcut, menuCommands, type MenuItem } from './commands';
+import { WindowMenuContext, commandForKey, commandTitle, matchesShortcut, menuCommands, type MenuItem } from './commands';
 import { WINDOW_COMMANDS } from './windowCommands';
 import { usePlugins, type PluginRegistry } from './plugins';
 import type { PaneType } from './LayoutView';
@@ -162,5 +162,5 @@ export function Workbench<C>({
   // The first wrapper is the outermost
   const wrappers = registry.items('workbench:wrapper');
   for (let i = wrappers.length - 1; i >= 0; i--) window = wrappers[i].wrap(window);
-  return <>{window}</>;
+  return <WindowMenuContext.Provider value={menu}>{window}</WindowMenuContext.Provider>;
 }

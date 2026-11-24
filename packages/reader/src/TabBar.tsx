@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { FileText, X, Pin, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Columns2 } from 'lucide-react';
 import { Menu, type MenuItem } from '@lambda-house/ui';
+import { useCommandTitle } from '@lambda-house/workbench';
 import { useReader, useReaderContext } from './host';
 import { canNavigateBack, canNavigateForward, type Tab as TabState } from './store';
 import clsx from 'clsx';
@@ -182,6 +183,10 @@ const TabBar: React.FC<{ group: string }> = ({ group }) => {
   const canGoBack = useReader((s) => canNavigateBack(s.groups[group]));
   const canGoForward = useReader((s) => canNavigateForward(s.groups[group]));
   const splitGroup = useReader((s) => s.splitGroup);
+  // The keys are the window's commands'
+  const backTitle = useCommandTitle('tabs.back', 'Back');
+  const forwardTitle = useCommandTitle('tabs.forward', 'Forward');
+  const splitTitle = useCommandTitle('view.splitRight', 'Split right');
 
   const hasTabs = tabs.length > 0;
   const stripRef = useRef<HTMLDivElement>(null);
@@ -255,7 +260,7 @@ const TabBar: React.FC<{ group: string }> = ({ group }) => {
           className="tab-bar-button"
           onClick={() => navigateBack(group)}
           disabled={!canGoBack}
-          title="Back (Alt+Left)"
+          title={backTitle}
           aria-label="Back to previous tab"
           type="button"
         >
@@ -265,7 +270,7 @@ const TabBar: React.FC<{ group: string }> = ({ group }) => {
           className="tab-bar-button"
           onClick={() => navigateForward(group)}
           disabled={!canGoForward}
-          title="Forward (Alt+Right)"
+          title={forwardTitle}
           aria-label="Forward to next tab"
           type="button"
         >
@@ -327,7 +332,7 @@ const TabBar: React.FC<{ group: string }> = ({ group }) => {
         <button
           className="tab-bar-button"
           onClick={() => splitGroup(group, 'row')}
-          title="Split right (Ctrl+\)"
+          title={splitTitle}
           aria-label="Split right"
           type="button"
         >

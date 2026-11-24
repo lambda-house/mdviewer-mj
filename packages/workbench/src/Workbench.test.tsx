@@ -2,7 +2,10 @@
 import { act, createContext, useContext } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PluginRegistry, Workbench, pluginsTab, usePaneTypes, useSurfaceShown, windowCommands, type MenuItem, type Plugin, type Theme, type WorkbenchProps } from './index';
+import {
+  PluginRegistry, Workbench, pluginsTab, useCommandTitle, usePaneTypes, useSurfaceShown, windowCommands,
+  type MenuItem, type Plugin, type Theme, type WorkbenchProps,
+} from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -148,6 +151,19 @@ describe('Workbench', () => {
     expect(setTheme).toHaveBeenCalledWith('light');
     // The main menu's button is a tool of the bar too
     expect(host.querySelector('.wb-main-menu > button')?.className).toBe('wb-tool');
+  });
+
+  it('names a command’s key in a tooltip, from the menu', () => {
+    function Titles() {
+      return <p data-titles>{[useCommandTitle('first.thing', 'First'), useCommandTitle('app.everywhere'), useCommandTitle('no.such', 'Plain')].join(' | ')}</p>;
+    }
+    const registry = new PluginRegistry();
+    registry.register({ id: 'titles', name: 'Titles', setup: (api) => api.contribute('workbench:surface', { id: 'first', label: 'First', order: 1, render: () => <Titles /> }) });
+    render(registry);
+    expect(host.querySelector('[data-titles]')?.textContent).toBe('First (Ctrl+K) | Everywhere (Ctrl+U) | Plain');
+    // Outside a Workbench: the label alone
+    act(() => root.render(<Titles />));
+    expect(host.textContent).toBe('First |  | Plain');
   });
 
   it('draws no palette button without a palette, and a disabled one while it can’t open', () => {

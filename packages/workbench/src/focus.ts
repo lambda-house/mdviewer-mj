@@ -41,6 +41,9 @@ export function subscribeFocusedPane(listener: () => void): () => void {
 
 export const focusedPaneVersion = (): number => version;
 
+/** Which of a layout's leaves has the window's focus, if one does. */
+export const focusedLeafOf = (view: string): string | null => (focused?.view === view ? focused.leaf : null);
+
 const leafSelector = (view: string, leaf: string) => `[data-layout="${view}"][data-leaf="${leaf.replace(/"/g, '\\"')}"]`;
 /** Drawn and not in a hidden surface or view. */
 const isShown = (element: Element | null): element is HTMLElement => !!element && element.isConnected && !element.closest('[hidden]');

@@ -6,7 +6,8 @@
 // Phase 9: the window's commands (windowCommands) and the end of the top bar.
 
 export {
-  ariaShortcut, commandForKey, commandTitle, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface, useMenu,
+  WindowMenuContext, ariaShortcut, commandForKey, commandTitle, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface,
+  useCommandTitle, useMenu,
   type Command, type MenuItem, type MenuStore, type Shortcut, type Submenu,
 } from './commands';
 export { MainMenu, type MainMenuProps } from './MainMenu';

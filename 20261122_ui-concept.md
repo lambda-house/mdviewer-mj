@@ -193,7 +193,7 @@ The Documents surface is the reference look.
 | Text buttons | `ui` `Button` in `secondary`/`primary`, only in dialogs, settings and empty states | none |
 | Accent | `--accent` (blue) | Sessions' mint |
 | State colours | Only `--ok`, `--warn`, `--danger`, `--accent` | Agent MCR's hardcoded colours |
-| Focus | A 1 px `--focus` line on the focused pane's header; a 2 px ring on focused controls | none |
+| Focus | A 2 px `--accent` line on top of the header of the pane with the window's focus, in every layout (phase 9, D2: one workbench rule, so F6 always shows where it went); a 2 px ring on focused controls | The reader's, the journal's and Live's own focus lines, drawn only with several panes |
 | Status bar | One 28 px bar that auto-hides or is pinned, as today | Sessions' footer |
 | Density | 13 px base, 28 px list rows | Sessions' larger controls |
 
@@ -305,6 +305,7 @@ Invariants. `normalize` checks them, and every operation ends with it.
   - the arrow keys move it 16 px (64 px with Shift), and Enter or a double-click toggles collapse.
 - **Keep-alive.** Pane types marked `keepAlive: true` (terminal, editor, document group) render once per `PaneRef.key`, into an element outside the tree. The leaf only holds an empty slot, and that element is moved into it. Moving, splitting or swapping panes never remounts their content. This is Live's `PaneSlot` pattern, moved into the workbench.
 - **Focus.** Each view has one focused leaf, set by `pointerdown` or `focusin` inside it. Its header shows the focus line. Commands, the status bar and the Contents pane all follow it.
+  - As built (phase 9): the window has one focused pane, the innermost one last pointed at or focused, in whichever layout; F6 moves it. Its leaf has `has-focus`, and the workbench draws the line on top of it. A layout's own current leaf (`focusedLeaf`, `is-focused`) is what its owner acts on (the reader's document commands act on its focused group), and it stays when the window's focus moves to another layout; when the owner moves it (a split) while the focus is in that layout, the focus goes with it.
 
 **Saving.** Each view's layout is saved through `WorkbenchHost.storage` under `layout.<view>`. A read-only host (memory reader windows) keeps layout changes in memory only. MDViewer's saved workspaces also store the Documents layout.
 

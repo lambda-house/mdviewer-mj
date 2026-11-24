@@ -62,8 +62,6 @@
 .journal-layout { flex: 1; min-height: 160px; background: var(--surface-1); }
 .journal-layout .sc-detail { flex: 1; border-left: 1px solid var(--line); }
 .session-cockpit .journal-layout .ss-list { border-right: 0; }
-/* Several detail panes: the focused one has a line on top */
-.journal-layout.has-several .wb-leaf.is-focused > .sc-detail { box-shadow: inset 0 2px 0 var(--accent); }
 /* Agent access in settings, not a dialog */
 .session-cockpit.sc-embedded-settings { height: auto; background: transparent; overflow: visible; }
 

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
 import { PLATFORM, type Platform } from '@lambda-house/ui';
 
 // The commands of an app in one list: the main menu shows them, the key
@@ -106,6 +106,21 @@ export interface Command<C = unknown> {
 export function commandTitle<C>(command: Command<C>, platform: Platform = PLATFORM): string {
   const label = command.label.replace(/…$/, '');
   return command.shortcut ? `${label} (${formatShortcut(command.shortcut, platform)})` : label;
+}
+
+/** The window's menu (the Workbench's), for the buttons that name a command's key. */
+export const WindowMenuContext = createContext<MenuItem<never>[] | null>(null);
+
+/**
+ * A button's tooltip with the key of the window's command `id`: "Files (Ctrl+B)"
+ * from `label`, or from the command's own label without one. Outside a
+ * Workbench, or without such a command or key, just the label.
+ */
+export function useCommandTitle(id: string, label?: string): string {
+  const menu = useContext(WindowMenuContext);
+  const command = menu ? menuCommands(menu).find((c) => c.id === id) : undefined;
+  if (!command) return label ?? '';
+  return commandTitle(label === undefined ? command : { ...command, label });
 }
 
 /** Whether a command can be used on the shown surface. */

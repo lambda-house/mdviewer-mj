@@ -11,7 +11,7 @@ import {
 import { useStore, panelShown } from '../store';
 import { DocumentTools, DocumentZoom } from '@lambda-house/reader';
 import clsx from 'clsx';
-import { ShellTools } from '@lambda-house/workbench';
+import { ShellTools, useCommandTitle } from '@lambda-house/workbench';
 import WorkspaceMenu from './WorkspaceMenu';
 
 // ============================================================
@@ -47,6 +47,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const toggleTocVisible = useStore((s) => s.toggleTocVisible);
   const filterQuery = useStore((s) => s.filterQuery);
   const setFilterQuery = useStore((s) => s.setFilterQuery);
+  // The tooltips name the keys of the menu's commands
+  const titles = {
+    files: useCommandTitle('view.filePanel', 'Files'),
+    search: useCommandTitle('search.searchFiles', 'Search in tabs and folders'),
+    history: useCommandTitle('view.history', 'History'),
+    agent: useCommandTitle('view.agentFiles', agentVisible && filePanelVisible ? 'Hide global agent files' : 'Show global agent files'),
+    contents: useCommandTitle('view.toc', 'Contents'),
+  };
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setFilterQuery(e.target.value);
@@ -63,7 +71,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={clsx('wb-tool', filePanelVisible && 'active')}
           onClick={onToggleFilePanel}
-          title="Toggle Files Panel"
+          title={titles.files}
         >
           <PanelLeft size={16} />
         </button>
@@ -98,22 +106,21 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={clsx('wb-tool', searchVisible && 'active')}
           onClick={onToggleSearch}
-          title="Search in tabs / folders (Ctrl+Shift+F)"
+          title={titles.search}
         >
           <FileSearch size={16} />
         </button>
         <button
           className={clsx('wb-tool', historyVisible && 'active')}
           onClick={onToggleHistory}
-          title="Toggle History"
+          title={titles.history}
         >
           <History size={16} />
         </button>
         <button
           className={clsx('wb-tool', agentVisible && filePanelVisible && 'active')}
           onClick={onToggleAgent}
-          title={agentVisible && filePanelVisible
-            ? 'Hide global agent files (Ctrl+Shift+A)' : 'Show global agent files (Ctrl+Shift+A)'}
+          title={titles.agent}
         >
           <Bot size={16} />
         </button>
@@ -131,7 +138,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={clsx('wb-tool', tocVisible && 'active')}
           onClick={handleToggleToc}
-          title="Toggle Table of Contents"
+          title={titles.contents}
         >
           <List size={16} />
         </button>

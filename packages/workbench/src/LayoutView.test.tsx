@@ -2,7 +2,7 @@
 import { act, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LayoutView, Pane, closeLeaf, findLeaf, leaves, splitLeaf, swapPanes, type Layout, type LayoutNode, type PaneType } from './index';
+import { LayoutView, Pane, closeLeaf, findLeaf, focusedPane, leaves, splitLeaf, swapPanes, type Layout, type LayoutNode, type PaneType } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -100,7 +100,35 @@ describe('LayoutView', () => {
     expect(findLeaf(onChange.mock.calls[0][0].root, 'left')?.collapsed).toBe(true);
     act(() => { host.querySelector('[data-leaf="b"]')!.dispatchEvent(new Event('pointerdown', { bubbles: true })); });
     expect(onFocusLeaf).toHaveBeenCalledWith('b');
+    // The owner's current leaf is still a (it didn't take b); the window's focus line is on b
     expect(host.querySelector('[data-leaf="a"]')?.className).toContain('is-focused');
+    expect(host.querySelector('[data-leaf="b"]')?.className).toContain('has-focus');
+    expect(host.querySelectorAll('.has-focus')).toHaveLength(1);
+  });
+
+  it('gives the focus to a kept-alive pane pointed at or focused inside, although its content is drawn elsewhere', () => {
+    const onFocusLeaf = vi.fn();
+    act(() => root.render(<LayoutView layout={start} onChange={() => {}} paneTypes={paneTypes} onFocusLeaf={onFocusLeaf} focusedLeaf="left" />));
+    act(() => { host.querySelector('[data-terminal="t1"]')!.dispatchEvent(new Event('pointerdown', { bubbles: true })); });
+    expect(focusedPane()?.pane.key).toBe('t1');
+    expect(onFocusLeaf).toHaveBeenLastCalledWith('a');
+    expect(host.querySelector('.has-focus')?.getAttribute('data-leaf')).toBe('a');
+    act(() => { host.querySelector('[data-terminal="t2"]')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); });
+    expect(focusedPane()?.pane.key).toBe('t2');
+    expect(host.querySelector('.has-focus')?.getAttribute('data-leaf')).toBe('b');
+  });
+
+  it('moves the window’s focus with the owner’s current leaf while the focus is in the layout', () => {
+    const draw = (focusedLeaf: string) => act(() => root.render(<LayoutView layout={start} onChange={() => {}} paneTypes={paneTypes} focusedLeaf={focusedLeaf} />));
+    draw('a');
+    // Not in this layout yet: a new current leaf takes nothing
+    draw('b');
+    expect(host.querySelector('.has-focus')).toBeNull();
+    act(() => { host.querySelector('[data-terminal="t2"]')!.dispatchEvent(new Event('pointerdown', { bubbles: true })); });
+    // The owner opens something in a (a split, a click in its list): the focus goes there
+    draw('a');
+    expect(host.querySelector('.has-focus')?.getAttribute('data-leaf')).toBe('a');
+    expect(focusedPane()?.pane.key).toBe('t1');
   });
 
   describe('panes', () => {

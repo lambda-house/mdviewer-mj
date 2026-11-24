@@ -78,7 +78,6 @@ describe('DocumentPanel', () => {
     await act(async () => root.render(<ReaderProvider reader={reader}><DocumentGroups /></ReaderProvider>));
     await flush();
     const first = host.querySelector('.document-panel[data-group="main"]');
-    expect(host.querySelector('.reader-groups.has-several')).toBeNull();
 
     let id = '';
     await act(async () => { id = reader.store.getState().splitGroup(); });
@@ -86,12 +85,13 @@ describe('DocumentPanel', () => {
     const panels = [...host.querySelectorAll('.document-panel')].map((p) => p.getAttribute('data-group'));
     expect(panels).toEqual(['main', id]);
     expect(host.querySelector('.document-panel[data-group="main"]')).toBe(first);
-    expect(host.querySelector('.reader-groups.has-several')).not.toBeNull();
     expect(host.querySelector('.wb-leaf.is-focused .document-panel')?.getAttribute('data-group')).toBe(id);
     expect(host.querySelectorAll('.markdown-body h1')).toHaveLength(2);
 
     // A click in the other group focuses it
     await act(async () => { first?.querySelector('.markdown-body')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); });
     expect(reader.store.getState().focusedGroup).toBe('main');
+    // …and it has the window's focus line
+    expect(host.querySelector('.wb-leaf.has-focus .document-panel')?.getAttribute('data-group')).toBe('main');
   });
 });

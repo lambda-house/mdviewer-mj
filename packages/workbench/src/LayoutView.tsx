@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { SplitHandle, cx } from '@lambda-house/ui';
 import {
@@ -6,7 +6,7 @@ import {
   type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Split,
 } from './layout';
 import { PaneContextProvider } from './panes';
-import { registerLayoutView, setFocusedPane } from './focus';
+import { focusedLeafOf, registerLayoutView, setFocusedPane, subscribeFocusedPane } from './focus';
 
 /** A pane's own zoom (shared UI spec §5.4): Ctrl+wheel over it and the zoom commands go here. */
 export interface PaneZoom {
@@ -97,6 +97,7 @@ export interface LayoutViewProps {
   paneTypes: Record<string, PaneType>;
   /** A leaf without a pane. */
   renderEmpty?: (leaf: Leaf, focused: boolean) => ReactNode;
+  /** The layout's current leaf (`is-focused`): the one its owner acts on, which stays when the window's focus moves to another layout. */
   focusedLeaf?: string;
   onFocusLeaf?: (leafId: string) => void;
   /** Kept-alive panes to keep mounted although no leaf shows them (a terminal not in a pane); they wait in a hidden element beside the layout. */
@@ -149,6 +150,36 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   const drag = useRef<{ base: Layout; measured: number[] } | null>(null);
   const [preview, setPreview] = useState<{ leaf: string; what: PanePreview } | null>(null);
   const viewId = useId();
+
+  // Pointing at or focusing something in a leaf makes it the focused pane. The listeners are the
+  // DOM's: a kept-alive pane's content is a portal, whose React events don't pass through its leaf.
+  // Outer leaves hear it first, so the innermost pane wins.
+  const focusOwner = useRef({ focusedLeaf, onFocusLeaf });
+  focusOwner.current = { focusedLeaf, onFocusLeaf };
+  const [leafRefCallbacks] = useState(() => new Map<string, (element: HTMLElement | null) => (() => void) | undefined>());
+  const leafRef = (id: string) => {
+    let callback = leafRefCallbacks.get(id);
+    if (!callback) {
+      callback = (element) => {
+        if (!element) return;
+        leafRefs.current.set(id, element);
+        const take = () => {
+          setFocusedPane(viewId, id);
+          if (focusOwner.current.focusedLeaf !== id) focusOwner.current.onFocusLeaf?.(id);
+        };
+        element.addEventListener('pointerdown', take, true);
+        element.addEventListener('focusin', take, true);
+        return () => {
+          if (leafRefs.current.get(id) === element) leafRefs.current.delete(id);
+          if (leafRefCallbacks.get(id) === callback) leafRefCallbacks.delete(id);
+          element.removeEventListener('pointerdown', take, true);
+          element.removeEventListener('focusin', take, true);
+        };
+      };
+      leafRefCallbacks.set(id, callback);
+    }
+    return callback;
+  };
 
   const elementFor = (key: string) => {
     let element = elements.get(key);
@@ -291,6 +322,15 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
 
   // Commands find the focused pane through the window's focus registry
   const hasReset = !!onReset;
+  // The leaf with the window's focus carries the focus line (where F6 went, what commands act on)
+  const windowFocus = useSyncExternalStore(subscribeFocusedPane, () => focusedLeafOf(viewId));
+  // The owner moved its current leaf (a split, a pane it opened something in) while the window's
+  // focus was in this layout: the focus goes with it
+  useEffect(() => {
+    const current = focusedLeafOf(viewId);
+    if (focusedLeaf && current && current !== focusedLeaf && findLeaf(layout.root, focusedLeaf)) setFocusedPane(viewId, focusedLeaf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedLeaf]);
   useEffect(() => registerLayoutView(viewId, {
     resolve: (id) => {
       const leaf = findLeaf(latest.current.layout.root, id);
@@ -333,12 +373,10 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
     }
     return (
       <div
-        className={cx('wb-leaf', focused && 'is-focused', leaf.collapsed && 'is-collapsed')}
+        className={cx('wb-leaf', focused && 'is-focused', leaf.id === windowFocus && 'has-focus', leaf.collapsed && 'is-collapsed')}
         data-leaf={leaf.id}
         data-layout={viewId}
-        ref={(element) => { if (element) leafRefs.current.set(leaf.id, element); else leafRefs.current.delete(leaf.id); }}
-        onPointerDownCapture={() => { setFocusedPane(viewId, leaf.id); if (!focused) onFocusLeaf?.(leaf.id); }}
-        onFocusCapture={() => { setFocusedPane(viewId, leaf.id); if (!focused) onFocusLeaf?.(leaf.id); }}
+        ref={leafRef(leaf.id)}
       >
         {content}
       </div>
