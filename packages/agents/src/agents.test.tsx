@@ -96,6 +96,17 @@ describe('the entries', () => {
     // No folders: everything is the user's
     expect(agentFolders(ENTRIES, []).user).toHaveLength(ENTRIES.length);
   });
+
+  it('take the deepest folder that holds them, and a folder whose name only starts the same is another one', () => {
+    const nested = entry('/repo/sub/CLAUDE.md', { folder: '/repo/sub' });
+    const inRepo = entry('/repo/CLAUDE.md', { folder: '/repo' });
+    const grouped = agentFolders([inRepo, nested], ['/repo', '/repo/sub']);
+    expect(grouped.folders.map((f) => [f.path, f.entries.map((e) => e.path)])).toEqual([
+      ['/repo', ['/repo/CLAUDE.md']],
+      ['/repo/sub', ['/repo/sub/CLAUDE.md']],
+    ]);
+    expect(agentFolders([entry('/x.md', { folder: '/repository' })], ['/repo']).user).toHaveLength(1);
+  });
 });
 
 describe('the store', () => {
