@@ -173,7 +173,7 @@ export interface AppState {
   setAvailableUpdate: (update: UpdateInfo | null) => void;
 
   // Appearance
-  toggleTheme: () => void;
+  setTheme: (theme: 'dark' | 'light') => void;
 
   // History
   setHistoryVisible: (visible: boolean) => void;
@@ -363,7 +363,7 @@ export const useStore = create<AppState>()(
       setAvailableUpdate: (update) => set({ availableUpdate: update }),
 
       // Appearance
-      toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+      setTheme: (theme) => set({ theme }),
 
 
       // History

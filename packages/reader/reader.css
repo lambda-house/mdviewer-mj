@@ -705,6 +705,108 @@
 }
 
 /* ============================================================
+   Document zoom (DocumentZoom): the focused group's, in the toolbar
+   ============================================================ */
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 6px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  gap: 8px;
+  transition: width var(--dur-normal) ease-out;
+  overflow: hidden;
+}
+
+.zoom-control.collapsed {
+  width: 48px;
+  cursor: pointer;
+}
+
+.zoom-control.expanded {
+  width: auto;
+}
+
+.zoom-value {
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text);
+  min-width: 36px;
+  text-align: center;
+}
+
+.zoom-slider {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--dur-fast) ease-out;
+}
+
+.zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.zoom-button {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  transition: all var(--dur-fast) ease-out;
+}
+
+.zoom-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.zoom-reset-button {
+  height: 18px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur-fast) ease-out;
+}
+
+.zoom-reset-button.disabled {
+  color: var(--text-faint);
+  border-color: var(--text-faint);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.zoom-reset-button:not(.disabled):hover {
+  background: var(--accent);
+  color: var(--input);
+}
+
+/* ============================================================
    Error States
    ============================================================ */
 

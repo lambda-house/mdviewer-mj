@@ -280,7 +280,7 @@ describe('journalPlugin', () => {
     registry.register({ id: 'app', name: 'App', setup: (api) => { api.contribute('workbench:surface', { id: 'documents', label: 'Documents', order: 10, render: () => <p>Documents</p> }); } });
     registry.register(journalPlugin({ store, host }, withSurface ? { surface: { id: 'journal', label: 'Journal', order: 20 } } : {}));
     await act(async () => root.render(
-      <Workbench registry={registry} surface={surface} onSurface={() => {}} menu={[]} commandContext={() => null} useCommandContext={() => null} settings={{ open: false, onClose: () => {} }} />,
+      <Workbench registry={registry} surface={surface} onSurface={() => {}} menu={[]} commandContext={() => null} useCommandContext={() => null} settings={{ open: false, onOpenChange: () => {} }} />,
     ));
     await flush();
     return registry;

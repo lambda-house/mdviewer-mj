@@ -102,6 +102,12 @@ export interface Command<C = unknown> {
   surface?: string;
 }
 
+/** A command as a button's tooltip names it: its label without the dots, and its key ("Settings (Ctrl+,)"). */
+export function commandTitle<C>(command: Command<C>, platform: Platform = PLATFORM): string {
+  const label = command.label.replace(/…$/, '');
+  return command.shortcut ? `${label} (${formatShortcut(command.shortcut, platform)})` : label;
+}
+
 /** Whether a command can be used on the shown surface. */
 export function onSurface<C>(command: Command<C>, surface?: string): boolean {
   return !command.surface || !surface || command.surface === surface;

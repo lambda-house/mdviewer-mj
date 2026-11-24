@@ -43,7 +43,7 @@ async function mount(reader: Reader, options: ReaderPluginOptions = {}) {
   const registry = new PluginRegistry();
   registry.register(readerPlugin(reader, options));
   await act(async () => root.render(
-    <Workbench registry={registry} surface="documents" onSurface={() => {}} menu={[]} commandContext={() => null} useCommandContext={() => null} settings={{ open: false, onClose: () => {} }} />,
+    <Workbench registry={registry} surface="documents" onSurface={() => {}} menu={[]} commandContext={() => null} useCommandContext={() => null} settings={{ open: false, onOpenChange: () => {} }} />,
   ));
   await flush();
   return registry;
@@ -104,6 +104,42 @@ describe('readerPlugin', () => {
     expect(active()).toBe('/a.md');
     act(() => { window.dispatchEvent(new MouseEvent('mouseup', { button: 3, bubbles: true, cancelable: true })); });
     expect(active()).toBe('/b.md');
+  });
+
+  it('asks before the window closes with unsaved edits, and closes it if told to', async () => {
+    const reader = fakeReader();
+    let send: (request: { preventDefault(): void; close(): Promise<void> }) => Promise<void> = async () => {};
+    const stop = vi.fn();
+    await mount(reader, { confirmClose: { name: 'The App', onCloseRequested: async (handler) => { send = handler; return stop; } } });
+    const request = () => ({ preventDefault: vi.fn(), close: vi.fn(async () => {}) });
+    // happy-dom has no confirm()
+    const confirm = vi.fn((_message?: string) => false);
+    window.confirm = confirm;
+
+    // Nothing unsaved: the window closes as it would
+    act(() => { reader.store.getState().openDocument('/a.md', 'a'); });
+    const clean = request();
+    await send(clean);
+    expect(clean.preventDefault).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+
+    act(() => { reader.store.getState().updateDocumentContent('/a.md', 'a, edited'); });
+    confirm.mockReturnValueOnce(false);
+    const kept = request();
+    await send(kept);
+    expect(kept.preventDefault).toHaveBeenCalled();
+    expect(confirm).toHaveBeenCalledWith('Unsaved changes in a.md. Close The App and discard them?');
+    expect(kept.close).not.toHaveBeenCalled();
+
+    confirm.mockReturnValueOnce(true);
+    const closed = request();
+    await send(closed);
+    expect(closed.close).toHaveBeenCalled();
+
+    Reflect.deleteProperty(window, 'confirm');
+    act(() => root.unmount());
+    expect(stop).toHaveBeenCalled();
+    root = createRoot(host);
   });
 });
 

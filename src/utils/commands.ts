@@ -2,7 +2,7 @@ import { createMenuStore, type Command as WorkbenchCommand, type MenuItem as Wor
 import { useMemo } from 'react';
 import { focusedGroupOf, readerCommands, selectedText, type ReaderState } from '@lambda-house/reader';
 import { journalCommands } from '@lambda-house/journal';
-import { layoutCommands, zoomCommands } from '@lambda-house/workbench';
+import { layoutCommands, windowCommands, zoomCommands } from '@lambda-house/workbench';
 import { useStore, panelShown, type AppState } from '../store';
 import { useReader } from '../reader';
 import { reader } from '../readerHost';
@@ -43,13 +43,16 @@ export function useCommandContext(): CommandContext {
 export function buildMenu(): MenuItem[] {
   const state = useStore.getState;
   const documents = useReader.getState;
-  const setTheme = (theme: AppState['theme']) => {
-    if (state().theme !== theme) state().toggleTheme();
-  };
   /** Commands that act on what the Documents surface shows: they wait while the Journal is shown. */
   const onDocuments = (command: Command): Command => ({ ...command, surface: 'documents' });
   const doc = readerCommands(reader);
   const journalCmd = journalCommands(journal);
+  const win = windowCommands({
+    palette: { open: () => state().setPaletteOpen(true) },
+    settings: { open: () => state().setSettingsOpen(true) },
+    theme: { get: () => state().theme, set: (theme) => state().setTheme(theme) },
+    statusBar: { pinned: () => state().statusBarPinned, setPinned: (pinned) => state().setStatusBarPinned(pinned) },
+  });
   const [splitPaneRight, splitPaneDown, closePane, focusNext, focusPrevious, resetLayout] = layoutCommands();
   // Zoom acts on the focused pane; before any pane had the focus, on the document
   const [zoomIn, zoomOut, resetZoom] = zoomCommands({
@@ -104,12 +107,7 @@ export function buildMenu(): MenuItem[] {
           checked: (s) => panelShown(s, 'contents'),
           run: () => state().toggleTocVisible(),
         }),
-        {
-          id: 'view.pinStatusBar',
-          label: 'Pin Status Bar',
-          checked: (s) => s.statusBarPinned,
-          run: () => state().setStatusBarPinned(!state().statusBarPinned),
-        },
+        win.pinStatusBar,
         'separator',
         onDocuments(doc.splitRight),
         onDocuments(doc.splitDown),
@@ -124,18 +122,8 @@ export function buildMenu(): MenuItem[] {
         zoomOut,
         resetZoom,
         'separator',
-        {
-          id: 'view.darkTheme',
-          label: 'Dark Theme',
-          checked: (s) => s.theme === 'dark',
-          run: () => setTheme('dark'),
-        },
-        {
-          id: 'view.lightTheme',
-          label: 'Light Theme',
-          checked: (s) => s.theme === 'light',
-          run: () => setTheme('light'),
-        },
+        win.darkTheme,
+        win.lightTheme,
       ],
     },
     {
@@ -145,13 +133,7 @@ export function buildMenu(): MenuItem[] {
     {
       label: 'Search',
       items: [
-        {
-          id: 'app.commandPalette',
-          label: 'Command Palette…',
-          shortcut: { mod: true, shift: true, key: 'p' },
-          palette: false,
-          run: () => state().setPaletteOpen(true),
-        },
+        win.palette,
         onDocuments(doc.find),
         onDocuments({
           id: 'search.searchFiles',
@@ -185,11 +167,6 @@ export function buildMenu(): MenuItem[] {
       items: [{ ...journalCmd.refresh, surface: 'journal' }, { ...journalCmd.newList, surface: 'journal' }],
     },
     'separator',
-    {
-      id: 'app.settings',
-      label: 'Settings…',
-      shortcut: { mod: true, key: ',' },
-      run: () => state().setSettingsOpen(true),
-    },
+    win.settings,
   ];
 }

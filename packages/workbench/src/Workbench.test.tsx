@@ -2,7 +2,7 @@
 import { act, createContext, useContext } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PluginRegistry, Workbench, pluginsTab, usePaneTypes, useSurfaceShown, type MenuItem, type Plugin, type WorkbenchProps } from './index';
+import { PluginRegistry, Workbench, pluginsTab, usePaneTypes, useSurfaceShown, windowCommands, type MenuItem, type Plugin, type Theme, type WorkbenchProps } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -58,7 +58,7 @@ function render(registry: PluginRegistry, props: Partial<WorkbenchProps<null>> =
       menu={menu}
       commandContext={() => null}
       useCommandContext={() => null}
-      settings={{ open: false, onClose: () => {} }}
+      settings={{ open: false, onOpenChange: () => {} }}
       className="app"
       {...props}
     />,
@@ -86,7 +86,7 @@ describe('Workbench', () => {
   it('lists the workbench’s tabs, then the plugins’, in its Settings dialog', () => {
     const registry = new PluginRegistry();
     registry.register(feature(registry));
-    render(registry, { settings: { open: true, onClose: () => {} }, appearance: { theme: 'dark', setTheme: () => {} } });
+    render(registry, { settings: { open: true, onOpenChange: () => {} }, appearance: { theme: 'dark', setTheme: () => {} } });
     expect([...host.querySelectorAll('.settings-nav-item')].map((b) => b.textContent?.trim())).toEqual(['Appearance', 'Shortcuts', 'Feature tab']);
   });
 
@@ -123,6 +123,50 @@ describe('Workbench', () => {
     root = createRoot(host);
   });
 
+  it('draws the palette, settings and theme at the end of the bar, named after their commands', () => {
+    const registry = new PluginRegistry();
+    const openPalette = vi.fn();
+    const openChange = vi.fn();
+    const setTheme = vi.fn();
+    const win = windowCommands({
+      palette: { open: openPalette },
+      settings: { open: () => openChange(true) },
+      theme: { get: () => 'dark', set: setTheme },
+      statusBar: { pinned: () => false, setPinned: () => {} },
+    });
+    render(registry, {
+      menu: [win.palette, win.settings],
+      palette: { open: openPalette },
+      settings: { open: false, onOpenChange: openChange },
+      appearance: { theme: 'dark', setTheme },
+    });
+    const end = [...host.querySelectorAll<HTMLButtonElement>('.wb-topbar > :last-child .wb-tool')];
+    expect(end.map((b) => b.title)).toEqual(['Command Palette (Ctrl+Shift+P)', 'Settings (Ctrl+,)', 'Switch to light theme']);
+    act(() => end.forEach((b) => b.click()));
+    expect(openPalette).toHaveBeenCalledTimes(1);
+    expect(openChange).toHaveBeenCalledWith(true);
+    expect(setTheme).toHaveBeenCalledWith('light');
+    // The main menu's button is a tool of the bar too
+    expect(host.querySelector('.wb-main-menu > button')?.className).toBe('wb-tool');
+  });
+
+  it('draws no palette button without a palette, and a disabled one while it can’t open', () => {
+    const registry = new PluginRegistry();
+    render(registry);
+    expect(host.querySelectorAll('.wb-topbar > :last-child .wb-tool')).toHaveLength(1);
+    expect(host.querySelector('.wb-topbar > :last-child .wb-tool')?.getAttribute('title')).toBe('Settings');
+    render(registry, { palette: { open: () => {}, enabled: false } });
+    expect(host.querySelector<HTMLButtonElement>('.wb-topbar > :last-child .wb-tool')?.disabled).toBe(true);
+  });
+
+  it('closes Settings through onOpenChange', () => {
+    const registry = new PluginRegistry();
+    const openChange = vi.fn();
+    render(registry, { settings: { open: true, onOpenChange: openChange } });
+    act(() => host.ownerDocument.querySelector<HTMLButtonElement>('[aria-label="Close settings"]')?.click());
+    expect(openChange).toHaveBeenCalledWith(false);
+  });
+
   it('keeps a required plugin on, and out of the Plugins tab', () => {
     const registry = new PluginRegistry();
     registry.register(feature(registry));
@@ -133,5 +177,46 @@ describe('Workbench', () => {
     act(() => root.render(<>{pluginsTab(registry).render()}</>));
     expect(host.textContent).toContain('Extra');
     expect(host.textContent).not.toContain('Feature');
+  });
+});
+
+describe('windowCommands', () => {
+  const make = (canOpen?: () => boolean) => {
+    let theme: Theme = 'dark';
+    let pinned = false;
+    const open = vi.fn();
+    const win = windowCommands({
+      palette: { open, enabled: canOpen, label: 'Command Panel…' },
+      settings: { open: () => {} },
+      theme: { get: () => theme, set: (t) => { theme = t; } },
+      statusBar: { pinned: () => pinned, setPinned: (p) => { pinned = p; } },
+    });
+    return { win, open, theme: () => theme, pinned: () => pinned };
+  };
+
+  it('switches the theme and pins the status bar, checked as they are', () => {
+    const { win, theme, pinned } = make();
+    expect([win.darkTheme.checked?.(null), win.lightTheme.checked?.(null)]).toEqual([true, false]);
+    win.lightTheme.run();
+    expect(theme()).toBe('light');
+    expect(win.lightTheme.checked?.(null)).toBe(true);
+    win.pinStatusBar.run();
+    expect(pinned()).toBe(true);
+    expect(win.pinStatusBar.checked?.(null)).toBe(true);
+  });
+
+  it('opens the palette only while it can, and leaves it out of itself', () => {
+    let can = false;
+    const { win, open } = make(() => can);
+    expect(win.palette.label).toBe('Command Panel…');
+    expect(win.palette.palette).toBe(false);
+    expect(win.palette.enabled?.(null)).toBe(false);
+    win.palette.run();
+    expect(open).not.toHaveBeenCalled();
+    can = true;
+    win.palette.run();
+    expect(open).toHaveBeenCalledTimes(1);
+    // Without a condition it always can
+    expect(make().win.palette.enabled).toBeUndefined();
   });
 });

@@ -13,7 +13,16 @@ import { getFileName } from './files';
 // the window. Its provider; the `documents` and `contents` panes of a view;
 // its Settings tab; its dialogs; and what it does on its own: read the saved
 // tabs' documents back, open a reader window's one document, go back and
-// forward with the mouse's side buttons, Mod+1…9 to a tab.
+// forward with the mouse's side buttons, Mod+1…9 to a tab, ask before the
+// window closes with unsaved edits.
+
+/** A request to close the window, which the reader may hold. */
+export interface CloseRequest {
+  /** The window stays open. */
+  preventDefault(): void;
+  /** Close it after all, once held. */
+  close(): Promise<void>;
+}
 
 export interface ReaderPluginOptions {
   /** The view whose layout shows the document groups and the contents ('documents'). */
@@ -26,6 +35,12 @@ export interface ReaderPluginOptions {
   restore?: boolean;
   /** A reader window for one document: open it once started, and reload the documents when the window gets the focus. */
   windowDocument?: string | null;
+  /**
+   * Closing the window with unsaved edits asks first. `name` is the app's, in
+   * the question; `onCloseRequested` gives the window's close requests to the
+   * reader and returns how to stop.
+   */
+  confirmClose?: { name: string; onCloseRequested: (onClose: (request: CloseRequest) => Promise<void>) => Promise<() => void> };
 }
 
 function errorText(error: unknown): string {
@@ -55,7 +70,7 @@ export async function reloadChangedDocuments(reader: Reader, names: string[]): P
 }
 
 /** What the reader does on its own while the window is open; it draws nothing. */
-function ReaderEffects({ restore, windowDocument }: Pick<ReaderPluginOptions, 'restore' | 'windowDocument'>) {
+function ReaderEffects({ restore, windowDocument, confirmClose }: Pick<ReaderPluginOptions, 'restore' | 'windowDocument' | 'confirmClose'>) {
   const reader = useReaderContext();
   const { store, host } = reader;
   const restored = useStore(store, (s) => s.sessionRestored);
@@ -109,6 +124,29 @@ function ReaderEffects({ restore, windowDocument }: Pick<ReaderPluginOptions, 'r
     return () => window.removeEventListener('mouseup', onMouseUp);
   }, [store]);
 
+  // Closing the window with unsaved edits asks first
+  useEffect(() => {
+    if (!confirmClose) return;
+    let stop: (() => void) | undefined;
+    let disposed = false;
+    confirmClose.onCloseRequested(async (request) => {
+      const dirty = allTabs(store.getState()).filter((t) => t.isDirty);
+      if (dirty.length === 0) return;
+      request.preventDefault();
+      const names = dirty.map((t) => t.title).join(', ');
+      if (window.confirm(`Unsaved changes in ${names}. Close ${confirmClose.name} and discard them?`)) await request.close();
+    })
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else stop = unlisten;
+      })
+      .catch((error) => console.error('Failed to watch window close:', error));
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [store, confirmClose]);
+
   // Mod+1…9: the focused group's tab at that place
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -149,7 +187,10 @@ export function readerPlugin(reader: Reader, options: ReaderPluginOptions = {}):
         },
       });
       api.contribute('workbench:settings-tab', readerSettingsTab());
-      api.contribute('workbench:overlay', { id: 'reader', render: () => <ReaderEffects restore={options.restore} windowDocument={options.windowDocument} /> });
+      api.contribute('workbench:overlay', {
+        id: 'reader',
+        render: () => <ReaderEffects restore={options.restore} windowDocument={options.windowDocument} confirmClose={options.confirmClose} />,
+      });
       api.contribute('workbench:overlay', { id: 'reader-save-all', render: () => <SaveAllDialog /> });
       api.contribute('workbench:overlay', { id: 'reader-close-document', render: () => <CloseDocumentDialog /> });
     },

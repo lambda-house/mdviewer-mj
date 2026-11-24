@@ -3,9 +3,10 @@
 // '@lambda-house/workbench/workbench.css' after the ui styles). Shared UI spec §5.
 // Phase 3: commands, the main menu and the command palette. Phase 4: the layout tree, the shell, the plugin registry.
 // Phase 8: the Workbench an app assembles from plugins (its points are the workbench:* ones).
+// Phase 9: the window's commands (windowCommands) and the end of the top bar.
 
 export {
-  ariaShortcut, commandForKey, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface, useMenu,
+  ariaShortcut, commandForKey, commandTitle, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface, useMenu,
   type Command, type MenuItem, type MenuStore, type Shortcut, type Submenu,
 } from './commands';
 export { MainMenu, type MainMenuProps } from './MainMenu';
@@ -26,6 +27,9 @@ export {
   type WorkbenchOverlay, type WorkbenchPaneType, type WorkbenchSurface, type WorkbenchWrapper,
 } from './plugins';
 export { layoutCommands, zoomCommands, type ZoomFallback } from './paneCommands';
+export {
+  PALETTE_SHORTCUT, SETTINGS_SHORTCUT, WINDOW_COMMANDS, windowCommands, type Theme, type WindowCommandOptions, type WindowCommands,
+} from './windowCommands';
 export {
   canResetLayout, focusNextPane, focusedPane, focusedPaneVersion, focusedZoom, resetLayout, setFocusedPane, subscribeFocusedPane,
 } from './focus';

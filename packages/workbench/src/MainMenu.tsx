@@ -243,14 +243,14 @@ export interface MainMenuProps<C> {
   useCommandContext: () => C;
   /** Runs before the menu opens (the editor passes on its pending typing, which decides what Save offers). */
   onOpen?: () => void;
-  /** Class of the menu button, to match the toolbar it sits in; `active` is added while open. */
+  /** Class of the menu button (default: the top bar's tool button); `active` is added while open. */
   buttonClassName?: string;
   /** The shown surface: another surface's commands are disabled. */
   surface?: string;
 }
 
 /** The menu button: every command of the app, grouped, with its keyboard shortcut. */
-export function MainMenu<C>({ items, useCommandContext, onOpen, buttonClassName, surface }: MainMenuProps<C>) {
+export function MainMenu<C>({ items, useCommandContext, onOpen, buttonClassName = 'wb-tool', surface }: MainMenuProps<C>) {
   const [open, setOpen] = useState(false);
   const [openedByKeyboard, setOpenedByKeyboard] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);

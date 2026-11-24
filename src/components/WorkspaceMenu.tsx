@@ -109,7 +109,7 @@ const WorkspaceMenu: React.FC = () => {
   return (
     <div className="workspace-menu" ref={rootRef}>
       <button
-        className={clsx('toolbar-button workspace-menu-button', open && 'active')}
+        className={clsx('wb-tool workspace-menu-button', open && 'active')}
         onClick={() => setOpen((v) => !v)}
         title={activeWorkspace ? `Workspace: ${activeWorkspace}` : 'Workspaces'}
         aria-label={activeWorkspace ? `Workspace: ${activeWorkspace}` : 'Workspaces'}

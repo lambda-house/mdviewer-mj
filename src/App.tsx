@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Activity } from 'lucide-react';
 import { useStore } from './store';
 import { useReader } from './reader';
@@ -17,9 +17,9 @@ import {
   onMenuCommand,
   checkForUpdate,
   onAgentFilesChanged,
+  onWindowCloseRequested,
 } from './utils/tauri';
 import { appMenu, buildMenu, commandContext, useCommandContext } from './utils/commands';
-import { ToolbarEnd } from './components/Toolbar';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
 import { journal } from './journal';
 import { documentWindowPath } from './utils/documentWindow';
@@ -31,8 +31,8 @@ import { openPaths } from './opening';
 // MDViewer's window: the Workbench of its plugins (shared UI spec §3.3), the
 // reader's, the journal's and MDViewer's own (documents.tsx), and what the
 // window does through Tauri: scanning and watching the opened folders,
-// agent files, drops and launch paths, the update check, closing with
-// unsaved edits. A memory window has Documents only, and its one document.
+// agent files, drops and launch paths, the update check. A memory window has
+// Documents only, and its one document.
 // ============================================================
 
 /** Quiet time after the last file change event before the tree is rescanned. */
@@ -48,6 +48,7 @@ registry.register(readerPlugin(reader, {
   // A memory window doesn't take the main window's tabs
   restore: isTauri() && !documentWindowPath,
   windowDocument: documentWindowPath,
+  confirmClose: { name: 'MDViewer', onCloseRequested: onWindowCloseRequested },
 }));
 if (!documentWindowPath) {
   registry.register(journalPlugin(journal, {
@@ -61,9 +62,7 @@ registry.register(documentsPlugin);
 const menu = buildMenu();
 appMenu.set(menu);
 
-const setTheme = (theme: 'dark' | 'light') => {
-  if (useStore.getState().theme !== theme) useStore.getState().toggleTheme();
-};
+const openPalette = () => useStore.getState().setPaletteOpen(true);
 
 const App: React.FC = () => {
   // The shown surface is the store's: commands of the other one wait
@@ -72,8 +71,9 @@ const App: React.FC = () => {
   const statusBarPinned = useStore((s) => s.statusBarPinned);
   const setStatusBarPinned = useStore((s) => s.setStatusBarPinned);
   const settingsOpen = useStore((s) => s.settingsOpen);
-  const closeSettings = useCallback(() => useStore.getState().setSettingsOpen(false), []);
+  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
   const agentVisible = useStore((s) => s.agentVisible);
   const agentEntries = useStore((s) => s.agentEntries);
   const hasAgentTabs = useReader((s) => allTabs(s).some((t) => agentEntries.some((e) => e.path === t.path)));
@@ -304,52 +304,19 @@ const App: React.FC = () => {
     };
   }, [sessionRestored]);
 
-  // Closing the window with unsaved edits asks first
-  useEffect(() => {
-    if (!isTauri()) return;
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-
-    import('@tauri-apps/api/window')
-      .then(({ getCurrentWindow }) => {
-        const appWindow = getCurrentWindow();
-        return appWindow.onCloseRequested(async (event) => {
-          const dirty = allTabs(useReader.getState()).filter((t) => t.isDirty);
-          if (dirty.length === 0) return;
-          event.preventDefault();
-          const names = dirty.map((t) => t.title).join(', ');
-          if (window.confirm(`Unsaved changes in ${names}. Close MDViewer and discard them?`)) {
-            await appWindow.destroy();
-          }
-        });
-      })
-      .then((fn) => {
-        if (disposed) fn();
-        else unlisten = fn;
-      })
-      .catch((error) => console.error('Failed to watch window close:', error));
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
-
   return (
     <Workbench
       registry={registry}
-      className="app-container"
       surface={surface}
       onSurface={setSurface}
       menu={menu}
       commandContext={commandContext}
       useCommandContext={useCommandContext}
       onMenuOpen={flushEditorChanges}
-      menuButtonClassName="toolbar-button"
       nativeMenu={onMenuCommand}
-      end={<ToolbarEnd />}
       status={{ pinned: statusBarPinned, onPinnedChange: setStatusBarPinned }}
-      settings={{ open: settingsOpen, onClose: closeSettings }}
+      palette={{ open: openPalette }}
+      settings={{ open: settingsOpen, onOpenChange: setSettingsOpen }}
       appearance={{ theme, setTheme }}
     />
   );

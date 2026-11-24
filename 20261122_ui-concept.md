@@ -214,6 +214,7 @@ The Documents surface is the reference look.
 ```
 
 - The top bar, left to right: surface switch, main menu (☰), view switch, the current view's tools. On the right: palette, settings, theme. The view switch is hidden when a surface has only one view.
+- The `Workbench` draws the right end itself (phase 9): ⌕ opens the palette (its `palette` prop; disabled while the palette can't open, as Agent MCR's outside Sessions), ⚙ opens Settings (`settings`), ☾/☀ switches the theme (`appearance`). Their tooltips are their commands' labels with the keys (`commandTitle`). The bar's buttons, the main menu's among them, are the workbench's `wb-tool`: 24 px ghost icons in `wb-tool-group`s.
 - Every surface of both apps uses this same bar.
 - A surface that isn't shown stays mounted when its view asks for it (`keepMounted`), as Sessions does today (`App.tsx:79-80`, `App.tsx:753-755`).
 - The native menu (File, Edit, Window, Help) stays.
@@ -379,6 +380,7 @@ interface CommandContext {
 
 - Each app's `buildMenu` is its one list of commands, made of its own and of what the features and the workbench supply (`readerCommands`, `journalCommands`, `layoutCommands`, `zoomCommands`). Plugins don't add menu items (decided in phases 8 and 9): the menu's order is the app's decision, and it reads best as one list. The main menu, the `Workbench`'s key handler, native menu events and the palette all read it.
 - The existing rules still apply: there is one list of commands, and `run` must be safe to call when the command is not enabled.
+- The window's own commands are the workbench's `windowCommands` (phase 9): Command Palette (Mod+Shift+P), Settings (Mod+,), Dark Theme, Light Theme, Pin Status Bar. Each app places them in its menu; the top bar's buttons find them there by id.
 - `CommandContext` replaces `AppState` as the argument, so the registry doesn't know about the app store. A feature's commands read that feature's own store.
 - `view.zoomIn`, `view.zoomOut` and `view.resetZoom` act on the focused pane through its `PaneZoom`. They are disabled when that pane can't zoom.
 - The Rust native menu keeps its own list of ids (`main.rs:1615` onward). An app test reads `main.rs` and fails if a native menu id has no matching command.
