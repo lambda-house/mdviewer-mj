@@ -34,6 +34,13 @@ describe('Button', () => {
     expect(iconOnly.className).toContain('ui-btn--busy');
     expect(text.className).not.toContain('ui-btn--icon');
   });
+
+  it('lets a long label wrap only when asked', () => {
+    render(<><Button wrap>Keep it (recommended by its publisher)</Button><Button>Save</Button></>);
+    const [wrapping, plain] = all('button');
+    expect(wrapping.className).toContain('ui-btn--wrap');
+    expect(plain.className).not.toContain('ui-btn--wrap');
+  });
 });
 
 describe('Segmented', () => {

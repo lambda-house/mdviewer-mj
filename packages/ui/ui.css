@@ -156,8 +156,17 @@ a:hover {
 .ui-btn--secondary:hover:not([disabled]) { background: var(--hover); border-color: var(--accent-fill); }
 .ui-btn--ghost { background: transparent; color: var(--text-muted); }
 .ui-btn--ghost:hover:not([disabled]) { background: var(--hover); color: var(--text); }
+/* A ghost button that is on (a toggle: aria-pressed), as the top bar's tools are */
+.ui-btn--ghost[aria-pressed='true'] { background: var(--selected); color: var(--accent); }
 .ui-btn--destructive { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
 .ui-btn--destructive:hover:not([disabled]) { background: color-mix(in srgb, var(--danger) 18%, var(--danger-bg)); }
+
+/* A label that may wrap: as tall as its lines, never less than its size */
+.ui-btn--wrap { height: auto; padding-top: 4px; padding-bottom: 4px; line-height: 1.3; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.ui-btn--wrap.ui-btn--xs { min-height: 24px; padding-top: 3px; padding-bottom: 3px; }
+.ui-btn--wrap.ui-btn--sm { min-height: 28px; }
+.ui-btn--wrap.ui-btn--md { min-height: 32px; }
+.ui-btn--wrap.ui-btn--lg { min-height: 36px; }
 
 .ui-btn__icon { display: inline-flex; align-items: center; }
 .ui-btn--busy .ui-btn__icon svg { animation: ui-spin 1s linear infinite; }
