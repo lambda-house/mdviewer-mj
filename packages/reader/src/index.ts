@@ -2,7 +2,8 @@
 // Agent MCR (shared UI spec §6.1). Phase 5 part 1: rendering, file kinds and
 // links, find, scroll anchoring and holding, the editor state registry.
 // Part 2: the reader store (createReaderStore: documents, groups, settings).
-// Part 3: document groups side by side (DocumentGroups). Styles: ../reader.css.
+// Part 3: document groups side by side (DocumentGroups). Phase 8: the contents
+// pane (Contents), and every style of the reader in ../reader.css.
 
 export * from './types';
 export * from './files';
@@ -19,6 +20,7 @@ export * from './save';
 export * from './export';
 export { DocumentPanel, MarkdownViewer, ErrorBoundary, type DocumentPanelProps } from './DocumentPanel';
 export { DocumentGroups } from './DocumentGroups';
+export { Contents, CONTENTS_MIN_WIDTH, CONTENTS_MAX_WIDTH, CONTENTS_WIDTH, type ContentsProps } from './Contents';
 export { DocumentStatus, truncatePath } from './DocumentStatus';
 export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
 export { SearchOptionToggles } from './FindBar';
