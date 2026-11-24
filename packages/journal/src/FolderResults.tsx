@@ -1,6 +1,7 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { Filter, Folder, MapPin } from 'lucide-react';
 import { Button, formatAge } from '@lambda-house/ui';
+import { usePaneZoom } from '@lambda-house/workbench';
 import { SessionTree } from './SessionTree';
 import { directoryTree, homePath, shortPath, within, type DirectoryNode, type Session } from './sessions';
 
@@ -29,6 +30,8 @@ export function FolderResults({ all, matches, selected, open, menu, directory, n
       .sort((a, b) => b.latest - a.latest);
   }, [matches]);
   const [toggled, setToggled] = useState<Set<string>>(new Set());
+  // The list pane's zoom: the results scale inside their scroller
+  const zoom = usePaneZoom();
   const flip = (path: string) => setToggled((old) => {
     const next = new Set(old);
     if (next.has(path)) next.delete(path);
@@ -37,6 +40,7 @@ export function FolderResults({ all, matches, selected, open, menu, directory, n
   });
   return (
     <div className="ss-results">
+      <div className="panel-zoom" style={{ zoom: zoom / 100 }}>
       {folders.slice(0, MAX_FOLDERS).map((f, i) => {
         const shown = (i < OPEN_FOLDERS) !== toggled.has(f.path);
         return (
@@ -58,6 +62,7 @@ export function FolderResults({ all, matches, selected, open, menu, directory, n
         );
       })}
       {folders.length > MAX_FOLDERS && <p className="ss-more">{folders.length - MAX_FOLDERS} more folders: narrow the search to see them.</p>}
+      </div>
     </div>
   );
 }

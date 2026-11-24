@@ -51,7 +51,7 @@ export function PaneTitle({ children }: { children?: ReactNode }) {
           at={below(anchor.current)}
           anchorRef={anchor}
           onClose={() => setOpen(false)}
-          items={pane.actions.types.map((t) => ({ key: t.type, label: t.title, onSelect: () => pane.actions.setType(t.type) }))}
+          items={pane.actions.types.map((t) => ({ key: t.type, label: t.title, icon: t.icon, onSelect: () => pane.actions.setType(t.type) }))}
         />
       )}
     </>
@@ -80,10 +80,10 @@ export function paneMenuItems(pane: PaneContext): MenuItem[] {
   ];
   if (actions.joinable.length || actions.swappable.length) items.push('separator');
   for (const other of actions.joinable) {
-    items.push({ key: `join-${other.leaf}`, label: `Join with ${other.title}`, onSelect: () => actions.join(other.leaf), onHover: hover({ kind: 'join', leaf: other.leaf }) });
+    items.push({ key: `join-${other.leaf}`, label: `Join with ${other.title}`, icon: other.icon, onSelect: () => actions.join(other.leaf), onHover: hover({ kind: 'join', leaf: other.leaf }) });
   }
   for (const other of actions.swappable) {
-    items.push({ key: `swap-${other.leaf}`, label: `Swap with ${other.title}`, onSelect: () => actions.swap(other.leaf), onHover: hover({ kind: 'swap', leaf: other.leaf }) });
+    items.push({ key: `swap-${other.leaf}`, label: `Swap with ${other.title}`, icon: other.icon, onSelect: () => actions.swap(other.leaf), onHover: hover({ kind: 'swap', leaf: other.leaf }) });
   }
   items.push('separator', { key: 'close', label: 'Close Pane', disabled: !actions.canClose, onSelect: actions.close, onHover: hover({ kind: 'close' }) });
   return items;

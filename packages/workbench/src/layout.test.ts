@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  closeLeaf, findLeaf, joinLeaves, leaves, minAlong, normalize, resizeAt, setCollapsed, splitLeaf, swapPanes, toggleAt,
+  closeLeaf, findLeaf, fitLayout, joinLeaves, leaves, minAlong, normalize, resizeAt, revealLeaf, setCollapsed, splitLeaf, swapPanes, toggleAt,
   type Leaf, type LayoutNode, type Limits, type Split,
 } from './layout';
 
@@ -113,5 +113,47 @@ describe('toggleAt and minAlong', () => {
     expect(minAlong(documents(), 'row', limitsOf)).toBe(200 + 300 + 180 + 8);
     expect(minAlong(setCollapsed(documents(), 'files', true), 'row', limitsOf)).toBe(300 + 180 + 8);
     expect(minAlong(documents(), 'col', limitsOf)).toBe(300);
+  });
+});
+
+describe('fitLayout: a window too small for the panes', () => {
+  const limitsOf = (l: Leaf) => (l.id === 'files' ? panel : l.id === 'toc' ? toc : content);
+  const fit = (w: number, h = 800, root: LayoutNode = documents()) => fitLayout(root, { w, h }, limitsOf);
+  const hidden = (node: LayoutNode) => leaves(node).filter((l) => l.collapsed).map((l) => l.id);
+
+  it('leaves a layout that fits as it is', () => {
+    const root = documents();
+    expect(fitLayout(root, { w: 1400, h: 800 }, limitsOf)).toBe(root);
+  });
+
+  it('shrinks the side panels towards their minimums before anything collapses', () => {
+    // 200 + 300 + 180 + 8 = 688 fits in 700, but 280 + 300 + 220 + 8 doesn't
+    const fitted = asSplit(fit(700));
+    expect(hidden(fitted)).toEqual([]);
+    expect(fitted.sizes).toEqual([{ px: 208 }, { fr: 1 }, { px: 184 }]);
+  });
+
+  it('collapses the side panels, the later first, when even their minimums don’t fit', () => {
+    expect(hidden(fit(600))).toEqual(['toc']);
+    expect(asSplit(fit(600)).sizes).toEqual(documents().sizes);
+    expect(hidden(fit(450))).toEqual(['files', 'toc']);
+    // A pane that can't collapse is clipped
+    expect(hidden(fit(250))).toEqual(['files', 'toc']);
+  });
+
+  it('collapses for a window too short, the outermost first', () => {
+    const panelBelow: Split = { kind: 'split', id: 'root', dir: 'col', children: [documents(), leaf('terminal')], sizes: [{ fr: 1 }, { px: 200 }] };
+    // Collapsible is the pane type's, whichever the axis
+    const heights = (l: Leaf, dir: 'row' | 'col'): Limits => (l.id === 'terminal'
+      ? { min: dir === 'row' ? 80 : 120, collapsible: true }
+      : dir === 'row' ? limitsOf(l) : { min: 100, collapsible: limitsOf(l).collapsible });
+    // 100 + 120 + 4 doesn't fit in 200: the terminal (depth 1) gives way before the side panels (depth 2)
+    expect(hidden(fitLayout(panelBelow, { w: 1400, h: 200 }, heights))).toEqual(['terminal']);
+  });
+
+  it('shows a pane the window had no room for: the others give way in the stored layout', () => {
+    const revealed = revealLeaf(documents(), 'toc', { w: 600, h: 800 }, limitsOf);
+    expect(hidden(revealed)).toEqual(['files']);
+    expect(hidden(fitLayout(revealed, { w: 600, h: 800 }, limitsOf))).toEqual(['files']);
   });
 });

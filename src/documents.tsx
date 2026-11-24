@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { FileQuestion, FileText, Upload } from 'lucide-react';
+import { FileQuestion, FileSearch, FileText, Files, History, Upload } from 'lucide-react';
 import { EmptyState, Kbd } from '@lambda-house/ui';
 import { LayoutView, usePaneTypes, type Layout, type PaneZoom, type Plugin } from '@lambda-house/workbench';
 import { useStore, panelShown, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, type ZoomPanel } from './store';
@@ -103,9 +103,9 @@ export const documentsPlugin: Plugin = {
     // Mounted only while shown
     api.contribute('workbench:surface', { id: 'documents', label: 'Documents', icon: <FileText size={13} />, keepMounted: false, order: 10, render: () => <Documents /> });
     const left = { collapsible: true, switchable: true, singleton: true, min: { w: PANEL_MIN_WIDTH }, max: { w: PANEL_MAX_WIDTH } };
-    api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'files', label: 'file panel', title: 'Files', ...left, zoom: zoomOf('files'), render: () => <FilePanel onAddDirectory={openFolder} /> } });
-    api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'search', label: 'search panel', title: 'Search', ...left, render: () => <SearchPanel /> } });
-    api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'history', label: 'history panel', title: 'History', ...left, render: () => <HistoryPanel /> } });
+    api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'files', label: 'file panel', title: 'Files', icon: <Files size={14} />, ...left, zoom: zoomOf('files'), render: () => <FilePanel onAddDirectory={openFolder} /> } });
+    api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'search', label: 'search panel', title: 'Search', icon: <FileSearch size={14} />, ...left, render: () => <SearchPanel /> } });
+    api.contribute('workbench:pane-type', { view: 'documents', type: { type: 'history', label: 'history panel', title: 'History', icon: <History size={14} />, ...left, render: () => <HistoryPanel /> } });
     for (const tab of appSettingsTabs()) api.contribute('workbench:settings-tab', tab);
     api.contribute('workbench:overlay', {
       id: 'palette', order: 200,

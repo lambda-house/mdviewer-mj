@@ -106,6 +106,41 @@ describe('LayoutView', () => {
     expect(host.querySelectorAll('.has-focus')).toHaveLength(1);
   });
 
+  it('collapses a side panel the window has no room for, without saving it, and shows it again by its handle', () => {
+    // happy-dom lays nothing out: the layout gets 600 × 800
+    const sized = ['clientWidth', 'clientHeight'] as const;
+    const saved = sized.map((p) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, p));
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get() { return this.classList.contains('wb-layout') ? 600 : 0; } });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return this.classList.contains('wb-layout') ? 800 : 0; } });
+    try {
+      const types: Record<string, PaneType> = {
+        files: { type: 'files', collapsible: true, min: { w: 200 }, render: () => <aside data-files /> },
+        doc: { type: 'doc', min: { w: 300 }, render: () => <div data-doc /> },
+        toc: { type: 'toc', collapsible: true, min: { w: 180 }, render: () => <nav data-toc /> },
+      };
+      const wide: Layout = {
+        version: 1,
+        root: {
+          kind: 'split', id: 'root', dir: 'row',
+          children: [{ kind: 'leaf', id: 'files', pane: { type: 'files', key: 'files' } }, { kind: 'leaf', id: 'doc', pane: { type: 'doc', key: 'doc' } }, { kind: 'leaf', id: 'toc', pane: { type: 'toc', key: 'toc' } }],
+          sizes: [{ px: 280 }, { fr: 1 }, { px: 220 }],
+        },
+      };
+      const onChange = vi.fn();
+      act(() => root.render(<LayoutView layout={wide} onChange={onChange} paneTypes={types} />));
+      // 200 + 300 + 180 and two handles don't fit in 600: Contents gives way, drawn only
+      expect(host.querySelector('[data-leaf="toc"]')?.className).toContain('is-collapsed');
+      expect(host.querySelector('[data-leaf="files"]')?.className).not.toContain('is-collapsed');
+      expect(onChange).not.toHaveBeenCalled();
+      // Its handle shows it: Files gives way instead, and that is kept
+      act(() => { host.querySelectorAll('[role="separator"]')[1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+      const next = onChange.mock.calls[0][0].root as LayoutNode;
+      expect(leaves(next).map((l) => `${l.id}${l.collapsed ? ' (collapsed)' : ''}`)).toEqual(['files (collapsed)', 'doc', 'toc']);
+    } finally {
+      sized.forEach((p, i) => { if (saved[i]) Object.defineProperty(HTMLElement.prototype, p, saved[i]!); else delete (HTMLElement.prototype as unknown as Record<string, unknown>)[p]; });
+    }
+  });
+
   it('gives the focus to a kept-alive pane pointed at or focused inside, although its content is drawn elsewhere', () => {
     const onFocusLeaf = vi.fn();
     act(() => root.render(<LayoutView layout={start} onChange={() => {}} paneTypes={paneTypes} onFocusLeaf={onFocusLeaf} focusedLeaf="left" />));
@@ -136,11 +171,11 @@ describe('LayoutView', () => {
     let zoom = 100;
     const sidePanes: Record<string, PaneType> = {
       files: { type: 'files', title: 'Files', switchable: true, singleton: true, collapsible: true, min: { w: 200 }, render: () => <Pane title="Files"><p data-files /></Pane> },
-      search: { type: 'search', title: 'Search', switchable: true, singleton: true, collapsible: true, min: { w: 200 }, render: () => <Pane title="Search"><p data-search /></Pane> },
+      search: { type: 'search', title: 'Search', icon: <i data-icon="search" />, switchable: true, singleton: true, collapsible: true, min: { w: 200 }, render: () => <Pane title="Search"><p data-search /></Pane> },
       history: { type: 'history', title: 'History', switchable: true, singleton: true, render: () => <Pane title="History" /> },
       documents: { type: 'documents', title: 'Documents', closable: false, render: () => <div data-documents /> },
       contents: {
-        type: 'contents', title: 'Contents', singleton: true,
+        type: 'contents', title: 'Contents', icon: <i data-icon="contents" />, singleton: true,
         zoom: { get: () => zoom, step: (_c, d) => { zoom = d === 0 ? 100 : zoom + d * 10; } },
         render: () => <Pane title="Contents"><p data-contents /></Pane>,
       },
@@ -194,10 +229,19 @@ describe('LayoutView', () => {
     it('turns a switchable pane into another from its title', () => {
       act(() => host.querySelector<HTMLButtonElement>('[data-leaf="left"] .wb-pane-type')!.click());
       expect(items().map((b) => b.textContent)).toEqual(['Search', 'History']);
+      // A type's icon is beside its name
+      expect(items().map((b) => b.querySelector('[data-icon]')?.getAttribute('data-icon') ?? null)).toEqual(['search', null]);
       choose('History');
       expect(types()).toEqual(['history', 'documents', 'contents']);
       // Contents is not switchable: a plain title
       expect(host.querySelector('[data-leaf="right"] .wb-pane-type')).toBeNull();
+    });
+
+    it('shows the other panes’ icons in the pane menu', () => {
+      act(() => menuOf('left').click());
+      const swap = items().find((b) => b.textContent === 'Swap with Contents')!;
+      expect(swap.querySelector('[data-icon="contents"]')).not.toBeNull();
+      act(() => menuOf('left').click());
     });
 
     it('joins a neighbour that may close, and swaps any two', () => {

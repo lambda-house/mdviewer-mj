@@ -1,6 +1,6 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import { closeLeaf, findLeaf, leaves, splitLeaf, type LayoutNode, type Leaf } from '@lambda-house/workbench';
+import { PANE_ZOOM, closeLeaf, findLeaf, leaves, splitLeaf, stepPaneZoom, type LayoutNode, type Leaf } from '@lambda-house/workbench';
 import { EMPTY_SNAPSHOT, NO_FILTERS, sessionKey, type SessionEvent, type SessionFilters, type Snapshot } from './sessions';
 
 // The journal's state (shared UI spec §6.2): the index snapshot every pane
@@ -52,6 +52,8 @@ export interface JournalState {
   lastList: string;
   lastDetail: string;
   evidence: Record<string, FocusedEvidence>;
+  /** Each pane's own zoom, percent (Ctrl + wheel over it); a pane not in it is at 100. */
+  zoom: Record<string, number>;
 
   setEnabled: (enabled: boolean | null) => void;
   setError: (error: string) => void;
@@ -82,6 +84,8 @@ export interface JournalState {
   setLayout: (layout: LayoutNode) => void;
   /** One list beside one detail pane again, keeping the filters and the session used last. */
   resetLayout: () => void;
+  /** A pane's zoom one step in (1), out (-1) or back to 100 % (0). */
+  zoomPane: (pane: string, direction: 1 | -1 | 0) => void;
 }
 
 export interface JournalStoreOptions {
@@ -116,6 +120,16 @@ const panesOf = (layout: LayoutNode, type: string) =>
 /** The detail panes in layout order. */
 export const detailPanes = (state: Pick<JournalState, 'layout'>) => panesOf(state.layout, DETAIL_PANE);
 export const listPanes = (state: Pick<JournalState, 'layout'>) => panesOf(state.layout, LIST_PANE);
+
+/** The saved zooms of the panes there are, within the pane zoom's range. */
+function readZoom(raw: unknown, panes: string[]): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {};
+  const saved = raw as Record<string, unknown>;
+  return Object.fromEntries(panes.flatMap((pane) => {
+    const value = saved[pane];
+    return typeof value === 'number' && value >= PANE_ZOOM.min && value <= PANE_ZOOM.max && value !== 100 ? [[pane, Math.round(value)]] : [];
+  }));
+}
 
 /** Whether a layout shows the panes, each leaf once with its own key, at least one list. */
 function layoutFits(layout: unknown, lists: string[], details: string[]): layout is LayoutNode {
@@ -186,6 +200,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
           lastList: MAIN_LIST,
           lastDetail: MAIN_DETAIL,
           evidence: {},
+          zoom: {},
 
           setEnabled: (enabled) => set({ enabled }),
           setError: (error) => { if (get().error !== error) set({ error }); },
@@ -258,6 +273,8 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
             const leaf = list ? listLeaf(id) : detailLeaf(id);
             set({
               ...(list ? { lists: { ...state.lists, [id]: { ...list } }, lastList: id } : { details: { ...state.details, [id]: { ...detail } }, lastDetail: id }),
+              // A copy beside it, at its zoom
+              ...(state.zoom[pane] ? { zoom: { ...state.zoom, [id]: state.zoom[pane] } } : {}),
               layout: splitLeaf(state.layout, pane, dir, 'after', leaf, `split-${id}`),
               focused: id,
             });
@@ -273,14 +290,16 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
             const lists = { ...state.lists };
             const details = { ...state.details };
             const evidence = { ...state.evidence };
+            const zoom = { ...state.zoom };
             delete lists[pane];
             delete details[pane];
             delete evidence[pane];
+            delete zoom[pane];
             const layout = closeLeaf(state.layout, pane);
             const order = leaves(layout).map((leaf) => leaf.id);
             const lastList = lists[state.lastList] ? state.lastList : listPanes({ layout })[0];
             const lastDetail = details[state.lastDetail] ? state.lastDetail : detailPanes({ layout })[0];
-            set({ lists, details, evidence, layout, lastList, lastDetail, focused: findLeaf(layout, state.focused) ? state.focused : order[0] });
+            set({ lists, details, evidence, zoom, layout, lastList, lastDetail, focused: findLeaf(layout, state.focused) ? state.focused : order[0] });
           },
           focus: (pane) => {
             const state = get();
@@ -298,6 +317,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
               lists: { [MAIN_LIST]: state.lists[state.lastList] ?? NO_FILTERS },
               details: { [MAIN_DETAIL]: state.details[state.lastDetail] ?? newDetail() },
               evidence: {},
+              zoom: Object.fromEntries([[MAIN_LIST, state.zoom[state.lastList]], [MAIN_DETAIL, state.zoom[state.lastDetail]]].filter(([, z]) => z)),
               focused: MAIN_LIST,
               lastList: MAIN_LIST,
               lastDetail: MAIN_DETAIL,
@@ -306,6 +326,17 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
           setLayout: (layout) => {
             const state = get();
             if (layout !== state.layout && layoutFits(layout, Object.keys(state.lists), Object.keys(state.details))) set({ layout });
+          },
+          zoomPane: (pane, direction) => {
+            const state = get();
+            if (!state.lists[pane] && !state.details[pane]) return;
+            const current = state.zoom[pane] ?? 100;
+            const next = stepPaneZoom(current, direction);
+            if (next === current) return;
+            const zoom = { ...state.zoom };
+            if (next === 100) delete zoom[pane];
+            else zoom[pane] = next;
+            set({ zoom });
           },
         };
       },
@@ -320,6 +351,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
           focused: state.focused,
           lastList: state.lastList,
           lastDetail: state.lastDetail,
+          zoom: state.zoom,
         }),
         merge: (persistedState, current) => {
           const persisted = (persistedState ?? {}) as Partial<JournalState>;
@@ -338,6 +370,7 @@ export function createJournalStore({ storage, name }: JournalStoreOptions): Jour
             focused: typeof persisted.focused === 'string' && findLeaf(layout, persisted.focused) ? persisted.focused : leaves(layout)[0].id,
             lastList: pick(persisted.lastList, lists, listPanes({ layout })[0]),
             lastDetail: pick(persisted.lastDetail, details, detailPanes({ layout })[0] ?? ''),
+            zoom: readZoom(persisted.zoom, [...Object.keys(lists), ...Object.keys(details)]),
           };
         },
       },

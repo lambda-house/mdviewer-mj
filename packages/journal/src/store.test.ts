@@ -103,6 +103,28 @@ describe('the journal store', () => {
     expect(second.getState().snapshot.sessions).toEqual([]);
   });
 
+  it('zooms each pane on its own: a copy beside it takes its zoom, a closed one takes its zoom along, and it is kept', () => {
+    const storage = memory();
+    const s = store(storage);
+    s.getState().zoomPane(MAIN_DETAIL, 1);
+    s.getState().zoomPane(MAIN_DETAIL, 1);
+    expect(s.getState().zoom).toEqual({ [MAIN_DETAIL]: 121 });
+    expect(s.getState().zoom[MAIN_LIST]).toBeUndefined();
+    const copy = s.getState().splitPane(MAIN_DETAIL, 'row')!;
+    expect(s.getState().zoom[copy]).toBe(121);
+    s.getState().closePane(copy);
+    expect(Object.keys(s.getState().zoom)).toEqual([MAIN_DETAIL]);
+    // Kept between runs; a zoom for no pane, or out of range, is dropped
+    expect(store(storage).getState().zoom).toEqual({ [MAIN_DETAIL]: 121 });
+    const saved = JSON.parse(storage.getItem('journal-test') as string);
+    saved.state.zoom = { [MAIN_DETAIL]: 9000, [MAIN_LIST]: 90, gone: 150 };
+    storage.setItem('journal-test', JSON.stringify(saved));
+    expect(store(storage).getState().zoom).toEqual({ [MAIN_LIST]: 90 });
+    // Back to 100 % leaves nothing behind
+    s.getState().zoomPane(MAIN_DETAIL, 0);
+    expect(s.getState().zoom).toEqual({});
+  });
+
   it('starts again from a saved layout that does not fit its panes', () => {
     const storage = memory();
     storage.setItem('journal-test', JSON.stringify({ state: { layout: { kind: 'leaf', id: 'x', pane: { type: 'journal-detail', key: 'x' } }, lists: {}, details: { x: {} } }, version: 1 }));

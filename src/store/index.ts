@@ -7,7 +7,7 @@ import type { ColorTheme } from '@lambda-house/reader';
 import { normalizeDirPath, isPathInside, pathChain, reuseUnchangedNodes } from '../utils/files';
 import type { AgentEntry, UpdateInfo } from '../utils/tauri';
 import { documentWindowPath, documentWindowStorage } from '../utils/documentWindow';
-import type { LayoutNode } from '@lambda-house/workbench';
+import { stepPaneZoom, type LayoutNode } from '@lambda-house/workbench';
 import {
   defaultDocumentsLayout, documentsLayoutFrom, hidePane, isDocumentsLayout, isPaneShown, showPane, togglePane, type DocumentsPane,
 } from './documentsLayout';
@@ -20,17 +20,9 @@ export {
 // Constants
 // ============================================================
 
-/** Panel zoom in/out is multiplicative, like the document's. */
-const ZOOM_STEP = 1.1;
-
-/** Side panels that zoom on their own (Ctrl + wheel over the panel). */
+/** Side panels that zoom on their own (Ctrl + wheel over the panel), on the workbench's pane zoom scale. */
 export type ZoomPanel = 'files' | 'toc';
-export const MIN_PANEL_ZOOM = 50;
-export const MAX_PANEL_ZOOM = 400;
 const DEFAULT_PANEL_ZOOM: Record<ZoomPanel, number> = { files: 100, toc: 100 };
-
-const clampPanelZoom = (zoom: number) =>
-  Math.round(Math.max(MIN_PANEL_ZOOM, Math.min(MAX_PANEL_ZOOM, zoom)));
 
 // ============================================================
 // Types
@@ -48,7 +40,7 @@ export interface FileNode {
 
 export type { Heading } from '@lambda-house/reader';
 
-/** A saved set of open folders and tabs. */
+/** A saved set of open folders and tabs, and the Documents view's layout. */
 export interface Workspace {
   name: string;
   directories: string[];
@@ -56,6 +48,8 @@ export interface Workspace {
   /** Paths of the open tabs, in order. */
   tabs: string[];
   activePath: string | null;
+  /** The panels and their sizes (shared UI spec §5.3); a workspace saved before it had none and keeps the current one. */
+  layout?: LayoutNode;
   savedAt: number;
 }
 
@@ -339,9 +333,7 @@ export const useStore = create<AppState>()(
 
       zoomPanel: (panel, direction) => set((state) => {
         const current = state.panelZoom[panel];
-        const next = direction === 0
-          ? 100
-          : clampPanelZoom(direction > 0 ? current * ZOOM_STEP : current / ZOOM_STEP);
+        const next = stepPaneZoom(current, direction);
         return next === current ? state : { panelZoom: { ...state.panelZoom, [panel]: next } };
       }),
       
@@ -398,6 +390,7 @@ export const useStore = create<AppState>()(
           expandedPaths: state.expandedPaths,
           tabs: focusedGroupOf(useReader.getState()).tabs.map((t) => t.path),
           activePath: activeTabOf(focusedGroupOf(useReader.getState()))?.path ?? null,
+          layout: state.documentsLayout,
           savedAt: Date.now(),
         };
         const index = state.workspaces.findIndex((w) => w.name === name);
@@ -426,6 +419,7 @@ export const useStore = create<AppState>()(
           expandedPaths: workspace.expandedPaths,
           files: [],
           selectedPath: workspace.activePath ?? workspace.tabs[0] ?? null,
+          ...(workspace.layout && isDocumentsLayout(workspace.layout) ? { documentsLayout: workspace.layout } : {}),
         });
         useReader.getState().replaceTabs(workspace.tabs, workspace.activePath);
         return workspace;

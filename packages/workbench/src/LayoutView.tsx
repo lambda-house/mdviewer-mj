@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useR
 import { createPortal } from 'react-dom';
 import { SplitHandle, cx } from '@lambda-house/ui';
 import {
-  closeLeaf, findLeaf, isPx, joinLeaves, leaves, parentOf, resizeAt, setPane, splitLeaf, swapPanes, toggleAt,
+  closeLeaf, findLeaf, fitLayout, isPx, joinLeaves, leaves, parentOf, resizeAt, revealLeaf, setPane, splitLeaf, swapPanes, toggleAt,
   type Layout, type LayoutNode, type Leaf, type Limits, type PaneRef, type Split,
 } from './layout';
 import { PaneContextProvider } from './panes';
@@ -25,6 +25,8 @@ export interface PaneType {
   label?: string;
   /** Its name in its header and in menus ("Files"). */
   title?: string;
+  /** Beside its name in the type menu and the pane menu: a 14 px icon. */
+  icon?: ReactNode;
   /** Smallest width and height, px. */
   min?: { w?: number; h?: number };
   max?: { w?: number; h?: number };
@@ -65,13 +67,13 @@ export interface PaneActions {
   canClose: boolean;
   close: () => void;
   /** Panes next to it in its split that it can take the room of. */
-  joinable: Array<{ leaf: string; title: string }>;
+  joinable: Array<{ leaf: string; title: string; icon?: ReactNode }>;
   join: (leaf: string) => void;
   /** The other panes, to trade places with. */
-  swappable: Array<{ leaf: string; title: string }>;
+  swappable: Array<{ leaf: string; title: string; icon?: ReactNode }>;
   swap: (leaf: string) => void;
   /** Switchable types it can turn into here. */
-  types: Array<{ type: string; title: string }>;
+  types: Array<{ type: string; title: string; icon?: ReactNode }>;
   setType: (type: string) => void;
   zoom: { get: () => number; step: (direction: 1 | -1 | 0) => void; subscribe?: (listener: () => void) => () => void } | null;
   /** Show what an item would do (null: stop). */
@@ -141,6 +143,8 @@ function previewBox(rect: DOMRect, part: 'all' | 'right' | 'bottom'): CSSPropert
  * layout, its zoom. Ctrl+wheel over a pane zooms it.
  */
 export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLeaf, onFocusLeaf, retain = [], onReset, className }: LayoutViewProps) {
+  const latestLayout = useRef(layout);
+  latestLayout.current = layout;
   const childRefs = useRef(new Map<string, HTMLElement>());
   const leafRefs = useRef(new Map<string, HTMLElement>());
   const rootRef = useRef<HTMLDivElement>(null);
@@ -198,6 +202,30 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
     return { min: type?.min?.[axis] ?? DEFAULT_MIN, max: type?.max?.[axis], collapsible: type?.collapsible };
   };
 
+  // A window too small for the panes (spec §5.3): drawn fitted, never saved. The fit is worked
+  // out as the layout's room changes, and the layout draws again only when the fit changes.
+  const leafLimits = (leaf: Leaf, dir: 'row' | 'col') => limitsOf(leaf, dir);
+  const room = useRef<{ w: number; h: number } | null>(null);
+  const fitOf = (root: LayoutNode) => (room.current && room.current.w > 0 && room.current.h > 0 ? fitLayout(root, room.current, leafLimits) : root);
+  const [fitVersion, setFitVersion] = useState(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fitted = useMemo(() => fitOf(layout.root), [layout.root, paneTypes, fitVersion]);
+  const fitting = useRef({ fitted, fitOf });
+  fitting.current = { fitted, fitOf };
+  useLayoutEffect(() => {
+    const element = rootRef.current;
+    if (!element) return;
+    const measureRoom = () => {
+      room.current = { w: element.clientWidth, h: element.clientHeight };
+      const { fitted: drawn, fitOf: fit } = fitting.current;
+      if (JSON.stringify(fit(latestLayout.current.root)) !== JSON.stringify(drawn)) setFitVersion((v) => v + 1);
+    };
+    measureRoom();
+    const observer = new ResizeObserver(measureRoom);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const measure = (split: Split) => split.children.map((child) => {
     const element = childRefs.current.get(child.id);
     return element ? (split.dir === 'row' ? element.offsetWidth : element.offsetHeight) : 0;
@@ -218,6 +246,7 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
 
   const allLeaves = leaves(layout.root);
   const titleOf = (pane: PaneRef | null) => (pane ? paneTypes[pane.type]?.title ?? paneTypes[pane.type]?.label ?? pane.type : 'Empty');
+  const iconOf = (pane: PaneRef | null) => (pane ? paneTypes[pane.type]?.icon : undefined);
   /** Leaf titles, numbered where two read the same. */
   const titles = new Map<string, string>();
   {
@@ -284,17 +313,17 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
         if (type?.close) type.close(context);
         else change(closeLeaf(layout.root, leaf.id));
       },
-      joinable: neighbours.map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane) })),
+      joinable: neighbours.map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane), icon: iconOf(other.pane) })),
       join: (other) => {
         const target = neighbours.find((n) => n.id === other);
         if (target) closeOther(target);
       },
-      swappable: leaf ? allLeaves.filter((other) => other !== leaf).map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane) })) : [],
+      swappable: leaf ? allLeaves.filter((other) => other !== leaf).map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane), icon: iconOf(other.pane) })) : [],
       swap: (other) => { if (leaf) change(swapPanes(layout.root, leaf.id, other)); },
       types: leaf && type?.switchable
         ? Object.values(paneTypes)
           .filter((t) => t.switchable && t.type !== pane.type && !(t.singleton && shownTypes.has(t.type)))
-          .map((t) => ({ type: t.type, title: t.title ?? t.label ?? t.type }))
+          .map((t) => ({ type: t.type, title: t.title ?? t.label ?? t.type, icon: t.icon }))
         : [],
       setType: (next) => {
         const nextType = paneTypes[next];
@@ -416,7 +445,12 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
                   }}
                   onDragEnd={() => { drag.current = null; }}
                   onStep={(delta) => onChange({ ...layout, root: resizeAt(layout.root, node.id, divider, delta, measure(node), limits) })}
-                  onToggle={() => onChange({ ...layout, root: toggleAt(layout.root, node.id, divider, limits) })}
+                  onToggle={() => {
+                    // A pane the window had no room for: the others give way for it
+                    const squeezed = [before, child].find((c) => c.kind === 'leaf' && c.collapsed && !findLeaf(layout.root, c.id)?.collapsed);
+                    if (squeezed && room.current) onChange({ ...layout, root: revealLeaf(layout.root, squeezed.id, room.current, leafLimits) });
+                    else onChange({ ...layout, root: toggleAt(layout.root, node.id, divider, limits) });
+                  }}
                 />
               )}
               <div
@@ -467,7 +501,7 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   // The parking is beside the tree, not in it: a class given to the layout covers only what is shown
   return (
     <>
-      <div ref={rootRef} className={cx('wb-layout', className)} data-view={viewId}>{renderNode(layout.root)}</div>
+      <div ref={rootRef} className={cx('wb-layout', className)} data-view={viewId}>{renderNode(fitted)}</div>
       <div ref={parkingRef} className="wb-parking" aria-hidden="true" />
       {overlays.map((overlay) => <div key={overlay.key} className={cx('wb-preview', overlay.className)} style={overlay.style} aria-hidden="true" />)}
       {[...kept.entries()].map(([key, { pane, leaf }]) => {

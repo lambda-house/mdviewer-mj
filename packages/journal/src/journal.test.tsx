@@ -139,6 +139,23 @@ describe('the journal', () => {
     expect(container.querySelector('[aria-label="Close session pane"]')).toBeNull();
   });
 
+  it('zooms a pane on its own with Ctrl + wheel, with its zoom in its header', async () => {
+    const store = await render(fakeHost());
+    const detail = () => container.querySelector('.wb-leaf .sc-detail')!;
+    // Ctrl + wheel (happy-dom's WheelEvent drops ctrlKey)
+    const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -100 });
+    Object.defineProperty(wheel, 'ctrlKey', { value: true });
+    await act(async () => detail().querySelector('.sc-detail-content')!.dispatchEvent(wheel));
+    expect(store.getState().zoom[MAIN_DETAIL]).toBe(110);
+    expect(detail().querySelector('.wb-zoom-badge')?.textContent).toBe('110%');
+    expect(detail().querySelector<HTMLElement>('.sc-detail-content > .panel-zoom')?.style.zoom).toBe('1.1');
+    // The list is still at 100 %, without a badge
+    expect(container.querySelector('.ss-list .wb-zoom-badge')).toBeNull();
+    // A click on the badge sets it back
+    await act(async () => detail().querySelector<HTMLButtonElement>('.wb-zoom-badge')!.click());
+    expect(store.getState().zoom[MAIN_DETAIL]).toBeUndefined();
+  });
+
   it('narrows the list by text and by folder', async () => {
     await render(fakeHost());
     const input = container.querySelector('[aria-label="Search sessions"]') as HTMLInputElement;

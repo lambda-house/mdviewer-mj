@@ -30,6 +30,16 @@ export function layoutCommands(): Command[] {
   ];
 }
 
+/** The zoom of a pane that zooms on its own (Files, Contents, the journal's panes): percent, a tenth a step. */
+export const PANE_ZOOM = { min: 50, max: 400, step: 1.1 } as const;
+
+/** A pane's zoom one step in (1), out (-1) or back to 100 % (0). */
+export function stepPaneZoom(current: number, direction: 1 | -1 | 0): number {
+  if (direction === 0) return 100;
+  const next = direction > 0 ? current * PANE_ZOOM.step : current / PANE_ZOOM.step;
+  return Math.round(Math.max(PANE_ZOOM.min, Math.min(PANE_ZOOM.max, next)));
+}
+
 /** What the zoom commands use while no pane has the focus yet. */
 export interface ZoomFallback {
   get: () => number;

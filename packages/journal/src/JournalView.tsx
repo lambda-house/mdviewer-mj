@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bot, ChevronRight, RefreshCw, Settings2, Shield, X } from 'lucide-react';
+import { Bot, ChevronRight, History, MessageSquareText, RefreshCw, Settings2, Shield, X } from 'lucide-react';
 import { Button, formatAge } from '@lambda-house/ui';
-import { LayoutView, ShellStatus, ShellTools, StatusItem, useSurfaceShown, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
+import { LayoutView, ShellStatus, ShellTools, StatusItem, useSurfaceShown, type Command, type Layout, type PaneType, type PaneZoom } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext, type Journal } from './host';
 import { AgentAccess } from './AgentAccess';
 import { ConnectionsDialog } from './ConnectionsDialog';
@@ -86,23 +86,31 @@ export function JournalView({ active: activeProp, tools = {} }: JournalViewProps
   }, [enabled, active, snapshot.indexedAt, snapshot.pendingFiles, refresh]);
 
   const layout = useMemo<Layout>(() => ({ version: 1, root }), [root]);
-  const paneTypes = useMemo<Record<string, PaneType>>(() => ({
+  const paneTypes = useMemo<Record<string, PaneType>>(() => {
+    // Each pane has its own zoom: Ctrl + wheel over it, the zoom commands while it has the focus
+    const zoom: PaneZoom = {
+      get: ({ pane }) => store.getState().zoom[pane.key] ?? 100,
+      step: ({ pane }, direction) => store.getState().zoomPane(pane.key, direction),
+      subscribe: store.subscribe,
+    };
+    return {
     // Split and close go through the store, which keeps a list and a detail pane
     [LIST_PANE]: {
-      type: LIST_PANE, label: 'session list', title: 'Sessions', collapsible: true, min: { w: 240 },
+      type: LIST_PANE, label: 'session list', title: 'Sessions', icon: <History size={14} />, collapsible: true, min: { w: 240 }, zoom,
       split: ({ pane }, dir) => { store.getState().splitPane(pane.key, dir); },
       closable: () => listPanes(store.getState()).length > 1,
       close: ({ pane }) => store.getState().closePane(pane.key),
       render: ({ pane }) => <JournalList pane={pane.key} />,
     },
     [DETAIL_PANE]: {
-      type: DETAIL_PANE, label: 'session', title: 'Session', min: { w: 320 },
+      type: DETAIL_PANE, label: 'session', title: 'Session', icon: <MessageSquareText size={14} />, min: { w: 320 }, zoom,
       split: ({ pane }, dir) => { store.getState().splitPane(pane.key, dir); },
       closable: () => detailPanes(store.getState()).length > 1,
       close: ({ pane }) => store.getState().closePane(pane.key),
       render: ({ pane }) => <JournalDetail pane={pane.key} active={active} />,
     },
-  }), [active, store]);
+    };
+  }, [active, store]);
   const onChange = useCallback((next: Layout) => store.getState().setLayout(next.root), [store]);
   const onFocusLeaf = useCallback((id: string) => store.getState().focus(id), [store]);
 

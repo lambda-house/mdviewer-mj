@@ -87,3 +87,27 @@ describe('Files, Search and History take turns on the left', () => {
     expect(useStore.getState().documentsLayout).toBe(before);
   });
 });
+
+describe('workspaces', () => {
+  beforeEach(() => useStore.setState({ documentsLayout: defaultDocumentsLayout(), workspaces: [], activeWorkspace: null }));
+
+  it('keep the Documents layout and bring it back; an older one keeps the current layout', () => {
+    useStore.getState().hidePanel('contents');
+    useStore.getState().showPanel('history');
+    const saved = useStore.getState().documentsLayout;
+    expect(useStore.getState().saveWorkspace('Reading').success).toBe(true);
+
+    useStore.setState({ documentsLayout: defaultDocumentsLayout() });
+    useStore.getState().loadWorkspace('Reading');
+    expect(useStore.getState().documentsLayout).toEqual(saved);
+    expect(panelShown(useStore.getState(), 'history')).toBe(true);
+    expect(panelShown(useStore.getState(), 'contents')).toBe(false);
+
+    // Saved before workspaces had a layout
+    const { layout: _gone, ...older } = useStore.getState().workspaces[0];
+    useStore.setState({ workspaces: [{ ...older, name: 'Older' }], documentsLayout: defaultDocumentsLayout() });
+    const current = useStore.getState().documentsLayout;
+    useStore.getState().loadWorkspace('Older');
+    expect(useStore.getState().documentsLayout).toBe(current);
+  });
+});

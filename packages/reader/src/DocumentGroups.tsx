@@ -1,4 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
+import { FileText } from 'lucide-react';
 import { LayoutView, type Layout, type PaneType } from '@lambda-house/workbench';
 import { useReader, useReaderContext } from './host';
 import { DocumentPanel } from './DocumentPanel';
@@ -20,7 +21,7 @@ export function DocumentGroups({ empty }: { empty?: ReactNode }) {
   const layout = useMemo<Layout>(() => ({ version: 1, root }), [root]);
   const paneTypes = useMemo<Record<string, PaneType>>(() => ({
     documents: {
-      type: 'documents', label: 'documents', title: 'Documents', keepAlive: true, min: { w: 200 },
+      type: 'documents', label: 'documents', title: 'Documents', icon: <FileText size={14} />, keepAlive: true, min: { w: 200 },
       // A group zooms itself (Ctrl+wheel over it), splits into a new group and closes as the store does
       zoom: {
         get: ({ pane }) => store.getState().groups[pane.key]?.zoom ?? 100,

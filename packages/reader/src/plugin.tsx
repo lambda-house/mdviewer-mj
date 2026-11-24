@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { FileText, List } from 'lucide-react';
 import { useStore } from 'zustand';
 import type { PaneZoom, Plugin } from '@lambda-house/workbench';
 import { ReaderProvider, useReaderContext, type Reader } from './host';
@@ -174,14 +175,14 @@ export function readerPlugin(reader: Reader, options: ReaderPluginOptions = {}):
       api.contribute('workbench:pane-type', {
         view,
         type: {
-          type: 'documents', label: 'document', title: 'Documents', singleton: true, closable: false, keepAlive: true, min: { w: 200 },
+          type: 'documents', label: 'document', title: 'Documents', icon: <FileText size={14} />, singleton: true, closable: false, keepAlive: true, min: { w: 200 },
           render: () => <DocumentGroups empty={options.empty} />,
         },
       });
       api.contribute('workbench:pane-type', {
         view,
         type: {
-          type: 'contents', label: 'table of contents', title: 'Contents', singleton: true, collapsible: true,
+          type: 'contents', label: 'table of contents', title: 'Contents', icon: <List size={14} />, singleton: true, collapsible: true,
           min: { w: CONTENTS_MIN_WIDTH }, max: { w: CONTENTS_MAX_WIDTH }, zoom: options.contents?.zoom,
           render: () => <Contents onClose={options.contents?.onClose} />,
         },

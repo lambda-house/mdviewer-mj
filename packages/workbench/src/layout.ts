@@ -347,3 +347,90 @@ export function toggleAt(root: LayoutNode, splitId: string, divider: number, lim
   const target = candidates.find(({ node }) => isPx(split.sizes[split.children.indexOf(node)])) ?? candidates[0];
   return target ? setCollapsed(root, target.node.id, true) : root;
 }
+
+// ============================================================
+// A window too small for the panes (shared UI spec §5.3)
+// ============================================================
+
+/** The collapsible leaves in the order they give way: the outermost first; of two at one depth, the later (the right or bottom side panel). */
+function givingWay(root: LayoutNode, limitsOf: (leaf: Leaf, dir: 'row' | 'col') => Limits, keep?: string): Leaf[] {
+  const found: Array<{ leaf: Leaf; depth: number; index: number }> = [];
+  const walk = (node: LayoutNode, depth: number) => {
+    if (node.kind === 'leaf') {
+      if (!node.collapsed && node.id !== keep && limitsOf(node, 'row').collapsible) found.push({ leaf: node, depth, index: found.length });
+    } else {
+      node.children.forEach((child) => walk(child, depth + 1));
+    }
+  };
+  walk(root, 0);
+  return found.sort((a, b) => a.depth - b.depth || b.index - a.index).map((f) => f.leaf);
+}
+
+/** Collapse leaves, in the order they give way, until the minimums fit `size`; `keep` stays. */
+function collapseToFit(root: LayoutNode, size: { w: number; h: number }, limitsOf: (leaf: Leaf, dir: 'row' | 'col') => Limits, handle: number, keep?: string): LayoutNode {
+  let node = root;
+  for (const dir of ['row', 'col'] as const) {
+    const room = dir === 'row' ? size.w : size.h;
+    for (const leaf of givingWay(node, limitsOf, keep)) {
+      const need = minAlong(node, dir, limitsOf, handle);
+      if (need <= room) break;
+      const next = setCollapsed(node, leaf.id, true);
+      // Only a leaf whose minimum counts along this axis makes room
+      if (minAlong(next, dir, limitsOf, handle) < need) node = next;
+    }
+  }
+  return node;
+}
+
+/** Pixel-sized children give up room towards their minimums, in proportion to what they can give, while the split is too small. */
+function shrinkToFit(node: LayoutNode, w: number, h: number, limitsOf: (leaf: Leaf, dir: 'row' | 'col') => Limits, handle: number): LayoutNode {
+  if (node.kind === 'leaf') return node;
+  const along = node.dir === 'row' ? w : h;
+  const across = node.dir === 'row' ? h : w;
+  const hidden = node.children.map((child) => child.kind === 'leaf' && !!child.collapsed);
+  const mins = node.children.map((child, i) => (hidden[i] ? 0 : minAlong(child, node.dir, limitsOf, handle)));
+  const room = along - handle * (node.children.length - 1);
+  const pxOf = (size: Size, i: number) => (hidden[i] || !isPx(size) ? 0 : size.px);
+  const frMins = node.sizes.reduce((sum, size, i) => sum + (isPx(size) || hidden[i] ? 0 : mins[i]), 0);
+  const excess = node.sizes.reduce((sum, size, i) => sum + pxOf(size, i), 0) + frMins - room;
+  let sizes = node.sizes;
+  if (excess > 0) {
+    const slack = node.sizes.map((size, i) => Math.max(0, pxOf(size, i) - mins[i]));
+    const total = slack.reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      const cut = Math.min(excess, total);
+      sizes = node.sizes.map((size, i) => (slack[i] > 0 && isPx(size) ? { px: Math.round(size.px - (cut * slack[i]) / total) } : size));
+    }
+  }
+  // The children's lengths as drawn: pixels as sized, the rest shared by fraction, never below a minimum
+  const rest = Math.max(0, room - sizes.reduce((sum, size, i) => sum + pxOf(size, i), 0));
+  const frTotal = sizes.reduce((sum, size, i) => sum + (isPx(size) || hidden[i] ? 0 : size.fr), 0);
+  const lengths = sizes.map((size, i) => (hidden[i] ? 0 : isPx(size) ? size.px : Math.max(mins[i], frTotal ? (rest * size.fr) / frTotal : 0)));
+  const children = node.children.map((child, i) => shrinkToFit(child, node.dir === 'row' ? lengths[i] : across, node.dir === 'row' ? across : lengths[i], limitsOf, handle));
+  const same = sizes === node.sizes && children.every((child, i) => child === node.children[i]);
+  return same ? node : { ...node, sizes, children };
+}
+
+/**
+ * The layout as it is drawn in a window of `size` px that is smaller than
+ * its panes need (shared UI spec §5.3), never saved, so a bigger window
+ * brings back the stored sizes. Fraction-sized panes go down to their
+ * minimums (the browser does that); collapsible leaves collapse in the order
+ * they give way until the minimums fit; then pixel-sized panes shrink towards
+ * their minimums. What is still too big is clipped. The same node when nothing changes.
+ */
+export function fitLayout(root: LayoutNode, size: { w: number; h: number }, limitsOf: (leaf: Leaf, dir: 'row' | 'col') => Limits, handle = 4): LayoutNode {
+  return shrinkToFit(collapseToFit(root, size, limitsOf, handle), size.w, size.h, limitsOf, handle);
+}
+
+/**
+ * Show a leaf the window has no room for (its handle's grip): the leaves
+ * that give way for it collapse in the stored layout instead.
+ */
+export function revealLeaf(root: LayoutNode, leafId: string, size: { w: number; h: number }, limitsOf: (leaf: Leaf, dir: 'row' | 'col') => Limits, handle = 4): LayoutNode {
+  const shown = setCollapsed(root, leafId, false);
+  const fitted = collapseToFit(shown, size, limitsOf, handle, leafId);
+  let result = shown;
+  for (const leaf of leaves(fitted)) if (leaf.collapsed && !findLeaf(shown, leaf.id)?.collapsed) result = setCollapsed(result, leaf.id, true);
+  return result;
+}

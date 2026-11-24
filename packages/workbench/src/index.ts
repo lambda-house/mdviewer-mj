@@ -27,7 +27,7 @@ export {
   type Plugin, type PluginApi, type PluginStorage, type WorkbenchEvents, type WorkbenchPoints, type WorkbenchSlots,
   type WorkbenchOverlay, type WorkbenchPaneType, type WorkbenchSurface, type WorkbenchWrapper,
 } from './plugins';
-export { layoutCommands, zoomCommands, type ZoomFallback } from './paneCommands';
+export { PANE_ZOOM, layoutCommands, stepPaneZoom, zoomCommands, type ZoomFallback } from './paneCommands';
 export {
   PALETTE_SHORTCUT, SETTINGS_SHORTCUT, WINDOW_COMMANDS, windowCommands, type Theme, type WindowCommandOptions, type WindowCommands,
 } from './windowCommands';
