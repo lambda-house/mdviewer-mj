@@ -98,6 +98,11 @@ export function Shell({ surfaces, active, onActivate, menu, end, status, classNa
   );
 }
 
+/** Whether the surface this is drawn in is shown (true outside a Shell). */
+export function useSurfaceShown(): boolean {
+  return useContext(SurfaceContext)?.shown ?? true;
+}
+
 /**
  * A surface's tools in the top bar: after the main menu (`start`) or before the end. Shown only while the surface is.
  * Outside a Shell (a surface on its own, in a test) they render in place.

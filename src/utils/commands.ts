@@ -7,6 +7,7 @@ import { useStore, panelShown, type AppState } from '../store';
 import { useReader } from '../reader';
 import { reader } from '../readerHost';
 import { journal } from '../journal';
+import { openFiles, openFolder } from '../opening';
 
 // The app's commands in one place: the main menu shows them (MainMenu.tsx)
 // and the keyboard handler in App.tsx runs them, so a command, its place in
@@ -38,15 +39,8 @@ export function useCommandContext(): CommandContext {
   return useMemo(() => ({ ...app, reader: readerState }), [app, readerState]);
 }
 
-/** What the commands need from the app shell (App.tsx); the rest is in the store. */
-export interface MenuActions {
-  openFile: () => void;
-  openFolder: () => void;
-  reopenClosedTab: () => void;
-}
-
 /** The main menu, top to bottom: MDViewer's commands, the reader's, the journal's and the workbench's. */
-export function buildMenu(actions: MenuActions): MenuItem[] {
+export function buildMenu(): MenuItem[] {
   const state = useStore.getState;
   const documents = useReader.getState;
   const setTheme = (theme: AppState['theme']) => {
@@ -68,9 +62,9 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
       id: 'file.open',
       label: 'Open File…',
       shortcut: { mod: true, key: 'o' },
-      run: actions.openFile,
+      run: () => { void openFiles(); },
     },
-    { id: 'file.openFolder', label: 'Open Folder…', run: actions.openFolder },
+    { id: 'file.openFolder', label: 'Open Folder…', run: () => { void openFolder(); } },
     'separator',
     onDocuments(doc.save),
     {
@@ -183,13 +177,7 @@ export function buildMenu(actions: MenuActions): MenuItem[] {
         'separator',
         onDocuments(doc.closeTab),
         onDocuments(doc.closeAllTabs),
-        onDocuments({
-          id: 'tabs.reopen',
-          label: 'Reopen Closed Tab',
-          shortcut: { mod: true, shift: true, key: 't' },
-          enabled: (s) => s.reader.recentlyClosed.length > 0,
-          run: actions.reopenClosedTab,
-        }),
+        onDocuments(doc.reopenClosedTab),
       ],
     },
     {

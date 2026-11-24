@@ -8,6 +8,8 @@ import { JournalView } from './JournalView';
 import { MemoryBrowser } from './MemoryBrowser';
 import { journalSettingsTabs } from './JournalSettings';
 import { createJournalStore, detailPanes, MAIN_DETAIL } from './store';
+import { journalPlugin } from './plugin';
+import { PluginRegistry, Workbench } from '@lambda-house/workbench';
 import type { Session } from './sessions';
 
 const session: Session = { id: 'a', provider: 'codex', parentId: null, name: 'root', cwd: '/work/demo', title: 'Fix CORE-123', model: 'model-a', effort: 'high', started: '2026-01-01T00:00:00Z', updated: '2026-01-01T00:00:00Z', modified: Date.now(), status: 'working', usage: { input: 100, cached: 70, cacheWrite: 0, output: 20, reasoning: 5 }, usageKnown: true, models: {}, tools: { shell: 2 }, tickets: ['CORE-123'], memoryRefs: [], events: [{ seq: 1, at: '2026-01-01T00:00:00Z', kind: 'assistant', text: '<script>untrusted()</script>', tool: null }], eventCount: 1, malformedLines: 0, source: '/fake/session.jsonl', turnId: 'turn' };
@@ -268,5 +270,35 @@ describe('settings', () => {
     await act(async () => button('revoke session access').click());
     expect(host.disable).toHaveBeenCalled();
     expect(store.getState().enabled).toBe(false);
+  });
+});
+
+describe('journalPlugin', () => {
+  const mount = async (host: JournalHost, surface: string, withSurface = true) => {
+    const store = createJournalStore({ storage: null, name: 'journal' });
+    const registry = new PluginRegistry();
+    registry.register({ id: 'app', name: 'App', setup: (api) => { api.contribute('workbench:surface', { id: 'documents', label: 'Documents', order: 10, render: () => <p>Documents</p> }); } });
+    registry.register(journalPlugin({ store, host }, withSurface ? { surface: { id: 'journal', label: 'Journal', order: 20 } } : {}));
+    await act(async () => root.render(
+      <Workbench registry={registry} surface={surface} onSurface={() => {}} menu={[]} commandContext={() => null} useCommandContext={() => null} settings={{ open: false, onClose: () => {} }} />,
+    ));
+    await flush();
+    return registry;
+  };
+
+  it('brings its Settings tabs, and its own surface when the app gives it one', async () => {
+    const registry = await mount(fakeHost(), 'documents');
+    expect(registry.items('workbench:settings-tab').map((tab) => tab.label)).toEqual(['Session access', 'Memories']);
+    expect(registry.items('workbench:surface').map((s) => s.id)).toEqual(['documents', 'journal']);
+    expect((await mount(fakeHost(), 'documents', false)).items('workbench:surface').map((s) => s.id)).toEqual(['documents']);
+  });
+
+  it('asks for the index only once its surface is shown', async () => {
+    const host = fakeHost();
+    await mount(host, 'documents');
+    expect(host.snapshot).not.toHaveBeenCalled();
+    await mount(host, 'journal');
+    expect(host.snapshot).toHaveBeenCalled();
+    expect(container.textContent).toContain('Fix CORE-123');
   });
 });

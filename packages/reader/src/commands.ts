@@ -28,6 +28,7 @@ export interface ReaderCommands {
   forward: Command;
   closeTab: Command;
   closeAllTabs: Command;
+  reopenClosedTab: Command;
   splitRight: Command;
   splitDown: Command;
 }
@@ -82,6 +83,15 @@ export function readerCommands(reader: Reader): ReaderCommands {
       run: () => {
         const result = state().closeAllTabs();
         if (!result.success && result.error) window.alert(result.error);
+      },
+    },
+    reopenClosedTab: {
+      // The tab comes back with what the file holds now (the app reads it)
+      id: 'tabs.reopen', label: 'Reopen Closed Tab', shortcut: { mod: true, shift: true, key: 't' },
+      enabled: () => state().recentlyClosed.length > 0,
+      run: () => {
+        const closed = state().reopenClosedTab();
+        if (closed) reader.host.openPath(closed.path).catch((error) => console.error('Failed to reopen file:', error));
       },
     },
   };

@@ -1,4 +1,7 @@
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
+import type { PaneType } from './LayoutView';
+import type { SettingsTab } from './settings';
+import type { ShellSurface } from './Shell';
 
 // The plugin registry (shared UI spec §5.7). The workbench names no extension
 // point of its own: an app declares the ones it has by declaration merging,
@@ -10,10 +13,26 @@ import { useSyncExternalStore } from 'react';
 //   }
 //
 // and its plugins contribute items to points, override slots and send events.
+// The workbench's own points are the `workbench:*` ones below: what the
+// Workbench component draws (shared UI spec §5.7).
+
+/** A surface of the window, in the top bar's switch by `order` (lower first, 100 by default). */
+export interface WorkbenchSurface extends ShellSurface { order?: number }
+/** A pane type a view's layout can show (usePaneTypes). */
+export interface WorkbenchPaneType { view: string; type: PaneType }
+/** Drawn once beside the shell: a dialog, an overlay, or a component that only runs effects. */
+export interface WorkbenchOverlay { id: string; order?: number; render: () => ReactNode }
+/** Wraps the whole window: a context provider. The first by `order` is the outermost. */
+export interface WorkbenchWrapper { id: string; order?: number; wrap: (children: ReactNode) => ReactNode }
 
 /** Extension points: name → the type of what plugins contribute there. */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface WorkbenchPoints {}
+export interface WorkbenchPoints {
+  'workbench:surface': WorkbenchSurface;
+  'workbench:pane-type': WorkbenchPaneType;
+  'workbench:settings-tab': SettingsTab;
+  'workbench:overlay': WorkbenchOverlay;
+  'workbench:wrapper': WorkbenchWrapper;
+}
 /** Override slots: name → the render function a plugin may put in. */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface WorkbenchSlots {}
@@ -41,6 +60,8 @@ export interface Plugin {
   description?: string;
   /** Off until the person turns it on. */
   defaultDisabled?: boolean;
+  /** Part of the app (the reader, the journal): always on, and not among the plugins to switch. */
+  required?: boolean;
   /** Registers what the plugin brings; may return a cleanup. */
   setup: (api: PluginApi) => void | (() => void);
 }
@@ -102,7 +123,8 @@ export class PluginRegistry {
     if (this.plugins.has(plugin.id)) this.unregister(plugin.id);
     const entry: Entry = { plugin, active: false, cleanup: [] };
     this.plugins.set(plugin.id, entry);
-    if (plugin.defaultDisabled && !this.explicitlyEnabled.has(plugin.id)) this.disabled.add(plugin.id);
+    if (plugin.required) this.disabled.delete(plugin.id);
+    else if (plugin.defaultDisabled && !this.explicitlyEnabled.has(plugin.id)) this.disabled.add(plugin.id);
     if (!this.disabled.has(plugin.id)) this.activate(entry);
     this.notify();
   }
@@ -121,6 +143,7 @@ export class PluginRegistry {
 
   setEnabled(pluginId: string, enabled: boolean): void {
     const entry = this.plugins.get(pluginId);
+    if (!enabled && entry?.plugin.required) return;
     if (enabled) {
       this.disabled.delete(pluginId);
       this.explicitlyEnabled.add(pluginId);

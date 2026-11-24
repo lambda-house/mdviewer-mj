@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildMenu, commandForKey, menuCommands } from './commands';
 
-const commands = menuCommands(buildMenu({ openFile: () => {}, openFolder: () => {}, reopenClosedTab: () => {} }));
+const commands = menuCommands(buildMenu());
 const press = (key: string, init: KeyboardEventInit = {}) => new KeyboardEvent('keydown', { key, ...init });
 
 describe('the commands of each surface', () => {

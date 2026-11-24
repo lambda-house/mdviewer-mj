@@ -15,3 +15,4 @@ export { MemoryBrowser } from './MemoryBrowser';
 export { AgentAccess } from './AgentAccess';
 export { ConnectionsDialog } from './ConnectionsDialog';
 export { journalSettingsTabs } from './JournalSettings';
+export { journalPlugin, type JournalPluginOptions } from './plugin';

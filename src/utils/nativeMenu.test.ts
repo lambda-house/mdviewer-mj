@@ -13,7 +13,7 @@ const nativeIds = [...mainRs.matchAll(/\.text\("([^"]+)"|with_id\("([^"]+)"/g)].
 const handlerStart = mainRs.indexOf('on_menu_event');
 const handledInRust = [...mainRs.slice(handlerStart, mainRs.indexOf('id =>', handlerStart)).matchAll(/"([^"]+)"\s*=>/g)].map((m) => m[1]);
 
-const commands = menuCommands(buildMenu({ openFile: () => {}, openFolder: () => {}, reopenClosedTab: () => {} }));
+const commands = menuCommands(buildMenu());
 
 describe('the native menu', () => {
   it('was found in main.rs', () => {

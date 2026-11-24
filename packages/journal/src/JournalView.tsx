@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bot, ChevronRight, RefreshCw, Settings2, Shield, X } from 'lucide-react';
 import { Button, cx, formatAge } from '@lambda-house/ui';
-import { LayoutView, ShellStatus, ShellTools, StatusItem, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
+import { LayoutView, ShellStatus, ShellTools, StatusItem, useSurfaceShown, type Command, type Layout, type PaneType } from '@lambda-house/workbench';
 import { errorText, useJournal, useJournalContext, type Journal } from './host';
 import { AgentAccess } from './AgentAccess';
 import { ConnectionsDialog } from './ConnectionsDialog';
@@ -38,7 +38,7 @@ export async function refreshJournal({ store, host }: Journal): Promise<void> {
 }
 
 export interface JournalViewProps {
-  /** Shown: only then is the index asked for and details loaded. */
+  /** Shown: only then is the index asked for and details loaded. By default, while its surface (or view) is. */
   active?: boolean;
   /** Tools in the top bar besides the summary: a refresh button, and dialogs for memories and agent access (an app without them in its settings). */
   tools?: { refresh?: boolean; memories?: boolean; agentAccess?: boolean };
@@ -51,7 +51,9 @@ export interface JournalViewProps {
  * it asks for it and reads nothing. Its summary (and the tools) go into the
  * window's top bar.
  */
-export function JournalView({ active = true, tools = {} }: JournalViewProps) {
+export function JournalView({ active: activeProp, tools = {} }: JournalViewProps) {
+  const surfaceShown = useSurfaceShown();
+  const active = activeProp ?? surfaceShown;
   const { store, host } = useJournalContext();
   const enabled = useJournal((s) => s.enabled);
   const snapshot = useJournal((s) => s.snapshot);

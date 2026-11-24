@@ -1,24 +1,16 @@
-import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
-import { Activity, FileText, Upload } from 'lucide-react';
-import { defaultDocumentsLayout } from './store/documentsLayout';
-import { useStore, panelShown, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, TOC_MIN_WIDTH, TOC_MAX_WIDTH, type ZoomPanel } from './store';
+import React, { useEffect, useCallback, useRef } from 'react';
+import { Activity } from 'lucide-react';
+import { useStore } from './store';
 import { useReader } from './reader';
-import { openPath, reader } from './readerHost';
-import {
-  CloseDocumentDialog, Contents, DocumentGroups, ReaderProvider, SaveAllDialog, allTabs, readerSettingsTab, type RestoredDocument,
-} from '@lambda-house/reader';
-import { EmptyState, Kbd } from '@lambda-house/ui';
-import { FileQuestion } from 'lucide-react';
-import { LayoutView, MainMenu, SettingsDialog, Shell, appearanceTab, shortcutsTab, type Layout, type PaneType, type SettingsTab, type ShellSurface } from '@lambda-house/workbench';
+import { reader } from './readerHost';
+import { allTabs, flushEditorChanges, getFileName, readerPlugin, reloadChangedDocuments } from '@lambda-house/reader';
+import { journalPlugin } from '@lambda-house/journal';
+import { Workbench } from '@lambda-house/workbench';
 import {
   scanDirectories,
   isTauri,
-  readFile,
   startWatching,
   stopWatching,
-  pickDirectory,
-  pickFiles,
-  getFileInfo,
   onFileDrop,
   takeLaunchPaths,
   onOpenPaths,
@@ -26,24 +18,21 @@ import {
   checkForUpdate,
   onAgentFilesChanged,
 } from './utils/tauri';
-import { appMenu, buildMenu, commandContext, menuCommands, commandForKey, useCommandContext } from './utils/commands';
-import { isViewableFile, getFileName } from '@lambda-house/reader';
-import { normalizeDirPath, findFirstMarkdown } from './utils/files';
-import Toolbar, { ToolbarEnd } from './components/Toolbar';
-import { flushEditorChanges } from '@lambda-house/reader';
-import FilePanel from './components/FilePanel';
-import { appSettingsTabs } from './components/SettingsTabs';
-import HistoryPanel from './components/HistoryPanel';
-import SearchPanel from './components/SearchPanel';
+import { appMenu, buildMenu, commandContext, useCommandContext } from './utils/commands';
+import { ToolbarEnd } from './components/Toolbar';
 import { agentFilesWatched, refreshAgentWorkspace } from './utils/agent';
-import UpdateBanner from './components/UpdateBanner';
-import { JournalProvider, JournalView, journalSettingsTabs } from '@lambda-house/journal';
 import { journal } from './journal';
-import CommandPalette from './components/CommandPalette';
 import { documentWindowPath } from './utils/documentWindow';
+import { registry } from './workbench';
+import { NO_DOCUMENT, documentsPlugin, zoomOf } from './documents';
+import { openPaths } from './opening';
 
 // ============================================================
-// Main App Component
+// MDViewer's window: the Workbench of its plugins (shared UI spec §3.3), the
+// reader's, the journal's and MDViewer's own (documents.tsx), and what the
+// window does through Tauri: scanning and watching the opened folders,
+// agent files, drops and launch paths, the update check, closing with
+// unsaved edits. A memory window has Documents only, and its one document.
 // ============================================================
 
 /** Quiet time after the last file change event before the tree is rescanned. */
@@ -53,86 +42,46 @@ const AGENT_CHANGE_DEBOUNCE = 500;
 /** How often agent files are rescanned when they can't be watched (ms). */
 const AGENT_POLL_INTERVAL = 10000;
 
-/** Message of an Error or of a backend error ({ code, message }). */
-function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === 'object' && 'message' in error) return String(error.message);
-  return String(error);
+registry.register(readerPlugin(reader, {
+  empty: NO_DOCUMENT,
+  contents: { zoom: zoomOf('toc'), onClose: () => useStore.getState().toggleTocVisible() },
+  // A memory window doesn't take the main window's tabs
+  restore: isTauri() && !documentWindowPath,
+  windowDocument: documentWindowPath,
+}));
+if (!documentWindowPath) {
+  registry.register(journalPlugin(journal, {
+    surface: { id: 'journal', label: 'Journal', icon: <Activity size={13} />, order: 20, tools: { refresh: true, memories: true, agentAccess: true } },
+  }));
 }
+registry.register(documentsPlugin);
 
-/**
- * Reload the open documents an outside program changed (unless they have
- * unsaved edits). Matched by file name: the watcher reports real paths, which
- * can differ from the path a document was opened under (symlinks, /private).
- */
-async function reloadChangedDocuments(names: string[]): Promise<void> {
-  if (names.length === 0) return;
-  const changed = new Set(names);
-  const { documents, reloadDocument } = useReader.getState();
-  await Promise.all(Object.values(documents)
-    .filter((doc) => !doc.isDirty && changed.has(getFileName(doc.path)))
-    .map(async (doc) => {
-      try {
-        reloadDocument(doc.path, await readFile(doc.path));
-      } catch {
-        // Removed or renamed: the tab keeps the last text
-      }
-    }));
-}
+// The commands, with their shortcuts, are in utils/commands.ts; the main
+// menu, the keys, the native menu and the palette all read this one list
+const menu = buildMenu();
+appMenu.set(menu);
 
-/** An empty document group: how to open a document here. */
-const NO_DOCUMENT = (
-  <EmptyState
-    size="lg"
-    icon={<FileQuestion size={64} />}
-    title="No Document Open"
-    hint={<><Kbd>Ctrl</Kbd>+<Kbd>P</Kbd> to quick open a file</>}
-  >
-    Select a markdown file from the sidebar, or drop one on this window
-  </EmptyState>
-);
+const setTheme = (theme: 'dark' | 'light') => {
+  if (useStore.getState().theme !== theme) useStore.getState().toggleTheme();
+};
 
 const App: React.FC = () => {
   // The shown surface is the store's: commands of the other one wait
   const surface = useStore((s) => s.surface);
-  const statusBarPinned = useStore((s) => s.statusBarPinned);
-  const settingsOpen = useStore((s) => s.settingsOpen);
-  const theme = useStore((s) => s.theme);
-  const closeSettings = useCallback(() => useStore.getState().setSettingsOpen(false), []);
-  const setStatusBarPinned = useStore((s) => s.setStatusBarPinned);
   const setSurface = useStore((s) => s.setSurface);
-  const journalVisible = surface === 'journal';
-  // Subscribe field by field so that high frequency updates (scroll offsets,
-  // active heading) do not re-render the whole application.
-  const documentsLayoutRoot = useStore((s) => s.documentsLayout);
-  const setDocumentsLayout = useStore((s) => s.setDocumentsLayout);
-  const historyVisible = panelShown({ documentsLayout: documentsLayoutRoot }, 'history');
+  const statusBarPinned = useStore((s) => s.statusBarPinned);
+  const setStatusBarPinned = useStore((s) => s.setStatusBarPinned);
+  const settingsOpen = useStore((s) => s.settingsOpen);
+  const closeSettings = useCallback(() => useStore.getState().setSettingsOpen(false), []);
+  const theme = useStore((s) => s.theme);
   const agentVisible = useStore((s) => s.agentVisible);
-  const toggleAgentVisible = useStore((s) => s.toggleAgentVisible);
   const agentEntries = useStore((s) => s.agentEntries);
   const hasAgentTabs = useReader((s) => allTabs(s).some((t) => agentEntries.some((e) => e.path === t.path)));
   const openedDirectories = useStore((s) => s.directories);
-
-  const toggleTocVisible = useStore((s) => s.toggleTocVisible);
-  const toggleHistoryVisible = useStore((s) => s.toggleHistoryVisible);
   const setFiles = useStore((s) => s.setFiles);
-  const activateTabByIndex = useReader((s) => s.activateTabByIndex);
-  const navigateBack = useReader((s) => s.navigateBack);
-  const navigateForward = useReader((s) => s.navigateForward);
-  const reopenClosedTab = useReader((s) => s.reopenClosedTab);
-  const addDirectory = useStore((s) => s.addDirectory);
-  const restoreSession = useReader((s) => s.restoreSession);
-  const sessionRestored = useReader((s) => s.sessionRestored);
-  
-  const filePanelVisible = panelShown({ documentsLayout: documentsLayoutRoot }, 'files');
-  const showPanel = useStore((s) => s.showPanel);
-  const searchVisible = panelShown({ documentsLayout: documentsLayoutRoot }, 'search');
-  const setSearchVisible = useStore((s) => s.setSearchVisible);
-  const openSearch = useStore((s) => s.openSearch);
-  const revealPath = useStore((s) => s.revealPath);
   const showTextFiles = useStore((s) => s.showTextFiles);
-  const [isDropTarget, setIsDropTarget] = useState(false);
-  
+  const sessionRestored = useReader((s) => s.sessionRestored);
+
   // Load persisted directories on startup
   useEffect(() => {
     const loadDirectories = async () => {
@@ -148,42 +97,6 @@ const App: React.FC = () => {
     };
     loadDirectories();
   }, [setFiles]);
-
-  // Restore the previous session: the persisted tabs only carry paths, so the
-  // documents behind them have to be re-read before the tabs become usable.
-  useEffect(() => {
-    let cancelled = false;
-
-    const restore = async () => {
-      const persistedTabs = allTabs(useReader.getState());
-
-      if (documentWindowPath || persistedTabs.length === 0 || !isTauri()) {
-        restoreSession([]);
-        return;
-      }
-
-      // A file open in two groups is read once
-      const paths = [...new Set(persistedTabs.map((tab) => tab.path))];
-      const results = await Promise.all(
-        paths.map(async (path): Promise<RestoredDocument | null> => {
-          try {
-            return { path, content: await readFile(path) };
-          } catch (error) {
-            console.warn(`Dropping restored tab (cannot read ${path}):`, error);
-            return null;
-          }
-        })
-      );
-
-      if (cancelled) return;
-      restoreSession(results.filter((doc): doc is RestoredDocument => doc !== null));
-    };
-
-    restore();
-    return () => {
-      cancelled = true;
-    };
-  }, [restoreSession]);
 
   // Auto-refresh: Start/stop file watching based on settings
   const watcherCleanup = useRef<(() => void) | null>(null);
@@ -225,7 +138,7 @@ const App: React.FC = () => {
             changedNames.clear();
             try {
               setFiles(await scanDirectories(currentDirs));
-              await reloadChangedDocuments(names);
+              await reloadChangedDocuments(reader, names);
             } catch (error) {
               console.error('Failed to refresh after file change:', error);
             } finally {
@@ -284,19 +197,6 @@ const App: React.FC = () => {
       }
     };
   }, [setFiles]);
-  
-  // Rescan every configured directory and refresh the tree
-  const refreshFileTree = useCallback(async () => {
-    const { directories } = useStore.getState();
-    if (!isTauri() || directories.length === 0) return;
-    try {
-      const files = await scanDirectories(directories);
-      setFiles(files);
-    } catch (error) {
-      console.error('Failed to scan directories:', error);
-    }
-  }, [setFiles]);
-  
 
   // Agent files change while agents work: rescan while the global root or an
   // agent file is open, when the backend reports a change and when the window
@@ -333,29 +233,17 @@ const App: React.FC = () => {
       window.removeEventListener('focus', refresh);
     };
   }, [agentVisible, hasAgentTabs, openedDirectories]);
-  
+
   // Rescan when the "show text files" setting changes (not on startup - the
   // directories are scanned once above)
   const showTextFilesRef = useRef(showTextFiles);
   useEffect(() => {
     if (showTextFilesRef.current === showTextFiles) return;
     showTextFilesRef.current = showTextFiles;
-    refreshFileTree();
-  }, [showTextFiles, refreshFileTree]);
-
-  
-  // A native memory window opens only its requested document, independently of
-  // the main window's launch queue and saved tabs.
-  useEffect(() => {
-    if (!documentWindowPath || !sessionRestored) return;
-    void openPath(documentWindowPath).catch(error => alert(`Could not open memory:\n${errorText(error)}`));
-    const refresh = () => {
-      const names = Object.values(useReader.getState().documents).map(doc => getFileName(doc.path));
-      void reloadChangedDocuments(names);
-    };
-    window.addEventListener('focus', refresh);
-    return () => window.removeEventListener('focus', refresh);
-  }, [sessionRestored]);
+    const { directories } = useStore.getState();
+    if (!isTauri() || directories.length === 0) return;
+    scanDirectories(directories).then(setFiles).catch((error) => console.error('Failed to scan directories:', error));
+  }, [showTextFiles, setFiles]);
 
   // Look for a new version a few seconds after start (not during startup work)
   useEffect(() => {
@@ -368,109 +256,18 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  /**
-   * Add directories to the tree (merging overlaps, see `addDirectory`), then
-   * rescan. A newly added directory is expanded down to its first markdown
-   * file, which opens in the preview tab.
-   */
-  const addDirectories = useCallback(async (dirs: string[]) => {
-    const added = dirs
-      .map((dir) => ({ dir, result: addDirectory(dir) }))
-      .filter(({ result }) => !result.containedIn)
-      .map(({ dir }) => normalizeDirPath(dir));
-    // A folder can already be open, and another panel may be covering Files.
-    // Always bring the requested folder into view after the picker closes.
-    showPanel('files');
-    useStore.getState().setFilterQuery('');
-    revealPath(normalizeDirPath(dirs[dirs.length - 1]));
-    if (added.length === 0) return;
-
-    const files = await scanDirectories(useStore.getState().directories);
-    setFiles(files);
-
-    const root = useStore.getState().files.find((node) => node.path === added[added.length - 1]);
-    const first = root && findFirstMarkdown(root);
-    if (!first) return;
-
-    revealPath(first.file.path);
-    try {
-      await openPath(first.file.path, { preview: true });
-    } catch (error) {
-      console.error('Failed to open first markdown file:', error);
-    }
-  }, [addDirectory, setFiles, showPanel, revealPath, openPath]);
-
-  // Handle add directory - opens native picker
-  const handleAddDirectory = useCallback(async () => {
-    try {
-      const dir = await pickDirectory();
-      if (dir) await addDirectories([dir]);
-    } catch (error) {
-      console.error('Failed to open folder:', error);
-      alert(`Could not open folder:\n${errorText(error)}`);
-    }
-  }, [addDirectories]);
-  
-  // ============================================================
-  // Drag & Drop (native Tauri event - carries real file paths)
-  // ============================================================
-  
-  const handleDroppedPaths = useCallback(async (paths: string[]) => {
-    const errors: string[] = [];
-    const dirs: string[] = [];
-
-    for (const path of paths) {
-      try {
-        const info = await getFileInfo(path);
-        if (info.isDirectory) {
-          dirs.push(path);
-        } else if (isViewableFile(path)) {
-          await openPath(path);
-        } else {
-          errors.push(`${getFileName(path)} is not a markdown or text file`);
-        }
-      } catch (error) {
-        console.error('Failed to handle dropped path:', path, error);
-        errors.push(`${getFileName(path)}: ${errorText(error)}`);
-      }
-    }
-
-    if (dirs.length > 0) {
-      try {
-        await addDirectories(dirs);
-      } catch (error) {
-        errors.push(`Folders: ${errorText(error)}`);
-      }
-    }
-
-    if (errors.length > 0) {
-      alert(`Could not open:\n${errors.join('\n')}`);
-    }
-  }, [openPath, addDirectories]);
-
-  // Handle open file - opens native picker; the chosen files open like dropped ones
-  const handleOpenFile = useCallback(async () => {
-    try {
-      const paths = await pickFiles();
-      if (paths.length > 0) {
-        await handleDroppedPaths(paths);
-      }
-    } catch (error) {
-      console.error('Failed to pick files:', error);
-      alert(`Could not open the file dialog:\n${errorText(error)}`);
-    }
-  }, [handleDroppedPaths]);
-  
+  // Drag & drop: the native event carries real file paths; the Documents surface says what a drop does
   useEffect(() => {
     if (!isTauri()) return;
 
     let unlisten: (() => void) | undefined;
     let disposed = false;
+    const { setDropTarget } = useStore.getState();
 
     onFileDrop({
-      onEnter: () => setIsDropTarget(true),
-      onLeave: () => setIsDropTarget(false),
-      onDrop: handleDroppedPaths,
+      onEnter: () => setDropTarget(true),
+      onLeave: () => setDropTarget(false),
+      onDrop: openPaths,
     })
       .then((fn) => {
         if (disposed) fn();
@@ -482,7 +279,7 @@ const App: React.FC = () => {
       disposed = true;
       unlisten?.();
     };
-  }, [handleDroppedPaths]);
+  }, []);
 
   // Listen before draining startup paths so Finder / a second instance cannot
   // deliver a file between the two steps and lose its event.
@@ -492,12 +289,12 @@ const App: React.FC = () => {
     let unlisten: (() => void) | undefined;
     let disposed = false;
 
-    onOpenPaths(handleDroppedPaths)
+    onOpenPaths(openPaths)
       .then(async (fn) => {
         if (disposed) { fn(); return; }
         unlisten = fn;
         const paths = await takeLaunchPaths();
-        if (!disposed && paths.length > 0) await handleDroppedPaths(paths);
+        if (!disposed && paths.length > 0) await openPaths(paths);
       })
       .catch((error) => console.error('Failed to listen for opened paths:', error));
 
@@ -505,118 +302,8 @@ const App: React.FC = () => {
       disposed = true;
       unlisten?.();
     };
-  }, [sessionRestored, handleDroppedPaths]);
-  
-  // Handle TOC toggle
-  const handleToggleToc = useCallback(() => {
-    toggleTocVisible();
-  }, [toggleTocVisible]);
-  
-  // Toggle file panel (from Search or History it shows Files)
-  const handleToggleFilePanel = useCallback(() => useStore.getState().togglePanel('files'), []);
+  }, [sessionRestored]);
 
-  // Toggle history panel
-  const handleToggleHistory = useCallback(() => {
-    toggleHistoryVisible();
-  }, [toggleHistoryVisible]);
-  
-  // Reopen closed tab
-  const handleReopenClosedTab = useCallback(async () => {
-    const closedTab = reopenClosedTab();
-    if (closedTab) {
-      try {
-        await openPath(closedTab.path);
-      } catch (error) {
-        console.error('Failed to reopen file:', error);
-      }
-    }
-  }, [reopenClosedTab, openPath]);
-  
-  // ============================================================
-  // Keyboard Shortcuts
-  // ============================================================
-  
-  // The commands, with their shortcuts, are defined in utils/commands.ts;
-  // the toolbar's menu shows the same list
-  const menu = useMemo(
-    () => buildMenu({
-      openFile: handleOpenFile,
-      openFolder: handleAddDirectory,
-      reopenClosedTab: handleReopenClosedTab,
-    }),
-    [handleOpenFile, handleAddDirectory, handleReopenClosedTab]
-  );
-
-  // The command palette lists the same commands
-  useEffect(() => appMenu.set(menu), [menu]);
-
-  // One Settings dialog: the workbench's tabs, the reader's, the journal's and MDViewer's
-  const settingsTabs = useMemo<SettingsTab[]>(() => [
-    appearanceTab({ theme, setTheme: (next) => { if (useStore.getState().theme !== next) useStore.getState().toggleTheme(); } }),
-    shortcutsTab(() => appMenu.get()),
-    readerSettingsTab(),
-    ...journalSettingsTabs(journal),
-    ...appSettingsTabs(),
-  ], [theme]);
-
-  // The system menu uses the same commands as the toolbar menu.
-  useEffect(() => {
-    if (!isTauri()) return;
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    onMenuCommand((id) => {
-      const command = menuCommands(menu).find((item) => item.id === id);
-      if (command && (!command.enabled || command.enabled(commandContext()))) command.run();
-    }).then((stop) => {
-      if (disposed) stop();
-      else unlisten = stop;
-    }).catch((error) => console.error('Failed to listen for menu commands:', error));
-    return () => { disposed = true; unlisten?.(); };
-  }, [menu]);
-
-  useEffect(() => {
-    const commands = menuCommands(menu);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Already handled - e.g. by the editor (its own Ctrl+F search, Ctrl+S,
-      // Alt+Left/Right word moves)
-      if (e.defaultPrevented) return;
-
-      const isMod = e.metaKey || e.ctrlKey;
-      const isShift = e.shiftKey;
-      
-      // Prevent default for our shortcuts
-      const shouldPrevent = (
-        (isMod && ['w', 'b', 'e', 's', 'f', 'p', 'h', '0', '=', '-'].includes(e.key.toLowerCase())) ||
-        (isMod && isShift && ['o', 'f', 't', 'w'].includes(e.key.toLowerCase())) ||
-        (isMod && e.key === 'Tab') ||
-        (isMod && /^[1-9]$/.test(e.key))
-      );
-      
-      if (shouldPrevent) {
-        e.preventDefault();
-      }
-      
-      const command = commandForKey(commands, e, useStore.getState().surface);
-      if (command) {
-        e.preventDefault();
-        command.run();
-        return;
-      }
-      
-      // Ctrl/Cmd + 1-9: Go to tab by index
-      if (isMod && /^[1-9]$/.test(e.key)) {
-        const index = parseInt(e.key, 10) - 1;
-        activateTabByIndex(index);
-        return;
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [menu, activateTabByIndex]);
-  
-  // ============================================================
   // Closing the window with unsaved edits asks first
   useEffect(() => {
     if (!isTauri()) return;
@@ -648,128 +335,23 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Mouse back/forward buttons switch between tabs
-  useEffect(() => {
-    const handleMouseUp = (e: MouseEvent) => {
-      if (e.button === 3) {
-        e.preventDefault();
-        navigateBack();
-      } else if (e.button === 4) {
-        e.preventDefault();
-        navigateForward();
-      }
-    };
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, [navigateBack, navigateForward]);
-
-  // Ctrl+Scroll for zoom
-  // ============================================================
-  
-  // Ctrl+wheel zooms the pane under the pointer: the workbench's LayoutView does it (each pane type's zoom)
-  
-
-
-  // ============================================================
-  // Documents: the left panel (Files, Search or History), the document groups
-  // and the contents, on the workbench layout the store keeps
-  // (store/documentsLayout.ts). Its handles and pane menus change it there.
-  // ============================================================
-
-  const documentsLayout = useMemo<Layout>(() => ({ version: 1, root: documentsLayoutRoot }), [documentsLayoutRoot]);
-  const applyDocumentsLayout = useCallback((next: Layout) => setDocumentsLayout(next.root), [setDocumentsLayout]);
-  const resetDocumentsLayout = useCallback(() => setDocumentsLayout(defaultDocumentsLayout()), [setDocumentsLayout]);
-
-  const documentPanes = useMemo<Record<string, PaneType>>(() => {
-    const left = { collapsible: true, switchable: true, singleton: true, min: { w: PANEL_MIN_WIDTH }, max: { w: PANEL_MAX_WIDTH } };
-    const zoomOf = (panel: ZoomPanel) => ({
-      get: () => useStore.getState().panelZoom[panel],
-      step: (_: unknown, direction: 1 | -1 | 0) => useStore.getState().zoomPanel(panel, direction),
-      subscribe: useStore.subscribe,
-    });
-    return {
-      files: { type: 'files', label: 'file panel', title: 'Files', ...left, zoom: zoomOf('files'), render: () => <FilePanel onAddDirectory={handleAddDirectory} /> },
-      search: { type: 'search', label: 'search panel', title: 'Search', ...left, render: () => <SearchPanel /> },
-      history: { type: 'history', label: 'history panel', title: 'History', ...left, render: () => <HistoryPanel /> },
-      documents: {
-        type: 'documents', label: 'document', title: 'Documents', singleton: true, closable: false, keepAlive: true, min: { w: 200 },
-        render: () => <DocumentGroups empty={NO_DOCUMENT} />,
-      },
-      contents: {
-        type: 'contents', label: 'table of contents', title: 'Contents', singleton: true, collapsible: true,
-        min: { w: TOC_MIN_WIDTH }, max: { w: TOC_MAX_WIDTH }, zoom: zoomOf('toc'),
-        render: () => <Contents onClose={handleToggleToc} />,
-      },
-    };
-  }, [handleAddDirectory, handleToggleToc]);
-
-  // The window's surfaces under one top bar (the workbench Shell). Documents is mounted only while shown;
-  // the Journal stays mounted once opened. A memory window has Documents only.
-  const surfaces: ShellSurface[] = [
-    {
-      id: 'documents', label: 'Documents', icon: <FileText size={13} />, keepMounted: false,
-      render: () => (
-        <>
-          <Toolbar
-            onAddDirectory={handleAddDirectory}
-            filePanelVisible={filePanelVisible}
-            onToggleFilePanel={handleToggleFilePanel}
-            historyVisible={historyVisible}
-            onToggleHistory={handleToggleHistory}
-            agentVisible={agentVisible}
-            onToggleAgent={toggleAgentVisible}
-            searchVisible={searchVisible}
-            onToggleSearch={() => (searchVisible ? setSearchVisible(false) : openSearch())}
-          />
-
-          <UpdateBanner />
-
-          <div className="main-content">
-            <LayoutView layout={documentsLayout} onChange={applyDocumentsLayout} paneTypes={documentPanes} onReset={resetDocumentsLayout} />
-          </div>
-
-
-          {isDropTarget && (
-            <div className="drop-overlay" aria-hidden="true">
-              <div className="drop-overlay-inner">
-                <Upload size={40} />
-                <span className="drop-overlay-title">Drop to open</span>
-                <span className="drop-overlay-hint">
-                  Markdown and text files open in a tab, folders are added to the file tree
-                </span>
-              </div>
-            </div>
-          )}
-        </>
-      ),
-    },
-    ...(documentWindowPath ? [] : [{
-      id: 'journal', label: 'Journal', icon: <Activity size={13} />,
-      render: () => (
-        <JournalProvider journal={journal}>
-          <JournalView active={journalVisible} tools={{ refresh: true, memories: true, agentAccess: true }} />
-        </JournalProvider>
-      ),
-    }]),
-  ];
-
   return (
-    <ReaderProvider reader={reader}>
-    <div className="app-container">
-      <Shell
-        surfaces={surfaces}
-        active={surface}
-        onActivate={setSurface}
-        status={{ pinned: statusBarPinned, onPinnedChange: setStatusBarPinned }}
-        menu={<MainMenu items={menu} useCommandContext={useCommandContext} onOpen={flushEditorChanges} buttonClassName="toolbar-button" surface={surface} />}
-        end={<ToolbarEnd />}
-      />
-      <SettingsDialog open={settingsOpen} onClose={closeSettings} tabs={settingsTabs} />
-      <SaveAllDialog />
-      <CloseDocumentDialog />
-      <CommandPalette openFile={(path) => { openPath(path).catch((error) => alert(`Could not open ${path}:\n${errorText(error)}`)); }} />
-    </div>
-    </ReaderProvider>
+    <Workbench
+      registry={registry}
+      className="app-container"
+      surface={surface}
+      onSurface={setSurface}
+      menu={menu}
+      commandContext={commandContext}
+      useCommandContext={useCommandContext}
+      onMenuOpen={flushEditorChanges}
+      menuButtonClassName="toolbar-button"
+      nativeMenu={onMenuCommand}
+      end={<ToolbarEnd />}
+      status={{ pinned: statusBarPinned, onPinnedChange: setStatusBarPinned }}
+      settings={{ open: settingsOpen, onClose: closeSettings }}
+      appearance={{ theme, setTheme }}
+    />
   );
 };
 

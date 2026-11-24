@@ -2,6 +2,7 @@
 // Agent MCR. Styles are in ../workbench.css (import
 // '@lambda-house/workbench/workbench.css' after the ui styles). Shared UI spec §5.
 // Phase 3: commands, the main menu and the command palette. Phase 4: the layout tree, the shell, the plugin registry.
+// Phase 8: the Workbench an app assembles from plugins (its points are the workbench:* ones).
 
 export {
   ariaShortcut, commandForKey, createMenuStore, formatShortcut, forSurface, isSubmenu, matchesShortcut, menuCommands, menuEntries, onSurface, useMenu,
@@ -16,11 +17,13 @@ export {
 } from './layout';
 export { LayoutView, type LayoutViewProps, type PaneActions, type PaneContext, type PanePreview, type PaneType, type PaneZoom } from './LayoutView';
 export { Pane, PaneMenu, PaneTitle, PaneZoomBadge, paneMenuItems, usePane, usePaneZoom } from './panes';
-export { Shell, ShellStatus, ShellTools, ShellViews, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
+export { Shell, ShellStatus, ShellTools, ShellViews, useSurfaceShown, type ShellProps, type ShellSurface, type ShellView, type ShellViewsProps } from './Shell';
+export { Workbench, usePaneTypes, type WorkbenchProps } from './Workbench';
 export { StatusItem } from './StatusBar';
 export {
   PluginRegistry, createPlugin, usePlugins,
   type Plugin, type PluginApi, type PluginStorage, type WorkbenchEvents, type WorkbenchPoints, type WorkbenchSlots,
+  type WorkbenchOverlay, type WorkbenchPaneType, type WorkbenchSurface, type WorkbenchWrapper,
 } from './plugins';
 export { layoutCommands, zoomCommands, type ZoomFallback } from './paneCommands';
 export {

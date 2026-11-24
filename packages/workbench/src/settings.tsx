@@ -150,7 +150,8 @@ export function shortcutsTab<C>(menu: () => MenuItem<C>[]): SettingsTab {
 
 function PluginsSettings({ registry, note }: { registry: PluginRegistry; note?: ReactNode }) {
   usePlugins(registry);
-  const plugins = registry.listPlugins();
+  // The app's own parts (required) are always on: not listed
+  const plugins = registry.listPlugins().filter((plugin) => !plugin.required);
   const enabled = plugins.filter((p) => p.enabled).length;
   return (
     <SettingsSection

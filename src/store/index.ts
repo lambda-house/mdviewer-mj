@@ -113,6 +113,8 @@ export interface AppState {
   settingsOpen: boolean;
   /** The command palette is showing. Not persisted. */
   paletteOpen: boolean;
+  /** Files are dragged over the window: the Documents surface says what a drop does. Not saved. */
+  dropTarget: boolean;
 
   // History
   historyContent: string;
@@ -163,6 +165,7 @@ export interface AppState {
   zoomPanel: (panel: ZoomPanel, direction: 1 | -1 | 0) => void;
   setStatusBarPinned: (pinned: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setDropTarget: (on: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
   setAutoRefresh: (enabled: boolean) => void;
   setShowTextFiles: (enabled: boolean) => void;
@@ -237,6 +240,7 @@ export const useStore = create<AppState>()(
       // Modal state
       settingsOpen: false,
       paletteOpen: false,
+      dropTarget: false,
 
       // History
       agentVisible: true,
@@ -347,6 +351,7 @@ export const useStore = create<AppState>()(
       setSurface: (surface) => set({ surface }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setPaletteOpen: (open) => set({ paletteOpen: open }),
+      setDropTarget: (on) => set({ dropTarget: on }),
 
 
       setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
