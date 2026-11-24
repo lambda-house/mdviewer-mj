@@ -41,7 +41,7 @@ export interface WorkbenchProps<C> {
   /**
    * The palette: what the plugins' providers find, then the menu's commands.
    * The ⌕ at the end of the bar opens it; while `enabled` is false the ⌕ is
-   * disabled and the palette isn't drawn. Without it, neither.
+   * disabled and an open palette closes. Without it, neither.
    */
   palette?: {
     open: boolean;
@@ -162,6 +162,10 @@ export function Workbench<C>({
   usePlugins(registry);
   useCommandKeys(menu, surface);
   useNativeMenu(menu, commandContext, nativeMenu);
+
+  // The palette can't stay open where it can't open (Agent MCR's, outside Sessions)
+  const paletteStuck = !!palette?.open && palette.enabled === false;
+  useEffect(() => { if (paletteStuck) palette?.onOpenChange(false); }, [paletteStuck]);
 
   const current = useRef(menu);
   current.current = menu;

@@ -266,9 +266,11 @@ describe('Workbench', () => {
     act(() => document.querySelectorAll<HTMLElement>('.cmd-item')[1].click());
     expect(openChange).toHaveBeenCalledWith(false);
     expect(opened).toHaveBeenCalledWith('todo.md');
-    // Not drawn while it can't open
+    // Closed where it can't open
+    openChange.mockClear();
     render(registry, { palette: { open: true, onOpenChange: openChange, enabled: false } });
     expect(dialog()).toBeNull();
+    expect(openChange).toHaveBeenCalledWith(false);
   });
 
   it('shows a preview panel when a provider has previews', () => {
