@@ -432,7 +432,7 @@ a:hover {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-
+}
 
 /* Directory Section */
 .directory-section {
@@ -1907,13 +1907,13 @@ a:hover {
   to {
     background: transparent;
   }
-
+}
 
 @media (prefers-reduced-motion: reduce) {
   .find-status-wrapped {
     animation: none;
   }
-
+}
 
 /* Literal colours: see --find-match-bg */
 ::highlight(find-match) {
