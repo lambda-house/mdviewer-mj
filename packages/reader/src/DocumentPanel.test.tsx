@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DocumentGroups, DocumentPanel, ReaderProvider, createReaderStore, newGroup, type Reader, type ReaderHost } from './index';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DocumentGroups, DocumentPanel, ReaderProvider, createReaderStore, highlightCode, newGroup, type Reader, type ReaderHost } from './index';
 
 let host: HTMLDivElement;
 let root: Root;
+
+// Shiki loads its grammars once, which takes seconds on a busy machine: that is
+// the setup's time, not the first test's
+beforeAll(async () => { await highlightCode('const a = 1;', 'ts'); }, 60_000);
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

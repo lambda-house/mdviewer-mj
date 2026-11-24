@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Layers, Check, Trash2, ChevronDown } from 'lucide-react';
+import { ACTION_BUTTON_FIRST, Button, Dialog, Menu, type MenuItem } from '@lambda-house/ui';
 import { useStore } from '../store';
 import { useReader } from '../reader';
 import { allTabs, type RestoredDocument } from '@lambda-house/reader';
@@ -44,8 +45,16 @@ async function switchWorkspace(name: string): Promise<void> {
   useReader.getState().restoreSession(documents.filter((d): d is RestoredDocument => d !== null));
 }
 
+/** Below the trigger: where the menu opens. */
+function below(element: HTMLElement | null) {
+  const box = element?.getBoundingClientRect();
+  return box ? { top: box.bottom + 2, left: box.left } : { top: 0, left: 0 };
+}
+
 /**
- * Toolbar menu for saved workspaces (named sets of open folders and tabs).
+ * Toolbar menu for saved workspaces (named sets of open folders and tabs):
+ * the shared Menu, with the saved ones to switch to, then saving, detaching,
+ * saving under a new name and deleting one (each of those two in a dialog).
  */
 const WorkspaceMenu: React.FC = () => {
   const workspaces = useStore((s) => s.workspaces);
@@ -54,33 +63,27 @@ const WorkspaceMenu: React.FC = () => {
   const deleteWorkspace = useStore((s) => s.deleteWorkspace);
   const closeWorkspace = useStore((s) => s.closeWorkspace);
 
-  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const [dialog, setDialog] = useState<'save' | 'delete' | null>(null);
   const [newName, setNewName] = useState('');
-  const rootRef = useRef<HTMLDivElement>(null);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
 
-  // Dismiss on outside click / Escape
+  // The name field takes the focus (after the dialog gave it to its first control)
   useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('mousedown', handlePointerDown, true);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown, true);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open]);
+    if (dialog === 'save') nameInput.current?.focus();
+  }, [dialog]);
 
   const handleSwitch = useCallback((name: string) => {
-    setOpen(false);
     switchWorkspace(name).catch((error) => {
       console.error('Failed to switch workspace:', error);
       alert(`Failed to open workspace "${name}": ${error}`);
     });
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    setDialog(null);
+    setNewName('');
   }, []);
 
   const handleSaveAs = useCallback(() => {
@@ -95,26 +98,58 @@ const WorkspaceMenu: React.FC = () => {
       alert(result.error);
       return;
     }
-    setNewName('');
-    setOpen(false);
-  }, [newName, workspaces, saveWorkspace]);
+    closeDialog();
+  }, [newName, workspaces, saveWorkspace, closeDialog]);
 
-  const handleDelete = useCallback((e: React.MouseEvent, name: string) => {
-    e.stopPropagation();
+  const handleDelete = useCallback((name: string) => {
     if (window.confirm(`Delete the saved workspace "${name}"? Open folders and tabs are not affected.`)) {
       deleteWorkspace(name);
     }
   }, [deleteWorkspace]);
 
+  const meta = (workspace: { directories: string[]; tabs: string[] }) =>
+    `${workspace.directories.length} folder(s), ${workspace.tabs.length} tab(s)`;
+
+  const items: MenuItem[] = [
+    ...(workspaces.length === 0
+      ? [{ key: 'none', label: 'No saved workspaces', disabled: true, onSelect: () => {} }]
+      : workspaces.map((workspace) => ({
+          key: `workspace:${workspace.name}`,
+          // The current one has the check; the others keep its room, so the names line up
+          icon: workspace.name === activeWorkspace ? <Check size={14} /> : <span />,
+          label: (
+            <span className="workspace-item">
+              <span className="workspace-item-name">{workspace.name}</span>
+              <span className="workspace-item-meta">{meta(workspace)}</span>
+            </span>
+          ),
+          title: workspace.directories.join('\n') || 'No folders',
+          onSelect: () => handleSwitch(workspace.name),
+        }))),
+    'separator',
+    ...(activeWorkspace
+      ? [
+          { key: 'save', label: `Save "${activeWorkspace}"`, onSelect: () => { saveWorkspace(activeWorkspace); } },
+          { key: 'detach', label: 'Detach from workspace', title: 'Keep the current folders and tabs, but stop saving them to the workspace', onSelect: closeWorkspace },
+        ]
+      : []),
+    { key: 'save-as', label: 'Save current as…', onSelect: () => setDialog('save') },
+    ...(workspaces.length > 0 ? [{ key: 'delete', label: 'Delete a workspace…', onSelect: () => setDialog('delete') }] : []),
+  ];
+
+  const saveButton = <Button key="save" variant="primary" size="sm" onClick={handleSaveAs} disabled={!newName.trim()}>Save</Button>;
+  const cancelButton = <Button key="cancel" variant="secondary" size="sm" onClick={closeDialog}>Cancel</Button>;
+
   return (
-    <div className="workspace-menu" ref={rootRef}>
+    <div className="workspace-menu">
       <button
-        className={clsx('wb-tool workspace-menu-button', open && 'active')}
-        onClick={() => setOpen((v) => !v)}
+        ref={anchor}
+        className={clsx('wb-tool workspace-menu-button', at && 'active')}
+        onClick={() => setAt((open) => (open ? null : below(anchor.current)))}
         title={activeWorkspace ? `Workspace: ${activeWorkspace}` : 'Workspaces'}
         aria-label={activeWorkspace ? `Workspace: ${activeWorkspace}` : 'Workspaces'}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={!!at}
         type="button"
       >
         <Layers size={16} />
@@ -122,87 +157,46 @@ const WorkspaceMenu: React.FC = () => {
         <ChevronDown size={12} />
       </button>
 
-      {open && (
-        <div className="context-menu workspace-dropdown" role="menu">
-          {workspaces.length === 0 ? (
-            <div className="workspace-empty">No saved workspaces. Name the current folders and tabs below to save one.</div>
-          ) : (
-            workspaces.map((workspace) => (
-              <div
-                key={workspace.name}
-                className={clsx('context-menu-item workspace-item', workspace.name === activeWorkspace && 'current')}
-                onClick={() => handleSwitch(workspace.name)}
-                role="menuitemradio"
-                aria-checked={workspace.name === activeWorkspace}
-                title={workspace.directories.join('\n') || 'No folders'}
-              >
-                <span className="workspace-item-check">
-                  {workspace.name === activeWorkspace && <Check size={12} />}
+      {at && <Menu label="Workspaces" at={at} anchorRef={anchor} onClose={() => setAt(null)} items={items} />}
+
+      <Dialog
+        open={dialog === 'save'}
+        onClose={closeDialog}
+        title="Save as a workspace"
+        footer={ACTION_BUTTON_FIRST ? [saveButton, cancelButton] : [cancelButton, saveButton]}
+      >
+        <p className="workspace-dialog-text">The open folders and tabs, under a name to come back to.</p>
+        <input
+          ref={nameInput}
+          className="workspace-name-input"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSaveAs();
+          }}
+          placeholder="Name"
+          aria-label="New workspace name"
+        />
+      </Dialog>
+
+      <Dialog open={dialog === 'delete'} onClose={closeDialog} title="Delete a workspace">
+        {workspaces.length === 0 ? (
+          <p className="workspace-dialog-text">No saved workspaces.</p>
+        ) : (
+          <ul className="workspace-delete-list">
+            {workspaces.map((workspace) => (
+              <li key={workspace.name} title={workspace.directories.join('\n') || 'No folders'}>
+                <span className="workspace-item">
+                  <span className="workspace-item-name">{workspace.name}</span>
+                  <span className="workspace-item-meta">{meta(workspace)}</span>
                 </span>
-                <span className="workspace-item-name">{workspace.name}</span>
-                <span className="workspace-item-meta">
-                  {workspace.directories.length} folder(s), {workspace.tabs.length} tab(s)
-                </span>
-                <button
-                  className="workspace-item-delete"
-                  onClick={(e) => handleDelete(e, workspace.name)}
-                  title="Delete workspace"
-                  aria-label={`Delete workspace ${workspace.name}`}
-                  type="button"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))
-          )}
-
-          <div className="context-menu-separator" role="separator" />
-
-          {activeWorkspace && (
-            <>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  saveWorkspace(activeWorkspace);
-                  setOpen(false);
-                }}
-                role="menuitem"
-                type="button"
-              >
-                Save "{activeWorkspace}"
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  closeWorkspace();
-                  setOpen(false);
-                }}
-                title="Keep the current folders and tabs, but stop saving them to the workspace"
-                role="menuitem"
-                type="button"
-              >
-                Detach from workspace
-              </button>
-            </>
-          )}
-
-          <div className="workspace-save-as">
-            <input
-              className="find-input workspace-save-input"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveAs();
-              }}
-              placeholder="Save current as…"
-              aria-label="New workspace name"
-            />
-            <button className="workspace-save-button" onClick={handleSaveAs} disabled={!newName.trim()} type="button">
-              Save
-            </button>
-          </div>
-        </div>
-      )}
+                <Button variant="ghost" size="xs" icon={<Trash2 size={13} />} onClick={() => handleDelete(workspace.name)} aria-label={`Delete workspace ${workspace.name}`} title="Delete workspace" />
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="workspace-dialog-text">Open folders and tabs are not affected.</p>
+      </Dialog>
     </div>
   );
 };

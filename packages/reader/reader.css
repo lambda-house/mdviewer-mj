@@ -54,7 +54,8 @@
   flex-direction: column;
   background: var(--canvas);
   overflow: hidden;
-  min-width: 400px;
+  /* As narrow as its pane (the pane type's minimum is the layout's): wider, it was cut at the pane's edge */
+  min-width: 0;
   position: relative;
 }
 

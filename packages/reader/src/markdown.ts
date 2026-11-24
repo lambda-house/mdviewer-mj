@@ -602,6 +602,9 @@ export async function renderMermaid(container: HTMLElement, theme: ColorTheme = 
   }
 }
 
+/** A width change smaller than this (px; a scrollbar is 10) doesn't fit a diagram again. */
+export const MERMAID_REFIT_MIN_CHANGE = 16;
+
 function setupMermaidZoomPan(container: HTMLElement): void {
   const viewport = container.querySelector('.mermaid-viewport') as HTMLElement;
   const content = container.querySelector('.mermaid-content') as HTMLElement;
@@ -663,40 +666,53 @@ function setupMermaidZoomPan(container: HTMLElement): void {
   svg.style.height = '';
 
   // Container constraints
-  const containerWidth = container.clientWidth;
   const maxViewportHeight = 600;
   const minViewportHeight = 150;
 
-  // Viewport always uses full container width
-  const viewportWidth = containerWidth;
+  // The fit follows the container's width: worked out here and again when the
+  // width changes (the editor opens beside the preview, a pane is resized)
+  let viewportWidth = 0;
+  let viewportHeight = 0;
+  let displayWidth = 0;
+  let displayHeight = 0;
+  let isExpanded = false;
 
-  // Calculate scale to fit diagram in viewport width
-  const scaleToFitWidth = viewportWidth / svgWidth;
+  /** The fit for the container's width now; false when there is none (hidden) or it barely changed. */
+  function measure(): boolean {
+    const width = container.clientWidth;
+    // A scrollbar coming and going is no reason to fit again: a fit that
+    // changes the height could bring it back, again and again
+    if (width <= 0 || Math.abs(width - viewportWidth) < MERMAID_REFIT_MIN_CHANGE) return false;
+    // Viewport always uses full container width
+    viewportWidth = width;
+    // What height the diagram would have at the width that fits it
+    const scaledHeight = svgHeight * (viewportWidth / svgWidth);
+    // Viewport height: use scaled height, but cap at max and enforce min
+    viewportHeight = Math.min(maxViewportHeight, Math.max(minViewportHeight, scaledHeight));
+    // Initial scale: the whole diagram in the viewport, never larger than 100%
+    const initialScale = Math.min(viewportWidth / svgWidth, viewportHeight / svgHeight, 1);
+    displayWidth = svgWidth * initialScale;
+    displayHeight = svgHeight * initialScale;
+    return true;
+  }
 
-  // Calculate what height the diagram would have at this scale
-  const scaledHeight = svgHeight * scaleToFitWidth;
+  /** Sizes the content (the diagram at its fit) and the viewport, expanded to the full height or not. */
+  function layout() {
+    if (isExpanded) {
+      // Expanded: the viewport keeps the full width, its height takes the diagram at that width
+      const expandedHeight = svgHeight * (viewportWidth / svgWidth);
+      content.style.width = `${viewportWidth}px`;
+      content.style.height = `${expandedHeight}px`;
+      viewport.style.height = `${expandedHeight}px`;
+    } else {
+      content.style.width = `${displayWidth}px`;
+      content.style.height = `${displayHeight}px`;
+      viewport.style.height = `${viewportHeight}px`;
+    }
+  }
 
-  // Viewport height: use scaled height, but cap at max and enforce min
-  let viewportHeight = Math.min(maxViewportHeight, Math.max(minViewportHeight, scaledHeight));
-
-  // Calculate initial scale to fit diagram fully within viewport
-  const initialScale = Math.min(
-    viewportWidth / svgWidth,
-    viewportHeight / svgHeight,
-    1 // Don't scale up beyond 100%
-  );
-
-  // Calculate the actual displayed dimensions at initial scale
-  const displayWidth = svgWidth * initialScale;
-  const displayHeight = svgHeight * initialScale;
-
-  // Set content (wrapper) dimensions to match the initially scaled diagram
-  content.style.width = `${displayWidth}px`;
-  content.style.height = `${displayHeight}px`;
-
-  // Set viewport dimensions - full width, calculated height
   viewport.style.width = '100%';
-  viewport.style.height = `${viewportHeight}px`;
+  if (measure()) layout();
 
   // Scale is relative to initial display size (1.0 = initial fit)
   let scale = 1.0;
@@ -824,44 +840,30 @@ function setupMermaidZoomPan(container: HTMLElement): void {
 
   // Expand button - toggles between constrained and full height
   const expandBtn = container.querySelector('.mermaid-expand') as HTMLButtonElement;
-  let isExpanded = false;
 
   expandBtn?.addEventListener('click', () => {
     isExpanded = !isExpanded;
-    if (isExpanded) {
-      // Expand: viewport width stays full, height expands to fit diagram at full width
-      const fullWidthScale = viewportWidth / svgWidth;
-      const expandedHeight = svgHeight * fullWidthScale;
-
-      // Set content to fill viewport width, scale accordingly
-      content.style.width = `${viewportWidth}px`;
-      content.style.height = `${expandedHeight}px`;
-      viewport.style.height = `${expandedHeight}px`;
-
-      // Reset zoom/pan since we're showing full diagram
-      scale = 1.0;
-      panX = 0;
-      panY = 0;
-      updateTransform();
-
-      expandBtn.classList.add('active');
-      expandBtn.title = 'Collapse to fit';
-    } else {
-      // Collapse: restore original constrained view
-      content.style.width = `${displayWidth}px`;
-      content.style.height = `${displayHeight}px`;
-      viewport.style.height = `${viewportHeight}px`;
-
-      // Reset zoom/pan
-      scale = 1.0;
-      panX = 0;
-      panY = 0;
-      updateTransform();
-
-      expandBtn.classList.remove('active');
-      expandBtn.title = 'Expand to full height';
-    }
+    layout();
+    // Reset zoom/pan: the whole diagram shows again
+    scale = 1.0;
+    panX = 0;
+    panY = 0;
+    updateTransform();
+    expandBtn.classList.toggle('active', isExpanded);
+    expandBtn.title = isExpanded ? 'Collapse to fit' : 'Expand to full height';
   });
+
+  // Fit again when the width changes; a diagram that left the document stops watching
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(() => {
+      if (!container.isConnected) {
+        observer.disconnect();
+        return;
+      }
+      if (measure()) layout();
+    });
+    observer.observe(container);
+  }
 
   // Set initial cursor
   viewport.style.cursor = 'grab';
