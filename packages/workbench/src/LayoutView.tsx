@@ -39,6 +39,12 @@ export interface PaneType {
   keepAlive?: boolean;
   /** Its header's title is a menu of the other switchable types: choosing one shows that pane in its place. */
   switchable?: boolean;
+  /**
+   * An empty pane that asks what to show (Agent MCR's "Open in this pane"): its title is a type
+   * menu of the switchable types, as a switchable pane's is, but it is never offered in one. In a
+   * layout that has such a type, a split adds one, and the person chooses what goes there.
+   */
+  placeholder?: boolean;
   /** At most one in the layout (Files, Contents); its key is its type. */
   singleton?: boolean;
   /** Its menu may close it (default: yes, while it is not the only pane); a function asks each time. */
@@ -262,12 +268,17 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   }
   const change = (root: LayoutNode) => { if (root !== layout.root) onChange({ ...layout, root }); };
 
-  /** The pane a split adds: another switchable one not shown yet, or one more of a type that may repeat. */
+  /** Offered in a type menu: switchable, and not an empty pane. */
+  const offered = (t: PaneType) => !!t.switchable && !t.placeholder;
+  const placeholder = Object.values(paneTypes).find((t) => t.placeholder);
+
+  /** The pane a split adds: an empty pane where the layout has them; else another switchable one not shown yet, or one more of a type that may repeat. */
   const nextPane = (pane: PaneRef): PaneRef | null => {
+    if (placeholder) return { type: placeholder.type, key: newId(placeholder.type) };
     const type = paneTypes[pane.type];
     const shown = new Set(allLeaves.map((leaf) => leaf.pane?.type));
     if (type?.switchable) {
-      const other = Object.values(paneTypes).find((t) => t.switchable && !(t.singleton && shown.has(t.type)));
+      const other = Object.values(paneTypes).find((t) => offered(t) && !(t.singleton && shown.has(t.type)));
       return other ? { type: other.type, key: other.singleton ? other.type : newId(other.type) } : null;
     }
     return type && !type.singleton ? { type: type.type, key: newId(type.type) } : null;
@@ -320,14 +331,14 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
       },
       swappable: leaf ? allLeaves.filter((other) => other !== leaf).map((other) => ({ leaf: other.id, title: titles.get(other.id) ?? titleOf(other.pane), icon: iconOf(other.pane) })) : [],
       swap: (other) => { if (leaf) change(swapPanes(layout.root, leaf.id, other)); },
-      types: leaf && type?.switchable
+      types: leaf && (type?.switchable || type?.placeholder)
         ? Object.values(paneTypes)
-          .filter((t) => t.switchable && t.type !== pane.type && !(t.singleton && shownTypes.has(t.type)))
+          .filter((t) => offered(t) && t.type !== pane.type && !(t.singleton && shownTypes.has(t.type)))
           .map((t) => ({ type: t.type, title: t.title ?? t.label ?? t.type, icon: t.icon }))
         : [],
       setType: (next) => {
         const nextType = paneTypes[next];
-        if (!leaf || !nextType?.switchable) return;
+        if (!leaf || !nextType || !offered(nextType)) return;
         change(setPane(layout.root, leaf.id, { type: next, key: nextType.singleton ? next : newId(next) }));
       },
       zoom: type?.zoom ? {

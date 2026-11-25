@@ -273,6 +273,48 @@ describe('LayoutView', () => {
       expect(plain.defaultPrevented).toBe(false);
     });
 
+    it('splits into an empty pane where the layout has one, which chooses what to show from its title', () => {
+      // A terminal, two panels and the empty pane that asks what goes there
+      const withEmpty: Record<string, PaneType> = {
+        terminal: { type: 'terminal', title: 'Terminal', render: ({ pane }) => <Pane title="Terminal"><p data-term={pane.key} /></Pane> },
+        reports: { type: 'reports', title: 'Reports', switchable: true, singleton: true, render: () => <Pane title="Reports"><p data-reports /></Pane> },
+        notes: { type: 'notes', title: 'Notes', switchable: true, singleton: true, render: () => <Pane title="Notes"><p data-notes /></Pane> },
+        empty: { type: 'empty', title: 'Empty pane', placeholder: true, render: ({ pane }) => <Pane title="Empty pane"><p data-empty={pane.key} /></Pane> },
+      };
+      function EmptyHost() {
+        const [layout, setLayout] = useState<Layout>({
+          version: 1,
+          root: { kind: 'split', id: 'root', dir: 'row', children: [{ kind: 'leaf', id: 'r', pane: { type: 'reports', key: 'reports' } }, { kind: 'leaf', id: 't', pane: { type: 'terminal', key: 't1' } }], sizes: [{ px: 300 }, { fr: 1 }] },
+        });
+        current = layout.root;
+        return <LayoutView layout={layout} onChange={setLayout} paneTypes={withEmpty} />;
+      }
+      act(() => root.render(<EmptyHost />));
+      // A terminal splits into an empty pane, not into another terminal
+      act(() => menuOf('t').click());
+      choose('Split Down');
+      expect(types()).toEqual(['reports', 'terminal', 'empty']);
+      // So does a panel, and an empty pane into another
+      act(() => menuOf('r').click());
+      choose('Split Right');
+      expect(types()).toEqual(['reports', 'empty', 'terminal', 'empty']);
+      const empty = leaves(current)[1].id;
+      // A panel's type menu doesn't offer the empty pane
+      const typeMenu = (leaf: string) => host.querySelector<HTMLButtonElement>(`[data-leaf="${leaf}"] .wb-pane-type`);
+      act(() => typeMenu('r')!.click());
+      expect(items().map((b) => b.textContent)).toEqual(['Notes']);
+      act(() => typeMenu('r')!.click());
+      // The empty pane's title offers the panels not shown yet, never itself
+      act(() => typeMenu(empty)!.click());
+      expect(items().map((b) => b.textContent)).toEqual(['Notes']);
+      choose('Notes');
+      expect(types()).toEqual(['reports', 'notes', 'terminal', 'empty']);
+      expect(host.querySelector('[data-notes]')).not.toBeNull();
+      // Every panel is shown: nothing to switch to; the terminal never had a type menu
+      expect(typeMenu('r')).toBeNull();
+      expect(typeMenu('t')).toBeNull();
+    });
+
     it('lets an inner layout zoom its own pane first', () => {
       let inner = 100;
       const innerTypes: Record<string, PaneType> = {
