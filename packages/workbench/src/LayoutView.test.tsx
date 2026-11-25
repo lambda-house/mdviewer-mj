@@ -315,6 +315,24 @@ describe('LayoutView', () => {
       expect(typeMenu('t')).toBeNull();
     });
 
+    it('names a pane in the menus by its own title where its type gives one', () => {
+      const named: Record<string, PaneType> = {
+        terminal: { type: 'terminal', title: 'Terminal', paneTitle: (pane) => (pane.state as { name?: string } | undefined)?.name, render: ({ pane }) => <Pane title="Terminal"><p data-term={pane.key} /></Pane> },
+      };
+      const two: Layout = {
+        version: 1,
+        root: { kind: 'split', id: 'root', dir: 'row', children: [{ kind: 'leaf', id: 'a', pane: { type: 'terminal', key: 't1', state: { name: 'Fix the parser' } } }, { kind: 'leaf', id: 'b', pane: { type: 'terminal', key: 't2' } }], sizes: [{ fr: 1 }, { fr: 1 }] },
+      };
+      act(() => root.render(<LayoutView layout={two} onChange={() => {}} paneTypes={named} />));
+      act(() => menuOf('b').click());
+      expect(items().map((b) => b.textContent)).toContain('Swap with Fix the parser');
+      act(() => menuOf('b').click());
+      // Without one, its type's title
+      act(() => menuOf('a').click());
+      expect(items().map((b) => b.textContent)).toContain('Swap with Terminal');
+      act(() => menuOf('a').click());
+    });
+
     it('lets an inner layout zoom its own pane first', () => {
       let inner = 100;
       const innerTypes: Record<string, PaneType> = {

@@ -25,6 +25,8 @@ export interface PaneType {
   label?: string;
   /** Its name in its header and in menus ("Files"). */
   title?: string;
+  /** One pane's own name in menus ("Swap with Fix the parser"), where its type's title says too little; else the type's. */
+  paneTitle?: (pane: PaneRef) => string | undefined;
   /** Beside its name in the type menu and the pane menu: a 14 px icon. */
   icon?: ReactNode;
   /** Smallest width and height, px. */
@@ -251,7 +253,11 @@ export function LayoutView({ layout, onChange, paneTypes, renderEmpty, focusedLe
   // ============================================================
 
   const allLeaves = leaves(layout.root);
-  const titleOf = (pane: PaneRef | null) => (pane ? paneTypes[pane.type]?.title ?? paneTypes[pane.type]?.label ?? pane.type : 'Empty');
+  const titleOf = (pane: PaneRef | null) => {
+    if (!pane) return 'Empty';
+    const type = paneTypes[pane.type];
+    return type?.paneTitle?.(pane) || type?.title || type?.label || pane.type;
+  };
   const iconOf = (pane: PaneRef | null) => (pane ? paneTypes[pane.type]?.icon : undefined);
   /** Leaf titles, numbered where two read the same. */
   const titles = new Map<string, string>();
