@@ -290,18 +290,20 @@ Documents come from anywhere, so the app treats them as untrusted:
 
 ## Theme Customization
 
-MDViewer uses CSS variables for complete theme customization:
+MDViewer uses CSS variables for complete theme customization. The shared ones are in `packages/tokens/tokens.css` (dark by default, light under `:root[data-theme='light']`):
 
 ```css
 :root {
-  --surface-bg: #1e1e1e;
-  --surface-elevated: #252526;
-  --text-primary: #cccccc;
-  --text-accent: #4fc1ff;
-  --border-active: #007acc;
+  --canvas: #1e1e1e;      /* window background */
+  --surface-1: #252526;   /* panels */
+  --text: #cccccc;
+  --accent: #4fc1ff;      /* links, the focused tab */
+  --accent-fill: #007acc; /* filled buttons */
   /* ... and many more */
 }
 ```
+
+The document's own (syntax colours, heading sizes, find matches) are at the top of `packages/reader/reader.css`.
 
 ## Supported Languages (Syntax Highlighting)
 

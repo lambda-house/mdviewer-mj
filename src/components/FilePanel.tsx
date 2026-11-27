@@ -11,13 +11,16 @@ import {
   ExternalLink,
   X,
 } from 'lucide-react';
+import { Button, EmptyState as UiEmptyState, Segmented } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore, type FileNode } from '../store';
-import { agentFilesToTree, filterFiles, getFileKind } from '../utils/files';
+import { getFileKind } from '@lambda-house/reader';
+import { agentFilesToTree, filterFiles } from '../utils/files';
 import { readFile, scanDirectories, scanProjectAgentFiles, isTauri, openInExplorer, appendToHistory } from '../utils/tauri';
 import clsx from 'clsx';
-import PanelZoomBadge from './PanelZoomBadge';
-import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { useSmoothWheelScroll } from '@lambda-house/ui';
 import AgentPanel from './AgentPanel';
+import { useReader } from '../reader';
 
 // ============================================================
 // Tree Node Component
@@ -86,7 +89,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node: chainTop, level }) => {
   }, [isSelected]);
   const toggleExpanded = useStore((s) => s.toggleExpanded);
   const setSelectedPath = useStore((s) => s.setSelectedPath);
-  const openDocument = useStore((s) => s.openDocument);
+  const openDocument = useReader((s) => s.openDocument);
 
   const isExpanded = node.isExpanded || isExpandedInStore;
   const isDirectory = node.type === 'directory';
@@ -298,16 +301,9 @@ interface EmptyStateProps {
 }
 
 const EmptyState: React.FC<EmptyStateProps> = ({ onAddDirectory }) => (
-  <div className="file-panel-empty">
-    <FolderPlus size={48} className="file-panel-empty-icon" />
-    <p className="file-panel-empty-text">
-      No directories added yet.<br />
-      Add a directory to get started.
-    </p>
-    <button className="file-panel-empty-button" onClick={onAddDirectory}>
-      Add Directory
-    </button>
-  </div>
+  <UiEmptyState icon={<FolderPlus size={48} />} actions={<Button onClick={onAddDirectory}>Add Directory</Button>}>
+    <p>No directories added yet.<br />Add a directory to get started.</p>
+  </UiEmptyState>
 );
 
 // ============================================================
@@ -315,11 +311,10 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onAddDirectory }) => (
 // ============================================================
 
 interface FilePanelProps {
-  width: number;
   onAddDirectory?: () => void;
 }
 
-const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
+const FilePanel: React.FC<FilePanelProps> = ({ onAddDirectory }) => {
   const files = useStore((s) => s.files);
   // Deferred: typing in the filter box stays responsive while the (possibly
   // large) filtered tree renders in the background, interruptibly
@@ -328,7 +323,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   const globalAgentsVisible = useStore((s) => s.agentVisible);
   const setFiles = useStore((s) => s.setFiles);
   const zoom = useStore((s) => s.panelZoom.files);
-  const smoothScroll = useStore((s) => s.smoothScroll);
+  const smoothScroll = useReader((s) => s.settings.smoothScroll);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [agentFilter, setAgentFilter] = useState(false);
   const [projectAgentPaths, setProjectAgentPaths] = useState<string[]>([]);
@@ -385,35 +380,26 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
   }, [agentFilter, directories, setFiles, isRefreshing, refreshAgents]);
 
   return (
-    <aside className="file-panel" style={{ width }} data-zoom-panel="files">
-      <div className="file-panel-header">
-        <span className="file-panel-title">Files</span>
-        <div className="file-panel-actions">
-          <PanelZoomBadge panel="files" />
-          <button
-            className="file-panel-action"
-            onClick={handleAddDirectory}
-            title="Add Directory"
-          >
-            <FolderPlus size={16} />
-          </button>
-          <button
-            className={clsx('file-panel-action', isRefreshing && 'spinning')}
-            onClick={handleRefresh}
-            title="Refresh"
-            disabled={isRefreshing}
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      </div>
+    <Pane
+      as="aside"
+      className="file-panel"
+      title="Files"
+      tools={<>
+        <Button variant="ghost" size="xs" icon={<FolderPlus size={16} />} onClick={handleAddDirectory} title="Add Directory" aria-label="Add Directory" />
+        <Button variant="ghost" size="xs" icon={<RefreshCw size={16} />} onClick={handleRefresh} title="Refresh" aria-label="Refresh" disabled={isRefreshing} busy={isRefreshing} />
+      </>}
+    >
 
       {!isEmpty && (
-        <div className="file-panel-filters" role="group" aria-label="File filter">
-          <button type="button" className={clsx('file-panel-filter', !agentFilter && 'active')}
-            aria-pressed={!agentFilter} onClick={() => setAgentFilter(false)}>Files</button>
-          <button type="button" className={clsx('file-panel-filter', agentFilter && 'active')}
-            aria-pressed={agentFilter} onClick={() => setAgentFilter(true)}>Agents</button>
+        <div className="file-panel-filters">
+          <Segmented
+            kind="choice"
+            fill
+            label="File filter"
+            value={agentFilter ? 'agents' : 'files'}
+            onChange={(value) => setAgentFilter(value === 'agents')}
+            options={[{ value: 'files', label: 'Files' }, { value: 'agents', label: 'Agents' }]}
+          />
         </div>
       )}
       {agentFilter && agentError && <p className="directory-section-empty">Could not list agent files. Try Refresh.</p>}
@@ -437,7 +423,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ width, onAddDirectory }) => {
           </div>
         </nav>
       )}
-    </aside>
+    </Pane>
   );
 };
 

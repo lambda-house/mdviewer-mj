@@ -1,0 +1,34 @@
+// @lambda-house/reader: the Markdown reader and editor shared by MDViewer and
+// Agent MCR (shared UI spec §6.1). Phase 5 part 1: rendering, file kinds and
+// links, find, scroll anchoring and holding, the editor state registry.
+// Part 2: the reader store (createReaderStore: documents, groups, settings).
+// Part 3: document groups side by side (DocumentGroups). Phase 8: the contents
+// pane (Contents), and every style of the reader in ../reader.css. Phase 9: the
+// toolbar's zoom and document tools (DocumentZoom, DocumentTools), asking before
+// a window with unsaved edits closes.
+
+export * from './types';
+export * from './files';
+export * from './markdown';
+export * from './fb2';
+export * from './search';
+export * from './scrollAnchor';
+export * from './scrollHold';
+export * from './editorRegistry';
+export * from './store';
+export * from './host';
+export * from './changes';
+export * from './save';
+export * from './export';
+export { DocumentPanel, MarkdownViewer, ErrorBoundary, type DocumentPanelProps } from './DocumentPanel';
+export { DocumentGroups } from './DocumentGroups';
+export { Contents, CONTENTS_MIN_WIDTH, CONTENTS_MAX_WIDTH, CONTENTS_WIDTH, type ContentsProps } from './Contents';
+export { DocumentStatus, truncatePath } from './DocumentStatus';
+export { DocumentZoom } from './DocumentZoom';
+export { DocumentTools } from './DocumentTools';
+export { SaveAllDialog, CloseDocumentDialog } from './SaveAllDialog';
+export { SearchOptionToggles } from './FindBar';
+export { readerCommands, selectedText, type ReaderCommands } from './commands';
+export { DocumentSettings, readerSettingsTab } from './ReaderSettings';
+export { folderOf, openTabsProvider } from './palette';
+export { readerPlugin, reloadChangedDocuments, type CloseRequest, type ReaderPluginOptions } from './plugin';

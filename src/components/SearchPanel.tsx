@@ -1,12 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { X, ChevronRight, FileText } from 'lucide-react';
+import { Button } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore, type FileNode, type SearchScope } from '../store';
-import { buildSearchRegex, findLineMatches, type LineMatch } from '../utils/search';
-import { flattenFiles, getFileName } from '../utils/files';
+import { buildSearchRegex, findLineMatches, type LineMatch } from '@lambda-house/reader';
+import { getFileName } from '@lambda-house/reader';
+import { flattenFiles } from '../utils/files';
 import { readFile } from '../utils/tauri';
-import { SearchOptionToggles } from './FindBar';
-import { useSmoothWheelScroll } from '../hooks/useSmoothWheelScroll';
+import { SearchOptionToggles, allTabs } from '@lambda-house/reader';
+import { useReader } from '../reader';
+import { useSmoothWheelScroll } from '@lambda-house/ui';
 import clsx from 'clsx';
+import { focusedGroupOf } from '@lambda-house/reader';
 
 // ============================================================
 // Tuning
@@ -109,19 +114,19 @@ function collectFiles(nodes: FileNode[]): string[] {
  * Text search over the open tabs or the open folders (Ctrl+Shift+F).
  * Clicking a result opens the document and jumps to the match with the find bar.
  */
-const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
+const SearchPanel: React.FC = () => {
   const query = useStore((s) => s.searchQuery);
   const scope = useStore((s) => s.searchScope);
-  const options = useStore((s) => s.searchOptions);
+  const options = useReader((s) => s.settings.searchOptions);
   const focusNonce = useStore((s) => s.searchFocusNonce);
   const files = useStore((s) => s.files);
   const directories = useStore((s) => s.directories);
-  const tabs = useStore((s) => s.tabs);
-  const documents = useStore((s) => s.documents);
-  const smoothScroll = useStore((s) => s.smoothScroll);
+  const tabs = useReader(allTabs);
+  const documents = useReader((s) => s.documents);
+  const smoothScroll = useReader((s) => s.settings.smoothScroll);
   const setSearchQuery = useStore((s) => s.setSearchQuery);
   const setSearchScope = useStore((s) => s.setSearchScope);
-  const setSearchOptions = useStore((s) => s.setSearchOptions);
+  const setSearchOptions = useReader((s) => s.setSearchOptions);
   const setSearchVisible = useStore((s) => s.setSearchVisible);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -177,7 +182,7 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
       };
 
       const searchPath = async (path: string) => {
-        const open = useStore.getState().documents[path];
+        const open = useReader.getState().documents[path];
         const content = open ? open.content : await readFile(path);
         if (runIdRef.current !== runId || truncated) return;
 
@@ -218,9 +223,9 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
   }, [query, options, targets, tabContentKey, rerun]);
 
   const handleOpen = useCallback(async (path: string, match: LineMatch) => {
-    const state = useStore.getState();
+    const state = useReader.getState();
     try {
-      const tab = state.tabs.find((t) => t.path === path);
+      const tab = focusedGroupOf(state).tabs.find((t) => t.path === path);
       if (tab) {
         state.setActiveTab(tab.id);
       } else {
@@ -228,7 +233,7 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
         const result = state.openDocument(path, content, { preview: true });
         if (!result.success) throw new Error(result.error);
       }
-      useStore.getState().requestFindAt(path, match.line, match.column, query);
+      useReader.getState().requestFindAt(path, match.line, match.column, query);
     } catch (error) {
       console.error('Failed to open search result:', error);
       alert(`Failed to open ${getFileName(path)}: ${error}`);
@@ -269,15 +274,12 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
   ];
 
   return (
-    <aside className="search-panel file-panel" style={{ width }}>
-      <div className="file-panel-header">
-        <span className="file-panel-title">Search</span>
-        <div className="file-panel-actions">
-          <button className="file-panel-action" onClick={() => setSearchVisible(false)} title="Close search" type="button">
-            <X size={16} />
-          </button>
-        </div>
-      </div>
+    <Pane
+      as="aside"
+      className="search-panel file-panel"
+      title="Search"
+      tools={<Button variant="ghost" size="xs" icon={<X size={16} />} onClick={() => setSearchVisible(false)} title="Close search" aria-label="Close search" />}
+    >
 
       <div className="search-panel-controls">
         <div className={clsx('find-input-wrap', status.error && 'no-results')}>
@@ -325,7 +327,7 @@ const SearchPanel: React.FC<{ width: number }> = ({ width }) => {
           />
         ))}
       </div>
-    </aside>
+    </Pane>
   );
 };
 

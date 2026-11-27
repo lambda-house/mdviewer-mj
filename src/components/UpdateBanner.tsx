@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Download, X } from 'lucide-react';
 import { useStore } from '../store';
 import { installUpdate } from '../utils/tauri';
+import { useReader } from '../reader';
+import { allTabs } from '@lambda-house/reader';
 
 /** Bar under the toolbar announcing a newer version found by the update check. */
 const UpdateBanner: React.FC = () => {
@@ -13,7 +15,7 @@ const UpdateBanner: React.FC = () => {
 
   const install = async () => {
     // Installing restarts the app (on Windows the installer closes it)
-    const unsaved = useStore.getState().tabs.filter((tab) => tab.isDirty);
+    const unsaved = allTabs(useReader.getState()).filter((tab) => tab.isDirty);
     if (unsaved.length > 0) {
       alert(`Save or close these documents first, the app restarts to update:\n${unsaved.map((tab) => tab.title).join('\n')}`);
       return;

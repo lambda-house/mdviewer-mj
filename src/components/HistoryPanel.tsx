@@ -1,22 +1,20 @@
 import React, { useEffect, useCallback, useRef, useMemo } from 'react';
 import { Trash2, RefreshCw } from 'lucide-react';
+import { Button } from '@lambda-house/ui';
+import { Pane } from '@lambda-house/workbench';
 import { useStore } from '../store';
 import { readHistory, clearHistory, readFile, isTauri } from '../utils/tauri';
-import { renderMarkdown } from '../utils/markdown';
-import clsx from 'clsx';
+import { renderMarkdown } from '@lambda-house/reader';
+import { useReader } from '../reader';
 
 // ============================================================
 // History Panel Component
 // ============================================================
 
-interface HistoryPanelProps {
-  width: number;
-}
-
-const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
+const HistoryPanel: React.FC = () => {
   const historyContent = useStore((s) => s.historyContent);
   const setHistoryContent = useStore((s) => s.setHistoryContent);
-  const openDocument = useStore((s) => s.openDocument);
+  const openDocument = useReader((s) => s.openDocument);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -98,27 +96,15 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
   }, [openDocument, renderedHtml]);
 
   return (
-    <aside className="history-panel" style={{ width }}>
-      <div className="history-panel-header">
-        <span className="history-panel-title">History</span>
-        <div className="history-panel-actions">
-          <button
-            className={clsx('history-panel-action', isLoading && 'spinning')}
-            onClick={loadHistory}
-            title="Refresh history"
-            disabled={isLoading}
-          >
-            <RefreshCw size={14} />
-          </button>
-          <button
-            className="history-panel-action"
-            onClick={handleClear}
-            title="Clear history"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
+    <Pane
+      as="aside"
+      className="history-panel"
+      title="History"
+      tools={<>
+        <Button variant="ghost" size="xs" icon={<RefreshCw size={16} />} onClick={loadHistory} title="Refresh history" aria-label="Refresh history" disabled={isLoading} busy={isLoading} />
+        <Button variant="ghost" size="xs" icon={<Trash2 size={16} />} onClick={handleClear} title="Clear history" aria-label="Clear history" />
+      </>}
+    >
       <div className="history-panel-content">
         <div
           ref={contentRef}
@@ -126,7 +112,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ width }) => {
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
       </div>
-    </aside>
+    </Pane>
   );
 };
 
